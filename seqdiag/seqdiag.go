@@ -14,6 +14,8 @@ type Arrow struct {
 	From  *Service
 	To    *Service
 	Label string
+	Color string
+	Type  string
 }
 
 type Doc struct {
@@ -22,26 +24,52 @@ type Doc struct {
 	notes     map[string]string
 	endPoints map[string]bool
 	Label     string
+	Flows     []*Flow
 }
 
-func (f *Service) Add(t *Service, l string) *Service {
-	doc := f.Doc
-	doc.endPoints[fmt.Sprintf("%v_%v", f.Label, len(doc.arrows))] = true
+type Flow struct {
+	arrows []*Arrow
+	start  *Service
+	Color  string
+}
+
+var colors []string
+
+func init() {
+	colors = []string{
+		"green",
+		"red",
+		"blue",
+		"purple",
+		"orange",
+	}
+}
+
+func (s *Service) Add(t *Service, l string) *Flow {
+	f := &Flow{start: s, Color: colors[len(s.Doc.Flows)%len(colors)]}
+	s.Doc.Flows = append(s.Doc.Flows, f)
+	f.Add(t, l)
+	return f
+}
+
+func (self *Flow) Add(t *Service, l string) *Flow {
+	doc := self.start.Doc
+	doc.endPoints[fmt.Sprintf("%v_%v", self.start.Label, len(doc.arrows))] = true
 	doc.endPoints[fmt.Sprintf("%v_%v", t.Label, len(doc.arrows))] = true
-	/*if len(doc.arrows) > 1 {
-		last := doc.arrows[len(doc.arrows)-1]
-		if last.To != f {
-			doc.arrows = append(doc.arrows, &Arrow{From: t, To: f})
-		}
-	}*/
-	doc.arrows = append(doc.arrows, &Arrow{From: f, To: t, Label: l})
-	return t
+	arrow := &Arrow{From: self.start, To: t, Label: l, Color: self.Color, Type: "normal"}
+	self.start = t
+	doc.arrows = append(doc.arrows, arrow)
+	self.arrows = append(self.arrows, arrow)
+	if len(self.arrows) > 1 {
+		self.arrows[len(self.arrows)-2].Type = "none"
+	}
+	return self
 }
 
-func (self *Service) AddNote(note string) *Service {
-	key := fmt.Sprintf("Info%d", len(self.Doc.arrows)-1)
-	self.Doc.endPoints[key] = true
-	self.Doc.notes[key] = note
+func (self *Flow) AddNote(note string) *Flow {
+	key := fmt.Sprintf("Info%d", len(self.start.Doc.arrows)-1)
+	self.start.Doc.endPoints[key] = true
+	self.start.Doc.notes[key] = note
 	return self
 }
 
@@ -64,7 +92,7 @@ func (self *Doc) Generate(b io.Writer) {
 digraph %s {
 	ranksep=.3; size = "7.5,7.5";
 	node [fontsize=10, shape=point, color=grey,  label=""];
-	edge [arrowhead=none, style=filled, color=lightgray];
+	edge [arrowhead=none, style=filled, color="#eeeeee"];
 `, self.Label)
 
 	// Plot headers.
@@ -118,14 +146,10 @@ digraph %s {
 	fmt.Fprint(b, "}\n")
 
 	// Print arrows
-	fmt.Fprint(b, "\n\tedge [constraint=false, style=filled, fontsize=8, weight=0, arrowtail=none, arrowhead=normal, color=green];\n")
+	fmt.Fprint(b, "\n\tedge [constraint=false, style=filled, fontsize=8, weight=0, arrowtail=none];\n")
 
 	for i, arrow := range self.arrows {
-		if arrow.Label != "" {
-			fmt.Fprintf(b, "\t%s_%d -> %s_%d [label=\"%s\"];\n", arrow.From.Label, i, arrow.To.Label, i, arrow.Label)
-		} else {
-			fmt.Fprintf(b, "\t%s_%d -> %s_%d;\n", arrow.From.Label, i, arrow.To.Label, i)
-		}
+		fmt.Fprintf(b, "\t%s_%d -> %s_%d [arrowhead=\"%s\" color=\"%s\", label=\"%s\"];\n", arrow.From.Label, i, arrow.To.Label, i, arrow.Type, arrow.Color, arrow.Label)
 	}
 
 	for k, v := range self.notes {
