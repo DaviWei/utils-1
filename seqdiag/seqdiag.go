@@ -73,7 +73,7 @@ digraph G{
 	fmt.Fprint(b, "}\n")
 
 	// Rank content
-	for i := 0; i < len(self.services); i++ {
+	for i := 0; i < len(self.arrows); i++ {
 		fmt.Fprint(b, "\t{ rank = same; ")
 		for _, service := range self.services {
 			key := fmt.Sprintf("%v_%v", service.Label, i)
@@ -91,7 +91,7 @@ digraph G{
 	}
 	fmt.Fprint(b, "}\n")
 
-	fmt.Fprint(b, "\n\tedge [style=filled, fontsize=8, weight=0, arrowtail=none, arrowhead=normal, color=black];\n")
+	fmt.Fprint(b, "\n\tedge [constraint=false, style=filled, fontsize=8, weight=0, arrowtail=none, arrowhead=normal, color=black];\n")
 
 	for i, arrow := range self.arrows {
 		fmt.Fprintf(b, "\t%s_%d -> %s_%d [label=\"%s\"];\n", arrow.From.Label, i, arrow.To.Label, i, arrow.Label)
