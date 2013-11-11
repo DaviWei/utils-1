@@ -18,6 +18,7 @@ type Arrow struct {
 type Doc struct {
 	arrows    []*Arrow
 	services  []*Service
+	notes     map[string]string
 	endPoints map[string]bool
 	Label     string
 }
@@ -35,6 +36,12 @@ func (self *Doc) Add(f *Service, t *Service, l string) {
 
 }
 
+func (self *Doc) AddNote(note string) {
+	key := fmt.Sprintf("Info%d", len(self.arrows)-1)
+	self.endPoints[key] = true
+	self.notes[key] = note
+}
+
 func (self *Doc) NewService(l string) *Service {
 	s := &Service{Label: l}
 	self.services = append(self.services, s)
@@ -44,6 +51,7 @@ func (self *Doc) NewService(l string) *Service {
 func NewDoc(l string) *Doc {
 	return &Doc{
 		endPoints: map[string]bool{},
+		notes:     map[string]string{},
 		Label:     l,
 	}
 }
@@ -93,7 +101,10 @@ digraph %s {
 				fmt.Fprintf(b, "%v;\t", key)
 			}
 		}
-		fmt.Fprint(b, "}\n")
+		if self.endPoints[fmt.Sprintf("Info%d", i)] {
+			fmt.Fprintf(b, "Info%d;", i)
+		}
+		fmt.Fprintf(b, "}\n")
 	}
 
 	// Rank footer
@@ -112,6 +123,10 @@ digraph %s {
 		} else {
 			fmt.Fprintf(b, "\t%s_%d -> %s_%d;\n", arrow.From.Label, i, arrow.To.Label, i)
 		}
+	}
+
+	for k, v := range self.notes {
+		fmt.Fprintf(b, "%s [color=black, shape=larrow, width=1.5, label=\"%s\"];\n", k, v)
 	}
 
 	fmt.Fprint(b, "}\n")
