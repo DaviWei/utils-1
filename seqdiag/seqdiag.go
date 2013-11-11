@@ -6,6 +6,7 @@ import (
 )
 
 type Service struct {
+	Doc   *Doc
 	Label string
 }
 
@@ -23,27 +24,29 @@ type Doc struct {
 	Label     string
 }
 
-func (self *Doc) Add(f *Service, t *Service, l string) {
-	self.endPoints[fmt.Sprintf("%v_%v", f.Label, len(self.arrows))] = true
-	self.endPoints[fmt.Sprintf("%v_%v", t.Label, len(self.arrows))] = true
-	/*if len(self.arrows) > 1 {
-		last := self.arrows[len(self.arrows)-1]
+func (f *Service) Add(t *Service, l string) *Service {
+	doc := f.Doc
+	doc.endPoints[fmt.Sprintf("%v_%v", f.Label, len(doc.arrows))] = true
+	doc.endPoints[fmt.Sprintf("%v_%v", t.Label, len(doc.arrows))] = true
+	/*if len(doc.arrows) > 1 {
+		last := doc.arrows[len(doc.arrows)-1]
 		if last.To != f {
-			self.arrows = append(self.arrows, &Arrow{From: t, To: f})
+			doc.arrows = append(doc.arrows, &Arrow{From: t, To: f})
 		}
 	}*/
-	self.arrows = append(self.arrows, &Arrow{From: f, To: t, Label: l})
-
+	doc.arrows = append(doc.arrows, &Arrow{From: f, To: t, Label: l})
+	return t
 }
 
-func (self *Doc) AddNote(note string) {
-	key := fmt.Sprintf("Info%d", len(self.arrows)-1)
-	self.endPoints[key] = true
-	self.notes[key] = note
+func (self *Service) AddNote(note string) *Service {
+	key := fmt.Sprintf("Info%d", len(self.Doc.arrows)-1)
+	self.Doc.endPoints[key] = true
+	self.Doc.notes[key] = note
+	return self
 }
 
 func (self *Doc) NewService(l string) *Service {
-	s := &Service{Label: l}
+	s := &Service{Label: l, Doc: self}
 	self.services = append(self.services, s)
 	return s
 }
