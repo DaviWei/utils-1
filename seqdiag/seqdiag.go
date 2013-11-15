@@ -37,11 +37,15 @@ var colors []string
 
 func init() {
 	colors = []string{
-		"green",
-		"red",
 		"blue",
-		"purple",
+		"crimson",
+		"gold",
+		"green",
+		"magenta",
 		"orange",
+		"pink",
+		"purple",
+		"red",
 	}
 }
 
