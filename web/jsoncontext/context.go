@@ -3,7 +3,7 @@ package jsoncontext
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/soundtrackyourbrand/webutils/httpcontext"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"strconv"
 )

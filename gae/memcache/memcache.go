@@ -7,7 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
-	"github.com/soundtrackyourbrand/gaeutils/gaecontext"
+	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"io"
 	"math/rand"
 	"reflect"

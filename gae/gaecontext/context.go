@@ -6,8 +6,8 @@ import (
 	"appengine/urlfetch"
 	"fmt"
 	"github.com/mjibson/appstats"
-	"github.com/soundtrackyourbrand/webutils/httpcontext"
-	"github.com/soundtrackyourbrand/webutils/jsoncontext"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"net/http"
 	"reflect"
 )

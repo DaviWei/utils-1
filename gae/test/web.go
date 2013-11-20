@@ -2,9 +2,9 @@ package web
 
 import (
 	"fmt"
-	"github.com/soundtrackyourbrand/gaeutils/gaecontext"
-	"github.com/soundtrackyourbrand/gaeutils/memcache"
-	"github.com/soundtrackyourbrand/gaeutils/mutex"
+	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
+	"github.com/soundtrackyourbrand/utils/gae/memcache"
+	"github.com/soundtrackyourbrand/utils/gae/mutex"
 	"net/http"
 	"reflect"
 	"runtime"
