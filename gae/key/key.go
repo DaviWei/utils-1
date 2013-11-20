@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 )
 
 type Key struct {
@@ -214,6 +215,10 @@ func (self *Key) Encode() string {
 	return base64.URLEncoding.EncodeToString(buf.Bytes())
 }
 
+func (self *Key) EncodeEmailId() string {
+	return strings.Replace(self.Encode(), "=", "_", -1)
+}
+
 func (self *Key) decode(buf *bytes.Buffer) (err error) {
 	s := ""
 	if s, err = self.readString(buf); err != nil {
@@ -245,6 +250,10 @@ func Decode(s string) (result *Key, err error) {
 	result = &Key{}
 	err = result.decode(buf)
 	return
+}
+
+func DecodeEmailId(emailId string) (result *Key, err error) {
+	return Decode(strings.Replace(emailId, "_", "=", -1))
 }
 
 func (self *Key) ToGAE(c appengine.Context) *datastore.Key {
