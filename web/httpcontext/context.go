@@ -28,6 +28,7 @@ type HTTPContext interface {
 	Resp() http.ResponseWriter
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
+	SetContentType(t string)
 }
 
 type HTTPContextLogger interface {
@@ -107,6 +108,10 @@ func MostAccepted(r *http.Request, name, def string) string {
 		}
 	}
 	return bestValue
+}
+
+func (self *DefaultHTTPContext) SetContentType(t string) {
+	self.Resp().Header().Set("Content-Type", t)
 }
 
 func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
