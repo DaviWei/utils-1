@@ -149,11 +149,11 @@ func NewJSONContext(gaeCont appengine.Context, jsonCont jsoncontext.JSONContextL
 	return
 }
 
-func HTTPHandlerFunc(f func(c HTTPContext)) http.Handler {
+func HTTPHandlerFunc(f func(c HTTPContext) error) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
-		httpcontext.HandlerFunc(func(httpCont httpcontext.HTTPContextLogger) {
+		httpcontext.HandlerFunc(func(httpCont httpcontext.HTTPContextLogger) error {
 			c := NewHTTPContext(gaeCont, httpCont)
-			f(c)
+			return f(c)
 		}).ServeHTTP(w, r)
 	})
 }

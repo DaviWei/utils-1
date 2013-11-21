@@ -7,12 +7,9 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
-	"runtime/debug"
 	"strconv"
 	"strings"
 )
-
-var StackTraces = false
 
 type JSONContext interface {
 	httpcontext.HTTPContext
@@ -102,24 +99,8 @@ func (self *DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (e
 	return
 }
 
-func (self *DefaultJSONContext) Render(resp Response) error {
-	if resp.GetLocation() != "" {
-		self.Resp().Header().Set("Location", resp.GetLocation())
-	}
-	if resp.GetStatus() != 0 {
-		self.Resp().WriteHeader(resp.GetStatus())
-	}
-	return resp.Write(self.Resp())
-}
-
 func (self *DefaultJSONContext) APIVersion() int {
 	return self.apiVersion
-}
-
-type Response interface {
-	Write(w http.ResponseWriter) error
-	GetLocation() string
-	GetStatus() int
 }
 
 type Resp struct {
@@ -166,21 +147,13 @@ func NewError(status int, body interface{}, info string, cause error) Error {
 }
 
 func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
-	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) {
+	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) (err error) {
 		c := NewJSONContext(cont)
-		resp, err := f(c)
-		if err != nil {
-			if errResponse, ok := err.(Response); ok {
-				c.Render(errResponse)
-			} else {
-				c.Resp().WriteHeader(500)
-				fmt.Fprintf(c.Resp(), "%v", err)
-			}
-			c.Infof("%+v", err)
-			if StackTraces {
-				c.Infof("%s", debug.Stack())
-			}
+		var resp httpcontext.Response
+		resp, err = f(c)
+		if err == nil {
+			c.Render(resp)
 		}
-		c.Render(resp)
+		return
 	})
 }

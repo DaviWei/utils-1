@@ -133,9 +133,10 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	c.Infof("Pass")
 }
 
-func test(c gaecontext.HTTPContext) {
+func test(c gaecontext.HTTPContext) error {
 	run(c, testMemcacheBasics)
 	run(c, testMutex)
+	return nil
 }
 
 func init() {

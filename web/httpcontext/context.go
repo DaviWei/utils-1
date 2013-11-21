@@ -12,7 +12,15 @@ import (
 	"strings"
 )
 
+var StackTraces = false
+
 var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
+
+type Response interface {
+	Write(w http.ResponseWriter) error
+	GetLocation() string
+	GetStatus() int
+}
 
 type Logger interface {
 	Debugf(format string, args ...interface{})
@@ -29,6 +37,7 @@ type HTTPContext interface {
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
 	SetContentType(t string)
+	Render(resp Response) error
 }
 
 type HTTPContextLogger interface {
@@ -114,6 +123,16 @@ func (self *DefaultHTTPContext) SetContentType(t string) {
 	self.Resp().Header().Set("Content-Type", t)
 }
 
+func (self *DefaultHTTPContext) Render(resp Response) error {
+	if resp.GetLocation() != "" {
+		self.Resp().Header().Set("Location", resp.GetLocation())
+	}
+	if resp.GetStatus() != 0 {
+		self.Resp().WriteHeader(resp.GetStatus())
+	}
+	return resp.Write(self.Resp())
+}
+
 func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
 	return MostAccepted(self.Req(), name, def)
 }
@@ -134,7 +153,7 @@ func (self *DefaultHTTPContext) Vars() map[string]string {
 	return self.vars
 }
 
-func HandlerFunc(f func(c HTTPContextLogger)) http.Handler {
+func HandlerFunc(f func(c HTTPContextLogger) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(w, r)
 		defer func() {
@@ -145,6 +164,20 @@ func HandlerFunc(f func(c HTTPContextLogger)) http.Handler {
 				panic(e)
 			}
 		}()
-		f(c)
+		err := f(c)
+		if err != nil {
+			if errResponse, ok := err.(Response); ok {
+				if err2 := c.Render(errResponse); err2 != nil {
+					c.Criticalf("Unable to render error %+v: %v", err, err2)
+				}
+			} else {
+				c.Resp().WriteHeader(500)
+				fmt.Fprintf(c.Resp(), "%v", err)
+			}
+			c.Infof("%+v", err)
+			if StackTraces {
+				c.Infof("%s", debug.Stack())
+			}
+		}
 	})
 }
