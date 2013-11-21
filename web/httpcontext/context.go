@@ -90,11 +90,11 @@ func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTP
 	return
 }
 
-func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
+func MostAccepted(r *http.Request, name, def string) string {
 	bestValue := def
 	var bestScore float64 = -1
 	var score float64
-	for _, pref := range strings.Split(self.Req().Header.Get(name), ",") {
+	for _, pref := range strings.Split(r.Header.Get(name), ",") {
 		if match := prefPattern.FindStringSubmatch(pref); match != nil {
 			score = 1
 			if match[3] != "" {
@@ -107,6 +107,10 @@ func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
 		}
 	}
 	return bestValue
+}
+
+func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
+	return MostAccepted(self.Req(), name, def)
 }
 
 func (self *DefaultHTTPContext) SetLogger(l Logger) {
