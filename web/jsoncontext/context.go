@@ -7,9 +7,12 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
+
+var StackTraces = false
 
 type JSONContext interface {
 	httpcontext.HTTPContext
@@ -174,6 +177,9 @@ func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
 				fmt.Fprintf(c.Resp(), "%v", err)
 			}
 			c.Infof("%+v", err)
+			if StackTraces {
+				c.Infof("%s", debug.Stack())
+			}
 		}
 		c.Render(resp)
 	})
