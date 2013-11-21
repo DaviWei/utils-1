@@ -54,23 +54,23 @@ func NewDefaultLogger() *DefaultLogger {
 	}
 }
 
-func (self DefaultLogger) Debugf(format string, i ...interface{}) {
+func (self *DefaultLogger) Debugf(format string, i ...interface{}) {
 	self.debugLogger.Printf(format, i...)
 }
 
-func (self DefaultLogger) Infof(format string, i ...interface{}) {
+func (self *DefaultLogger) Infof(format string, i ...interface{}) {
 	self.infoLogger.Printf(format, i...)
 }
 
-func (self DefaultLogger) Warningf(format string, i ...interface{}) {
+func (self *DefaultLogger) Warningf(format string, i ...interface{}) {
 	self.warningLogger.Printf(format, i...)
 }
 
-func (self DefaultLogger) Errorf(format string, i ...interface{}) {
+func (self *DefaultLogger) Errorf(format string, i ...interface{}) {
 	self.errorLogger.Printf(format, i...)
 }
 
-func (self DefaultLogger) Criticalf(format string, i ...interface{}) {
+func (self *DefaultLogger) Criticalf(format string, i ...interface{}) {
 	self.criticalLogger.Printf(format, i...)
 }
 
@@ -84,19 +84,19 @@ func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTP
 	return
 }
 
-func (self DefaultHTTPContext) SetLogger(l Logger) {
+func (self *DefaultHTTPContext) SetLogger(l Logger) {
 	self.Logger = l
 }
 
-func (self DefaultHTTPContext) Req() *http.Request {
+func (self *DefaultHTTPContext) Req() *http.Request {
 	return self.request
 }
 
-func (self DefaultHTTPContext) Resp() http.ResponseWriter {
+func (self *DefaultHTTPContext) Resp() http.ResponseWriter {
 	return self.response
 }
 
-func (self DefaultHTTPContext) Vars() map[string]string {
+func (self *DefaultHTTPContext) Vars() map[string]string {
 	return self.vars
 }
 
@@ -108,6 +108,7 @@ func HandlerFunc(f func(c HTTPContextLogger)) http.Handler {
 				c.Resp().WriteHeader(500)
 				fmt.Fprintf(c.Resp(), "%v\n", e)
 				c.Criticalf("%v\n%s", e, debug.Stack())
+				panic(e)
 			}
 		}()
 		f(c)

@@ -19,6 +19,16 @@ type GAEContext interface {
 	Client() *http.Client
 }
 
+type HTTPContext interface {
+	GAEContext
+	httpcontext.HTTPContext
+}
+
+type JSONContext interface {
+	GAEContext
+	jsoncontext.JSONContext
+}
+
 func CallTransactionFunction(c GAEContext, f interface{}) error {
 	val := reflect.ValueOf(f)
 	if val.Kind() != reflect.Func {
@@ -44,59 +54,49 @@ func CallTransactionFunction(c GAEContext, f interface{}) error {
 	return nil
 }
 
-func (self DefaultContext) Debugf(format string, i ...interface{}) {
-	self.Context.Debugf(format, i...)
-}
-
-func (self DefaultContext) Infof(format string, i ...interface{}) {
-	self.Context.Infof(format, i...)
-}
-
-func (self DefaultContext) Warningf(format string, i ...interface{}) {
-	self.Context.Warningf(format, i...)
-}
-
-func (self DefaultContext) Errorf(format string, i ...interface{}) {
-	self.Context.Errorf(format, i...)
-}
-
-func (self DefaultContext) Criticalf(format string, i ...interface{}) {
-	self.Context.Criticalf(format, i...)
-}
-
-func (self DefaultContext) Client() *http.Client {
-	return urlfetch.Client(self)
-}
-
-func (self DefaultContext) InTransaction() bool {
-	return self.inTransaction
-}
-
 type DefaultContext struct {
 	appengine.Context
 	inTransaction bool
 }
 
-func (self DefaultContext) Transaction(f interface{}, crossGroup bool) error {
+func (self *DefaultContext) Debugf(format string, i ...interface{}) {
+	self.Context.Debugf(format, i...)
+}
+
+func (self *DefaultContext) Infof(format string, i ...interface{}) {
+	self.Context.Infof(format, i...)
+}
+
+func (self *DefaultContext) Warningf(format string, i ...interface{}) {
+	self.Context.Warningf(format, i...)
+}
+
+func (self *DefaultContext) Errorf(format string, i ...interface{}) {
+	self.Context.Errorf(format, i...)
+}
+
+func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
+	self.Context.Criticalf(format, i...)
+}
+
+func (self *DefaultContext) Client() *http.Client {
+	return urlfetch.Client(self)
+}
+
+func (self *DefaultContext) InTransaction() bool {
+	return self.inTransaction
+}
+
+func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) error {
 	if self.inTransaction {
 		return CallTransactionFunction(self, f)
 	}
 	return datastore.RunInTransaction(self, func(c appengine.Context) error {
-		newContext := self
+		newContext := *self
 		newContext.Context = c
 		newContext.inTransaction = true
-		return CallTransactionFunction(self, f)
+		return CallTransactionFunction(&newContext, f)
 	}, &datastore.TransactionOptions{XG: crossGroup})
-}
-
-type HTTPContext interface {
-	GAEContext
-	httpcontext.HTTPContext
-}
-
-type JSONContext interface {
-	GAEContext
-	jsoncontext.JSONContext
 }
 
 type DefaultHTTPContext struct {
@@ -104,11 +104,11 @@ type DefaultHTTPContext struct {
 	httpcontext.HTTPContext
 }
 
-func (self DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) error {
+func (self *DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) error {
 	return self.GAEContext.Transaction(func(c GAEContext) error {
-		newContext := self
+		newContext := *self
 		newContext.GAEContext = c
-		return CallTransactionFunction(newContext, f)
+		return CallTransactionFunction(&newContext, f)
 	}, crossGroup)
 }
 
@@ -117,11 +117,11 @@ type DefaultJSONContext struct {
 	jsoncontext.JSONContext
 }
 
-func (self DefaultJSONContext) Transaction(f interface{}, crossGroup bool) error {
+func (self *DefaultJSONContext) Transaction(f interface{}, crossGroup bool) error {
 	return self.GAEContext.Transaction(func(c GAEContext) error {
-		newContext := self
+		newContext := *self
 		newContext.GAEContext = c
-		return CallTransactionFunction(newContext, f)
+		return CallTransactionFunction(&newContext, f)
 	}, crossGroup)
 }
 

@@ -42,11 +42,11 @@ func NewJSONContext(c httpcontext.HTTPContextLogger) (result *DefaultJSONContext
 	return
 }
 
-func (self DefaultJSONContext) DecodeJSON(i interface{}) error {
+func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 	return json.NewDecoder(self.Req().Body).Decode(i)
 }
 
-func (self DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (err error) {
+func (self *DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (err error) {
 
 	var decodedJSON map[string]*json.RawMessage
 	if err = json.NewDecoder(self.Req().Body).Decode(&decodedJSON); err != nil {
@@ -99,14 +99,14 @@ func (self DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (er
 	return
 }
 
-func (self DefaultJSONContext) Render(resp Response) error {
+func (self *DefaultJSONContext) Render(resp Response) error {
 	if resp.GetStatus() != 0 {
 		self.Resp().WriteHeader(resp.GetStatus())
 	}
 	return resp.Write(self.Resp())
 }
 
-func (self DefaultJSONContext) APIVersion() int {
+func (self *DefaultJSONContext) APIVersion() int {
 	return self.apiVersion
 }
 
@@ -164,8 +164,7 @@ func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
 				c.Resp().WriteHeader(500)
 				fmt.Fprintf(c.Resp(), "%v", err)
 			}
-			c.Errorf("%+v", err)
-			return
+			c.Infof("%+v", err)
 		}
 		c.Render(resp)
 	})
