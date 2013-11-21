@@ -6,8 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime/debug"
+	"strconv"
+	"strings"
 )
+
+var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
 type Logger interface {
 	Debugf(format string, args ...interface{})
@@ -21,6 +26,7 @@ type HTTPContext interface {
 	Vars() map[string]string
 	Req() *http.Request
 	Resp() http.ResponseWriter
+	MostAccepted(name, def string) string
 	SetLogger(Logger)
 }
 
@@ -82,6 +88,25 @@ func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTP
 		vars:     mux.Vars(r),
 	}
 	return
+}
+
+func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
+	bestValue := def
+	var bestScore float64 = -1
+	var score float64
+	for _, pref := range strings.Split(self.Req().Header.Get(name), ",") {
+		if match := prefPattern.FindStringSubmatch(pref); match != nil {
+			score = 1
+			if match[3] != "" {
+				score, _ = strconv.ParseFloat(match[3], 64)
+			}
+			if score > bestScore {
+				bestScore = score
+				bestValue = match[1]
+			}
+		}
+	}
+	return bestValue
 }
 
 func (self *DefaultHTTPContext) SetLogger(l Logger) {

@@ -100,6 +100,9 @@ func (self *DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (e
 }
 
 func (self *DefaultJSONContext) Render(resp Response) error {
+	if resp.GetLocation() != "" {
+		self.Resp().Header().Set("Location", resp.GetLocation())
+	}
 	if resp.GetStatus() != 0 {
 		self.Resp().WriteHeader(resp.GetStatus())
 	}
@@ -112,16 +115,22 @@ func (self *DefaultJSONContext) APIVersion() int {
 
 type Response interface {
 	Write(w http.ResponseWriter) error
+	GetLocation() string
 	GetStatus() int
 }
 
 type Resp struct {
-	Status int
-	Body   interface{}
+	Status   int
+	Location string
+	Body     interface{}
 }
 
 func (self Resp) GetStatus() int {
 	return self.Status
+}
+
+func (self Resp) GetLocation() string {
+	return self.Location
 }
 
 func (self Resp) Error() string {
