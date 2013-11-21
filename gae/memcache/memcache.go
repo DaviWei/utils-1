@@ -139,7 +139,7 @@ It returns whether the value was nil (either from memcache or from the generator
 
 Deleting super will invalidate all keys under it due to the composite keys being impossible to regenerate again.
 */
-func Memoize2(c gaecontext.GAEContext, super, key string, destP interface{}, f func() interface{}) (exists bool, err error) {
+func Memoize2(c gaecontext.GAEContext, super, key string, destP interface{}, f func() (interface{}, error)) (exists bool, err error) {
 	superH := Keyify(super)
 	var seed string
 	var item *memcache.Item
@@ -177,8 +177,8 @@ MemoizeDuring will lookup key and load it into destinatinoPointer. A missing val
 
 It returns whether the value was nil (either from memcache or from the generatorFunction).
 */
-func MemoizeDuring(c gaecontext.GAEContext, key string, duration time.Duration, cacheNil bool, destP interface{}, f func() interface{}) (exists bool, err error) {
-	existSlice, errSlice := memoizeMulti(c, []string{key}, duration, cacheNil, []interface{}{destP}, []func() interface{}{f})
+func MemoizeDuring(c gaecontext.GAEContext, key string, duration time.Duration, cacheNil bool, destP interface{}, f func() (interface{}, error)) (exists bool, err error) {
+	existSlice, errSlice := memoizeMulti(c, []string{key}, duration, cacheNil, []interface{}{destP}, []func() (interface{}, error){f})
 	return existSlice[0], errSlice[0]
 }
 
@@ -187,8 +187,8 @@ Memoize will lookup key and load it into destinatinoPointer. A missing value wil
 
 It returns whether the value was nil (either from memcache or from the generatorFunction).
 */
-func Memoize(c gaecontext.GAEContext, key string, destinationPointer interface{}, generatorFunction func() interface{}) (exists bool, err error) {
-	existSlice, errSlice := MemoizeMulti(c, []string{key}, []interface{}{destinationPointer}, []func() interface{}{generatorFunction})
+func Memoize(c gaecontext.GAEContext, key string, destinationPointer interface{}, generatorFunction func() (interface{}, error)) (exists bool, err error) {
+	existSlice, errSlice := MemoizeMulti(c, []string{key}, []interface{}{destinationPointer}, []func() (interface{}, error){generatorFunction})
 	return existSlice[0], errSlice[0]
 }
 
@@ -239,7 +239,7 @@ Any missing values will be generated using the generatorFunctions and put in mem
 
 It returns a slice of bools that show whether each value was nil (either from memcache or from the genrator function).
 */
-func MemoizeMulti(c gaecontext.GAEContext, keys []string, destinationPointers []interface{}, generatorFunctions []func() interface{}) (exists []bool, errors appengine.MultiError) {
+func MemoizeMulti(c gaecontext.GAEContext, keys []string, destinationPointers []interface{}, generatorFunctions []func() (interface{}, error)) (exists []bool, errors appengine.MultiError) {
 	return memoizeMulti(c, keys, 0, true, destinationPointers, generatorFunctions)
 }
 
@@ -258,7 +258,7 @@ func memoizeMulti(
 	duration time.Duration,
 	cacheNil bool,
 	destinationPointers []interface{},
-	generatorFunctions []func() interface{}) (exists []bool, errors appengine.MultiError) {
+	generatorFunctions []func() (interface{}, error)) (exists []bool, errors appengine.MultiError) {
 
 	exists = make([]bool, len(keys))
 	keyHashes := make([]string, len(keys))
@@ -287,7 +287,10 @@ func memoizeMulti(
 					panicChan <- recover()
 					errorChan <- err
 				}()
-				result := generatorFunctions[index]()
+				var result interface{}
+				if result, err = generatorFunctions[index](); err != nil {
+					return
+				}
 				resultValue := reflect.ValueOf(result)
 				if resultValue.IsNil() {
 					if cacheNil {

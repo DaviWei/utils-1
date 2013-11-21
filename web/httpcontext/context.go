@@ -12,8 +12,6 @@ import (
 	"strings"
 )
 
-var StackTraces = false
-
 var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
 type Response interface {
@@ -175,9 +173,6 @@ func HandlerFunc(f func(c HTTPContextLogger) error) http.Handler {
 				fmt.Fprintf(c.Resp(), "%v", err)
 			}
 			c.Infof("%+v", err)
-			if StackTraces {
-				c.Infof("%s", debug.Stack())
-			}
 		}
 	})
 }
