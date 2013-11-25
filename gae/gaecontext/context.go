@@ -10,6 +10,7 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"net/http"
 	"reflect"
+	"time"
 )
 
 type GAEContext interface {
@@ -79,8 +80,29 @@ func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 	self.Context.Criticalf(format, i...)
 }
 
+type Transport struct {
+	t urlfetch.Transport
+}
+
+func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
+	start := time.Now()
+	resp, err := t.t.RoundTrip(req)
+	if resp.StatusCode != 200 {
+		t.t.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.RequestURI, time.Since(start), resp.Status)
+	} else if time.Since(start) > (time.Second * 2) {
+		t.t.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.RequestURI, time.Since(start), resp.Status)
+	}
+	return resp, err
+}
+
 func (self *DefaultContext) Client() *http.Client {
-	return urlfetch.Client(self)
+	trans := &Transport{}
+	trans.t.Context = self
+	trans.t.Deadline = time.Second * 30
+
+	return &http.Client{
+		Transport: trans,
+	}
 }
 
 func (self *DefaultContext) InTransaction() bool {
