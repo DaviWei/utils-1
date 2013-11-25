@@ -85,6 +85,9 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
+	if t.t.Context.(GAEContext).InTransaction() {
+		return nil, fmt.Errorf("Avoid using Client() when in an transaction.")
+	}
 	start := time.Now()
 	resp, err := t.t.RoundTrip(req)
 	if resp.StatusCode != 200 {
