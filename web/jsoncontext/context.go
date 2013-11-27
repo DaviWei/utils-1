@@ -3,6 +3,7 @@ package jsoncontext
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
@@ -10,6 +11,27 @@ import (
 	"strconv"
 	"strings"
 )
+
+const (
+	APIVersionHeader = "X-API-Version"
+)
+
+func MinAPIVersionMatcher(minApiVersion int) mux.MatcherFunc {
+	return func(req *http.Request, match *mux.RouteMatch) bool {
+		header := req.Header.Get(APIVersionHeader)
+		if header == "" {
+			return false
+		}
+		apiVersion, err := strconv.Atoi(header)
+		if err != nil {
+			return false
+		}
+		if apiVersion < minApiVersion {
+			return false
+		}
+		return true
+	}
+}
 
 type JSONContext interface {
 	httpcontext.HTTPContext
@@ -33,7 +55,7 @@ func NewJSONContext(c httpcontext.HTTPContextLogger) (result *DefaultJSONContext
 		HTTPContextLogger: c,
 	}
 	if result.Req() != nil {
-		if header := result.Req().Header.Get("X-API-Version"); header != "" {
+		if header := result.Req().Header.Get(APIVersionHeader); header != "" {
 			if version, err := strconv.Atoi(header); err == nil {
 				result.apiVersion = version
 			}
