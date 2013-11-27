@@ -91,6 +91,9 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	}
 	start := time.Now()
 	resp, err := t.t.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
 	if resp.StatusCode != 200 {
 		t.t.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
 	} else if time.Since(start) > (time.Second * 2) {
