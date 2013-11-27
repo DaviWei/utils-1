@@ -11,7 +11,7 @@ import (
 	"reflect"
 )
 
-func KeyById(dst interface{}) string {
+func keyById(dst interface{}) string {
 	elem := reflect.ValueOf(dst).Elem()
 	return fmt.Sprintf("%s{Id:%v}", elem.Type().Name(), elem.FieldByName("Id").Interface())
 }
@@ -125,16 +125,16 @@ func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 		return
 	}
 	if !newId.Equal(id) {
-		if err = memcache.Del(c, KeyById(src)); err != nil {
+		if err = memcache.Del(c, keyById(src)); err != nil {
 			return
 		}
 	}
 	reflect.ValueOf(src).Elem().FieldByName("Id").Set(reflect.ValueOf(newId))
-	return memcache.Del(c, KeyById(src))
+	return memcache.Del(c, keyById(src))
 }
 
 func GetById(c gaecontext.GAEContext, dst interface{}) (result interface{}, err error) {
-	if err = memcache.Memoize(c, KeyById(dst), dst, func() (result interface{}, err error) {
+	if err = memcache.Memoize(c, keyById(dst), dst, func() (result interface{}, err error) {
 		result, err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = memcache.ErrCacheMiss
