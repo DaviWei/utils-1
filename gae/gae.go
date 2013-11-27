@@ -11,6 +11,101 @@ import (
 	"reflect"
 )
 
+type finder struct {
+	fields []string
+	model  interface{}
+}
+
+var registeredFinders = map[string][]finder{}
+
+func Finder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, values ...interface{}) error {
+	val := reflect.ValueOf(model)
+	if val.Kind() != reflect.Ptr {
+		panic(fmt.Errorf("%+v is not a pointer", model))
+	}
+	if val.Elem().Kind() != reflect.Struct {
+		panic(fmt.Errorf("%+v is not a pointer to a struct", model))
+	}
+	idField := val.Elem().FieldByName("Id")
+	if !idField.IsValid() {
+		panic(fmt.Errorf("%+v does not have a field named Id", model))
+	}
+	if !idField.Type().AssignableTo(reflect.TypeOf((*key.Key)(nil))) {
+		panic(fmt.Errorf("%+v does not have a field named Id that is a *key.Key", model))
+	}
+	f := finder{
+		fields: fields,
+		model:  model,
+	}
+	if process := val.MethodByName("Process"); process.IsValid() {
+		processType := process.Type()
+		if processType.NumIn() != 1 {
+			panic(fmt.Errorf("%+v#Process doesn't take exactly one argument", model))
+		}
+		if !reflect.TypeOf((gaecontext.GAEContext)(nil)).AssignableTo(processType.In(0)) {
+			panic(fmt.Errorf("%+v#Process doesn't take a %v as argument", model, reflect.TypeOf((gaecontext.GAEContext)(nil))))
+		}
+		if processType.NumOut() < 1 {
+			panic(fmt.Errorf("%+v#Process doesn't produce at least one return value", model))
+		}
+		if !processType.Out(0).AssignableTo(val.Type()) {
+			panic(fmt.Errorf("%+v#Process doesn't return a %v as first return value", model, reflect.TypeOf(model)))
+		}
+		if processType.NumOut() > 1 && !processType.Out(processType.NumOut()-1).AssignableTo(reflect.TypeOf((error)(nil))) {
+			panic(fmt.Errorf("%+v#Process doesn't return an error as last return value", model))
+		}
+	}
+	registeredFinders[val.Type().Name()] = append(registeredFinders[val.Type().Name()], f)
+	return f.get
+}
+
+func (self finder) find(c gaecontext.GAEContext, dst interface{}, values []interface{}) (err error) {
+	q := datastore.NewQuery(reflect.TypeOf(self.model).Name())
+	for index, value := range values {
+		q = q.Filter(fmt.Sprintf("%v=", self.fields[index]), value)
+	}
+	var ids []*datastore.Key
+	ids, err = q.GetAll(c, dst)
+	if err = FilterOkErrors(err); err != nil {
+		return
+	}
+	for index, id := range ids {
+		reflect.ValueOf(dst).Elem().Index(index).FieldByName("Id").Set(reflect.ValueOf(id))
+	}
+	return
+}
+
+func (self finder) keyForValues(values []interface{}) string {
+	return fmt.Sprintf("%v{%+v:%+v}", reflect.TypeOf(self.model).Name(), self.fields, values)
+}
+
+func (self finder) get(c gaecontext.GAEContext, dst interface{}, values ...interface{}) (err error) {
+	if len(values) != len(self.fields) {
+		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
+		return
+	}
+	memcache.Memoize(c, self.keyForValues(values), dst, func() (result interface{}, err error) {
+		err = self.find(c, dst, values)
+		result = dst
+		return
+	})
+	val := reflect.ValueOf(dst)
+	errors := appengine.MultiError{}
+	for i := 0; i < val.Len(); i++ {
+		el := val.Index(i)
+		results := el.Addr().MethodByName("Process").Call([]reflect.Value{reflect.ValueOf(c)})
+		if len(results) > 0 {
+			if !results[len(results)-1].IsNil() {
+				errors = append(errors, results[len(results)-1].Interface().(error))
+			}
+		}
+	}
+	if len(errors) > 0 {
+		err = errors
+	}
+	return
+}
+
 func keyById(dst interface{}) string {
 	elem := reflect.ValueOf(dst).Elem()
 	return fmt.Sprintf("%s{Id:%v}", elem.Type().Name(), elem.FieldByName("Id").Interface())
