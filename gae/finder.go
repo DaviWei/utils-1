@@ -10,14 +10,17 @@ import (
 	"reflect"
 )
 
+// finder encapsulates the knowledge that a model type is findable by a given set of fields.
 type finder struct {
 	fields []string
 	model  interface{}
 }
 
+// registeredFinders is used to find what cache keys to invalidate when a model is CRUDed.
 var registeredFinders = map[string][]finder{}
 
-func newFinder(model interface{}, fields ...string) (result finder) {
+// newFinder returns an optionally registered finder after having validated the correct type of input data.
+func newFinder(model interface{}, register bool, fields ...string) (result finder) {
 	typ, _, err := getTypeAndId(model)
 	if err != nil {
 		panic(err)
@@ -35,19 +38,34 @@ func newFinder(model interface{}, fields ...string) (result finder) {
 		fields: fields,
 		model:  model,
 	}
-	name := typ.Name()
-	registeredFinders[name] = append(registeredFinders[name], result)
+	if register {
+		name := typ.Name()
+		registeredFinders[name] = append(registeredFinders[name], result)
+	}
 	return
 }
 
+/*
+Finder will return a finder function that runs a datastore query to find matching models.
+
+The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
+*/
 func Finder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, values ...interface{}) error {
-	return newFinder(model, fields...).get
+	return newFinder(model, false, fields...).get
 }
 
+/*
+AncestorFinder will return a finder function that memoizes running a datastore query to find matching models.
+
+It will also register the finder so that MemcacheKeys will return keys to invalidate the result each time a matching model is CRUDed.
+
+The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
+*/
 func AncestorFinder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
-	return newFinder(model, fields...).getWithAncestor
+	return newFinder(model, true, fields...).getWithAncestor
 }
 
+// find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
 func (self finder) find(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
 	if ancestor != nil {
@@ -67,23 +85,41 @@ func (self finder) find(c gaecontext.GAEContext, dst interface{}, ancestor *key.
 	return
 }
 
-func (self finder) keyForValues(values []interface{}) string {
-	return fmt.Sprintf("%v{%+v:%+v}", reflect.TypeOf(self.model).Name(), self.fields, values)
+// keyForValues returns the memcache key to use for the given ancestor and values searched for
+func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string {
+	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Name(), ancestor, self.fields, values)
 }
 
-func (self finder) cacheKey(c gaecontext.GAEContext, model interface{}) string {
+// cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
+// the reason there may be multiple keys is that we don't know which ancestor will be used when finding the model.
+func (self finder) cacheKeys(c gaecontext.GAEContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+	var id *key.Key
+	_, id, err = getTypeAndId(model)
+	if err != nil {
+		return
+	}
 	values := make([]interface{}, len(self.fields))
 	val := reflect.ValueOf(model).Elem()
 	for index, field := range self.fields {
 		values[index] = val.FieldByName(field).Interface()
 	}
-	return self.keyForValues(values)
+	if oldKeys == nil {
+		oldKeys = &[]string{}
+	}
+	for id != nil {
+		*oldKeys = append(*oldKeys, self.keyForValues(id.Parent(), values))
+		id = id.Parent()
+	}
+	newKeys = *oldKeys
+	return
 }
 
+// see Finder
 func (self finder) get(c gaecontext.GAEContext, dst interface{}, values ...interface{}) (err error) {
 	return self.getWithAncestor(c, dst, nil, values...)
 }
 
+// see AncestorFinder
 func (self finder) getWithAncestor(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values ...interface{}) (err error) {
 	if len(values) != len(self.fields) {
 		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
@@ -95,7 +131,7 @@ func (self finder) getWithAncestor(c gaecontext.GAEContext, dst interface{}, anc
 			return
 		}
 	} else {
-		if err = memcache.Memoize(c, self.keyForValues(values), dst, func() (result interface{}, err error) {
+		if err = memcache.Memoize(c, self.keyForValues(ancestor, values), dst, func() (result interface{}, err error) {
 			if err = self.find(c, dst, ancestor, values); err == nil {
 				result = dst
 			}
