@@ -15,14 +15,15 @@ const (
 	idFieldName = "Id"
 )
 
-func clearMemcache(c gaecontext.GAEContext, model interface{}) (err error) {
-	keys := []string{keyById(model)}
+func MemcacheKeys(c gaecontext.GAEContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+	if oldKeys == nil {
+		oldKeys = &[]string{}
+	}
+	*oldKeys = append(*oldKeys, keyById(model))
 	for _, finder := range registeredFinders[reflect.TypeOf(model).Elem().Name()] {
-		keys = append(keys, finder.cacheKey(c, model))
+		*oldKeys = append(*oldKeys, finder.cacheKey(c, model))
 	}
-	if err = memcache.Del(c, keys...); err != nil {
-		return
-	}
+	newKeys = *oldKeys
 	return
 }
 
@@ -131,7 +132,11 @@ func Del(c gaecontext.GAEContext, src interface{}) (err error) {
 			if err = datastore.Delete(c, gaeKey); err != nil {
 				return
 			}
-			if err = clearMemcache(c, old.Interface()); err != nil {
+			memKeys := []string{}
+			if memKeys, err = MemcacheKeys(c, old.Interface(), nil); err != nil {
+				return
+			}
+			if err = memcache.Del(c, memKeys...); err != nil {
 				return
 			}
 		}
@@ -151,6 +156,7 @@ func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 	}
 	isNew := false
 	gaeKey := id.ToGAE(c)
+	memcacheKeys := []string{}
 	if gaeKey.Incomplete() {
 		isNew = true
 	} else {
@@ -162,7 +168,7 @@ func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 			isNew = true
 		} else if err == nil {
 			isNew = false
-			if err = clearMemcache(c, old.Interface()); err != nil {
+			if _, err = MemcacheKeys(c, old.Interface(), &memcacheKeys); err != nil {
 				return
 			}
 		} else {
@@ -185,7 +191,10 @@ func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 		return
 	}
 	reflect.ValueOf(src).Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
-	return clearMemcache(c, src)
+	if _, err = MemcacheKeys(c, src, &memcacheKeys); err != nil {
+		return
+	}
+	return memcache.Del(c, memcacheKeys...)
 }
 
 func findById(c gaecontext.GAEContext, dst interface{}) (err error) {
