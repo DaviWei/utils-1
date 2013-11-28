@@ -4,7 +4,6 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"net/http"
@@ -21,7 +20,7 @@ result in the provided model being found.
 
 It will use the id based key, and any memcache keys provided by finders created by Finder or AncestorFinder.
 */
-func MemcacheKeys(c gaecontext.GAEContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+func MemcacheKeys(c memcache.TransactionContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
 	if oldKeys == nil {
 		oldKeys = &[]string{}
 	}
@@ -130,7 +129,7 @@ func newError(dst interface{}, cause error) (err error) {
 /*
 Del will delete src from datastore and invalidate it from memcache.
 */
-func Del(c gaecontext.GAEContext, src interface{}) (err error) {
+func Del(c memcache.TransactionContext, src interface{}) (err error) {
 	var id *key.Key
 	var typ reflect.Type
 	if typ, id, err = getTypeAndId(src); err != nil {
@@ -171,7 +170,7 @@ the datastore before.
 
 It will also (after the BeforeUpdate/BeforeCreate functions) run BeforeSave.
 */
-func Put(c gaecontext.GAEContext, src interface{}) (err error) {
+func Put(c memcache.TransactionContext, src interface{}) (err error) {
 	var id *key.Key
 	var typ reflect.Type
 	if typ, id, err = getTypeAndId(src); err != nil {
@@ -225,7 +224,7 @@ func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 }
 
 // findById will find dst in the datastore and set its id.
-func findById(c gaecontext.GAEContext, dst interface{}) (err error) {
+func findById(c memcache.TransactionContext, dst interface{}) (err error) {
 	var id *key.Key
 	if _, id, err = getTypeAndId(dst); err != nil {
 		return
@@ -243,7 +242,7 @@ func findById(c gaecontext.GAEContext, dst interface{}) (err error) {
 /*
 GetById will find memoize finding dst in the datastore, setting its id and running its AfterLoad function, if any.
 */
-func GetById(c gaecontext.GAEContext, dst interface{}) (err error) {
+func GetById(c memcache.TransactionContext, dst interface{}) (err error) {
 	if err = memcache.Memoize(c, keyById(dst), dst, func() (result interface{}, err error) {
 		err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {

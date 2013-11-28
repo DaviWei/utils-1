@@ -2,7 +2,7 @@ package gae
 
 import (
 	"fmt"
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
+	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"reflect"
 )
 
@@ -20,7 +20,7 @@ var processors = []string{
 	afterLoadName,
 }
 
-func runProcess(c gaecontext.GAEContext, model interface{}, name string) error {
+func runProcess(c memcache.TransactionContext, model interface{}, name string) error {
 	if process, found, err := getProcess(model, name); err != nil {
 		return err
 	} else if found {
@@ -42,7 +42,7 @@ func getProcess(model interface{}, name string) (process reflect.Value, found bo
 			err = fmt.Errorf("%+v#%v doesn't take exactly one argument", model, name)
 			return
 		}
-		if !processType.In(0).Implements(reflect.TypeOf((*gaecontext.GAEContext)(nil)).Elem()) {
+		if !processType.In(0).Implements(reflect.TypeOf((*memcache.TransactionContext)(nil)).Elem()) {
 			err = fmt.Errorf("%+v#%v takes a %v, not a %v as argument", model, name, processType.In(0))
 			return
 		}

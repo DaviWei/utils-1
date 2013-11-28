@@ -4,7 +4,6 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"reflect"
@@ -50,7 +49,7 @@ Finder will return a finder function that runs a datastore query to find matchin
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func Finder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, values ...interface{}) error {
+func Finder(model interface{}, fields ...string) func(c memcache.TransactionContext, dst interface{}, values ...interface{}) error {
 	return newFinder(model, false, fields...).get
 }
 
@@ -61,12 +60,12 @@ It will also register the finder so that MemcacheKeys will return keys to invali
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func AncestorFinder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
+func AncestorFinder(model interface{}, fields ...string) func(c memcache.TransactionContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
 	return newFinder(model, true, fields...).getWithAncestor
 }
 
 // find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
-func (self finder) find(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values []interface{}) (err error) {
+func (self finder) find(c memcache.TransactionContext, dst interface{}, ancestor *key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
 	if ancestor != nil {
 		q = q.Ancestor(ancestor.ToGAE(c))
@@ -92,7 +91,7 @@ func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string 
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
 // the reason there may be multiple keys is that we don't know which ancestor will be used when finding the model.
-func (self finder) cacheKeys(c gaecontext.GAEContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+func (self finder) cacheKeys(c memcache.TransactionContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
 	var id *key.Key
 	_, id, err = getTypeAndId(model)
 	if err != nil {
@@ -115,12 +114,12 @@ func (self finder) cacheKeys(c gaecontext.GAEContext, model interface{}, oldKeys
 }
 
 // see Finder
-func (self finder) get(c gaecontext.GAEContext, dst interface{}, values ...interface{}) (err error) {
+func (self finder) get(c memcache.TransactionContext, dst interface{}, values ...interface{}) (err error) {
 	return self.getWithAncestor(c, dst, nil, values...)
 }
 
 // see AncestorFinder
-func (self finder) getWithAncestor(c gaecontext.GAEContext, dst interface{}, ancestor *key.Key, values ...interface{}) (err error) {
+func (self finder) getWithAncestor(c memcache.TransactionContext, dst interface{}, ancestor *key.Key, values ...interface{}) (err error) {
 	if len(values) != len(self.fields) {
 		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
 		return
