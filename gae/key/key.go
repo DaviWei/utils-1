@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 )
 
@@ -16,6 +17,14 @@ type Key struct {
 	intID    int64
 	stringID string
 	kind     string
+}
+
+func For(i interface{}, stringId string, intId int64, parent *Key) *Key {
+	val := reflect.ValueOf(i)
+	for val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	return New(val.Type().Name(), stringId, intId, parent)
 }
 
 func New(kind string, stringId string, intId int64, parent *Key) *Key {

@@ -11,104 +11,48 @@ import (
 	"reflect"
 )
 
-type finder struct {
-	fields []string
-	model  interface{}
-}
+const (
+	idFieldName = "Id"
+)
 
-var registeredFinders = map[string][]finder{}
-
-func Finder(model interface{}, fields ...string) func(c gaecontext.GAEContext, dst interface{}, values ...interface{}) error {
-	val := reflect.ValueOf(model)
-	if val.Kind() != reflect.Ptr {
-		panic(fmt.Errorf("%+v is not a pointer", model))
+func clearMemcache(c gaecontext.GAEContext, model interface{}) (err error) {
+	keys := []string{keyById(model)}
+	for _, finder := range registeredFinders[reflect.TypeOf(model).Elem().Name()] {
+		keys = append(keys, finder.cacheKey(c, model))
 	}
-	if val.Elem().Kind() != reflect.Struct {
-		panic(fmt.Errorf("%+v is not a pointer to a struct", model))
-	}
-	idField := val.Elem().FieldByName("Id")
-	if !idField.IsValid() {
-		panic(fmt.Errorf("%+v does not have a field named Id", model))
-	}
-	if !idField.Type().AssignableTo(reflect.TypeOf((*key.Key)(nil))) {
-		panic(fmt.Errorf("%+v does not have a field named Id that is a *key.Key", model))
-	}
-	f := finder{
-		fields: fields,
-		model:  model,
-	}
-	if process := val.MethodByName("Process"); process.IsValid() {
-		processType := process.Type()
-		if processType.NumIn() != 1 {
-			panic(fmt.Errorf("%+v#Process doesn't take exactly one argument", model))
-		}
-		if !reflect.TypeOf((gaecontext.GAEContext)(nil)).AssignableTo(processType.In(0)) {
-			panic(fmt.Errorf("%+v#Process doesn't take a %v as argument", model, reflect.TypeOf((gaecontext.GAEContext)(nil))))
-		}
-		if processType.NumOut() < 1 {
-			panic(fmt.Errorf("%+v#Process doesn't produce at least one return value", model))
-		}
-		if !processType.Out(0).AssignableTo(val.Type()) {
-			panic(fmt.Errorf("%+v#Process doesn't return a %v as first return value", model, reflect.TypeOf(model)))
-		}
-		if processType.NumOut() > 1 && !processType.Out(processType.NumOut()-1).AssignableTo(reflect.TypeOf((error)(nil))) {
-			panic(fmt.Errorf("%+v#Process doesn't return an error as last return value", model))
-		}
-	}
-	registeredFinders[val.Type().Name()] = append(registeredFinders[val.Type().Name()], f)
-	return f.get
-}
-
-func (self finder) find(c gaecontext.GAEContext, dst interface{}, values []interface{}) (err error) {
-	q := datastore.NewQuery(reflect.TypeOf(self.model).Name())
-	for index, value := range values {
-		q = q.Filter(fmt.Sprintf("%v=", self.fields[index]), value)
-	}
-	var ids []*datastore.Key
-	ids, err = q.GetAll(c, dst)
-	if err = FilterOkErrors(err); err != nil {
+	if err = memcache.Del(c, keys...); err != nil {
 		return
-	}
-	for index, id := range ids {
-		reflect.ValueOf(dst).Elem().Index(index).FieldByName("Id").Set(reflect.ValueOf(id))
 	}
 	return
 }
 
-func (self finder) keyForValues(values []interface{}) string {
-	return fmt.Sprintf("%v{%+v:%+v}", reflect.TypeOf(self.model).Name(), self.fields, values)
-}
-
-func (self finder) get(c gaecontext.GAEContext, dst interface{}, values ...interface{}) (err error) {
-	if len(values) != len(self.fields) {
-		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
+func getTypeAndId(model interface{}) (typ reflect.Type, id *key.Key, err error) {
+	val := reflect.ValueOf(model)
+	if val.Kind() != reflect.Ptr {
+		err = fmt.Errorf("%+v is not a pointer", model)
 		return
 	}
-	memcache.Memoize(c, self.keyForValues(values), dst, func() (result interface{}, err error) {
-		err = self.find(c, dst, values)
-		result = dst
+	if val.Elem().Kind() != reflect.Struct {
+		err = fmt.Errorf("%+v is not a pointer to a struct", model)
 		return
-	})
-	val := reflect.ValueOf(dst)
-	errors := appengine.MultiError{}
-	for i := 0; i < val.Len(); i++ {
-		el := val.Index(i)
-		results := el.Addr().MethodByName("Process").Call([]reflect.Value{reflect.ValueOf(c)})
-		if len(results) > 0 {
-			if !results[len(results)-1].IsNil() {
-				errors = append(errors, results[len(results)-1].Interface().(error))
-			}
-		}
 	}
-	if len(errors) > 0 {
-		err = errors
+	typ = val.Elem().Type()
+	idField := val.Elem().FieldByName(idFieldName)
+	if !idField.IsValid() {
+		err = fmt.Errorf("%+v does not have a field named Id", model)
+		return
 	}
+	if !idField.Type().AssignableTo(reflect.TypeOf(&key.Key{})) {
+		err = fmt.Errorf("%+v does not have a field named Id that is a *key.Key", model)
+		return
+	}
+	id = idField.Interface().(*key.Key)
 	return
 }
 
 func keyById(dst interface{}) string {
 	elem := reflect.ValueOf(dst).Elem()
-	return fmt.Sprintf("%s{Id:%v}", elem.Type().Name(), elem.FieldByName("Id").Interface())
+	return fmt.Sprintf("%s{Id:%v}", elem.Type().Name(), elem.FieldByName(idFieldName).Interface())
 }
 
 func FilterOkErrors(err error, accepted ...error) error {
@@ -156,7 +100,7 @@ func (self ErrNoSuchEntity) GetStatus() int {
 func newError(dst interface{}, cause error) (err error) {
 	var typ reflect.Type
 	var id *key.Key
-	if typ, id, err = typeAndId(dst); err != nil {
+	if typ, id, err = getTypeAndId(dst); err != nil {
 		return
 	}
 	return ErrNoSuchEntity{
@@ -166,33 +110,87 @@ func newError(dst interface{}, cause error) (err error) {
 	}
 }
 
-func typeAndId(dst interface{}) (typ reflect.Type, id *key.Key, err error) {
-	val := reflect.ValueOf(dst)
-	if val.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer", dst)
+func Del(c gaecontext.GAEContext, src interface{}) (err error) {
+	var id *key.Key
+	var typ reflect.Type
+	if typ, id, err = getTypeAndId(src); err != nil {
 		return
 	}
-	if val.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a pointer to a struct", dst)
+	if id == nil {
+		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
-	typ = val.Elem().Type()
-	idField := val.Elem().FieldByName("Id")
-	if !idField.IsValid() {
-		err = fmt.Errorf("%+v does not have a field named Id", dst)
-		return
+	gaeKey := id.ToGAE(c)
+	if !gaeKey.Incomplete() {
+		old := reflect.New(typ)
+		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
+		err = GetById(c, old.Interface())
+		if _, ok := err.(ErrNoSuchEntity); ok {
+			err = nil
+		} else if err == nil {
+			if err = datastore.Delete(c, gaeKey); err != nil {
+				return
+			}
+			if err = clearMemcache(c, old.Interface()); err != nil {
+				return
+			}
+		}
 	}
-	if !idField.Type().AssignableTo(reflect.TypeOf((*key.Key)(nil))) {
-		err = fmt.Errorf("%+v does not have a field named Id that is a *key.Key", dst)
-		return
-	}
-	id = idField.Interface().(*key.Key)
 	return
 }
 
-func findById(c gaecontext.GAEContext, dst interface{}) (result interface{}, err error) {
+func Put(c gaecontext.GAEContext, src interface{}) (err error) {
 	var id *key.Key
-	if _, id, err = typeAndId(dst); err != nil {
+	var typ reflect.Type
+	if typ, id, err = getTypeAndId(src); err != nil {
+		return
+	}
+	if id == nil {
+		err = fmt.Errorf("%+v doesn't have an Id", src)
+		return
+	}
+	isNew := false
+	gaeKey := id.ToGAE(c)
+	if gaeKey.Incomplete() {
+		isNew = true
+	} else {
+		old := reflect.New(typ)
+		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
+		err = GetById(c, old.Interface())
+		if _, ok := err.(ErrNoSuchEntity); ok {
+			err = nil
+			isNew = true
+		} else if err == nil {
+			isNew = false
+			if err = clearMemcache(c, old.Interface()); err != nil {
+				return
+			}
+		} else {
+			return
+		}
+	}
+	if isNew {
+		if err = runProcess(c, src, beforeCreateName); err != nil {
+			return
+		}
+	} else {
+		if err = runProcess(c, src, beforeUpdateName); err != nil {
+			return
+		}
+	}
+	if err = runProcess(c, src, beforeSaveName); err != nil {
+		return
+	}
+	if id, err = key.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
+		return
+	}
+	reflect.ValueOf(src).Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
+	return clearMemcache(c, src)
+}
+
+func findById(c gaecontext.GAEContext, dst interface{}) (err error) {
+	var id *key.Key
+	if _, id, err = getTypeAndId(dst); err != nil {
 		return
 	}
 	if err = datastore.Get(c, id.ToGAE(c), dst); err == datastore.ErrNoSuchEntity {
@@ -202,75 +200,22 @@ func findById(c gaecontext.GAEContext, dst interface{}) (result interface{}, err
 	if err = FilterOkErrors(err); err != nil {
 		return
 	}
-	result = dst
 	return
 }
 
-func Put(c gaecontext.GAEContext, src interface{}) (err error) {
-	var id *key.Key
-	if _, id, err = typeAndId(src); err != nil {
-		return
-	}
-	if id == nil {
-		err = fmt.Errorf("%+v doesn't have an Id", src)
-		return
-	}
-	var newId *key.Key
-	if newId, err = key.FromGAErr(datastore.Put(c, id.ToGAE(c), src)); err != nil {
-		return
-	}
-	if !newId.Equal(id) {
-		if err = memcache.Del(c, keyById(src)); err != nil {
-			return
-		}
-	}
-	reflect.ValueOf(src).Elem().FieldByName("Id").Set(reflect.ValueOf(newId))
-	return memcache.Del(c, keyById(src))
-}
-
-func GetById(c gaecontext.GAEContext, dst interface{}) (result interface{}, err error) {
+func GetById(c gaecontext.GAEContext, dst interface{}) (err error) {
 	if err = memcache.Memoize(c, keyById(dst), dst, func() (result interface{}, err error) {
-		result, err = findById(c, dst)
+		err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = memcache.ErrCacheMiss
 		}
 		if err != nil {
 			return
 		}
+		result = dst
 		return
 	}); err == nil {
-		val := reflect.ValueOf(dst)
-		if process := val.MethodByName("Process"); process.IsValid() {
-			processType := process.Type()
-			if processType.NumIn() != 1 {
-				err = fmt.Errorf("%+v#Process doesn't take exactly one argument", dst)
-				return
-			}
-			if !reflect.TypeOf(c).AssignableTo(processType.In(0)) {
-				err = fmt.Errorf("%+v#Process doesn't take a %v as argument", dst, reflect.TypeOf(c))
-				return
-			}
-			if processType.NumOut() < 1 {
-				err = fmt.Errorf("%+v#Process doesn't produce at least one return value", dst)
-				return
-			}
-			if !processType.Out(0).AssignableTo(val.Type()) {
-				err = fmt.Errorf("%+v#Process doesn't return a %v as first return value", dst, reflect.TypeOf(dst))
-				return
-			}
-			if processType.NumOut() > 1 && !processType.Out(processType.NumOut()-1).AssignableTo(reflect.TypeOf((error)(nil))) {
-				err = fmt.Errorf("%+v#Process doesn't return an error as last return value", dst)
-				return
-			}
-			results := process.Call([]reflect.Value{reflect.ValueOf(c)})
-			if len(results) > 1 && !results[len(results)-1].IsNil() {
-				err = results[len(results)-1].Interface().(error)
-				return
-			}
-			result = results[0].Interface()
-		} else {
-			result = val.Interface()
-		}
+		err = runProcess(c, dst, afterLoadName)
 	} else if err == memcache.ErrCacheMiss {
 		err = newError(dst, datastore.ErrNoSuchEntity)
 	}
