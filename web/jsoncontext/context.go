@@ -117,6 +117,66 @@ func NewError(status int, body interface{}, info string, cause error) Error {
 	}
 }
 
+type field struct {
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+	Cause   error  `json:"-"`
+}
+
+type ValidationError struct {
+	Status int
+	Cause  error
+	Info   string
+	Fields map[string]field `json:"fields,omitempty"`
+}
+
+func (self *ValidationError ) AddField(fieldName, message string, code int, cause error, status int) *ValidationError {
+	if self == nil {
+		return &ValidationError{
+			Fields: map[string]field{
+				fieldName: field{
+					Message: message,
+					Code:    code,
+					Cause:   cause,
+				},
+			},
+			Status: status,
+		}
+	}
+	if self.Fields == nil {
+		self.Fields = make(map[string]field)
+	}
+	self.Fields[fieldName] = field{
+		Message: message,
+		Code:    code,
+		Cause:   cause,
+	}
+	if status > self.Status {
+		self.Status = status
+	}
+	return self
+}
+
+func (self ValidationError) GetStatus() int {
+	return self.Status
+}
+
+func (self ValidationError) GetLocation() string {
+	return ""
+}
+
+func (self ValidationError) Error() string {
+	return fmt.Sprint(self.Fields)
+}
+
+func (self ValidationError) Write(w http.ResponseWriter) error {
+	if self.Fields != nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		return json.NewEncoder(w).Encode(self)
+	}
+	return nil
+}
+
 func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
 	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) (err error) {
 		c := NewJSONContext(cont)

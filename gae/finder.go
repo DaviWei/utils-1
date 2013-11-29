@@ -78,8 +78,14 @@ func (self finder) find(c memcache.TransactionContext, dst interface{}, ancestor
 	if err = FilterOkErrors(err); err != nil {
 		return
 	}
+	dstElem := reflect.ValueOf(dst).Elem()
+	var element reflect.Value
 	for index, id := range ids {
-		reflect.ValueOf(dst).Elem().Index(index).FieldByName(idFieldName).Set(reflect.ValueOf(key.FromGAE(id)))
+		element = dstElem.Index(index)
+		if element.Kind() == reflect.Ptr {
+			element = element.Elem()
+		}
+		element.FieldByName(idFieldName).Set(reflect.ValueOf(key.FromGAE(id)))
 	}
 	return
 }
