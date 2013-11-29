@@ -12,14 +12,14 @@ import (
 // finder encapsulates the knowledge that a model type is findable by a given set of fields.
 type finder struct {
 	fields []string
-	model  Identified
+	model  interface{}
 }
 
 // registeredFinders is used to find what cache keys to invalidate when a model is CRUDed.
 var registeredFinders = map[string][]finder{}
 
 // newFinder returns an optionally registered finder after having validated the correct type of input data.
-func newFinder(model Identified, register bool, fields ...string) (result finder) {
+func newFinder(model interface{}, register bool, fields ...string) (result finder) {
 	val := reflect.ValueOf(model).Elem()
 	for _, field := range fields {
 		if f := val.FieldByName(field); !f.IsValid() {
@@ -42,7 +42,7 @@ Finder will return a finder function that runs a datastore query to find matchin
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func Finder(model Identified, fields ...string) func(c PersistenceContext, dst interface{}, values ...interface{}) error {
+func Finder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, values ...interface{}) error {
 	return newFinder(model, false, fields...).get
 }
 
@@ -53,7 +53,7 @@ It will also register the finder so that MemcacheKeys will return keys to invali
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func AncestorFinder(model Identified, fields ...string) func(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
+func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
 	return newFinder(model, true, fields...).getWithAncestor
 }
 
@@ -90,8 +90,11 @@ func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string 
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
 // the reason there may be multiple keys is that we don't know which ancestor will be used when finding the model.
-func (self finder) cacheKeys(c PersistenceContext, model Identified, oldKeys *[]string) (newKeys []string, err error) {
-	id := model.GetId()
+func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+	var id *key.Key
+	if _, id, err = getTypeAndId(model); err != nil {
+		return
+	}
 	values := make([]interface{}, len(self.fields))
 	val := reflect.ValueOf(model).Elem()
 	for index, field := range self.fields {
@@ -138,7 +141,7 @@ func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancest
 	errors := appengine.MultiError{}
 	for i := 0; i < val.Len(); i++ {
 		el := val.Index(i)
-		if err = runProcess(c, el.Addr().Interface().(Identified), AfterLoadName); err != nil {
+		if err = runProcess(c, el.Addr().Interface(), AfterLoadName); err != nil {
 			errors = append(errors, err)
 		}
 	}

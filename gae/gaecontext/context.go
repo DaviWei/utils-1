@@ -60,14 +60,14 @@ type DefaultContext struct {
 	inTransaction bool
 }
 
-func (self *DefaultContext) AfterSave(i gae.Identified) error    { return nil }
-func (self *DefaultContext) AfterCreate(i gae.Identified) error  { return nil }
-func (self *DefaultContext) AfterUpdate(i gae.Identified) error  { return nil }
-func (self *DefaultContext) BeforeSave(i gae.Identified) error   { return nil }
-func (self *DefaultContext) AfterLoad(i gae.Identified) error    { return nil }
-func (self *DefaultContext) AfterDelete(i gae.Identified) error  { return nil }
-func (self *DefaultContext) BeforeCreate(i gae.Identified) error { return nil }
-func (self *DefaultContext) BeforeUpdate(i gae.Identified) error { return nil }
+func (self *DefaultContext) AfterSave(i interface{}) error    { return nil }
+func (self *DefaultContext) AfterCreate(i interface{}) error  { return nil }
+func (self *DefaultContext) AfterUpdate(i interface{}) error  { return nil }
+func (self *DefaultContext) BeforeSave(i interface{}) error   { return nil }
+func (self *DefaultContext) AfterLoad(i interface{}) error    { return nil }
+func (self *DefaultContext) AfterDelete(i interface{}) error  { return nil }
+func (self *DefaultContext) BeforeCreate(i interface{}) error { return nil }
+func (self *DefaultContext) BeforeUpdate(i interface{}) error { return nil }
 
 func (self *DefaultContext) Debugf(format string, i ...interface{}) {
 	self.Context.Debugf(format, i...)

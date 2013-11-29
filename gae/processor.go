@@ -27,8 +27,8 @@ var processors = []string{
 	AfterDeleteName,
 }
 
-func runProcess(c PersistenceContext, model Identified, name string) error {
-	contextFunc := reflect.ValueOf(c).MethodByName(name).Interface().(func(Identified) error)
+func runProcess(c PersistenceContext, model interface{}, name string) error {
+	contextFunc := reflect.ValueOf(c).MethodByName(name).Interface().(func(interface{}) error)
 	if err := contextFunc(model); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func runProcess(c PersistenceContext, model Identified, name string) error {
 	return nil
 }
 
-func getProcess(model Identified, name string) (process reflect.Value, found bool, err error) {
+func getProcess(model interface{}, name string) (process reflect.Value, found bool, err error) {
 	val := reflect.ValueOf(model)
 	if process = val.MethodByName(name); process.IsValid() {
 		processType := process.Type()
@@ -70,7 +70,7 @@ func getProcess(model Identified, name string) (process reflect.Value, found boo
 	return
 }
 
-func validateProcessors(model Identified) (err error) {
+func validateProcessors(model interface{}) (err error) {
 	for _, name := range processors {
 		if _, _, err = getProcess(model, name); err != nil {
 			return

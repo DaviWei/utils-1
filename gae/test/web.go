@@ -75,12 +75,10 @@ func testMutex(c gaecontext.HTTPContext) {
 }
 
 type ts struct {
-	Id               *key.Key `datastore:"-"`
-	Name             string
-	Age              int
-	Processes        []string
-	CreatedAtCounter int
-	UpdatedAtCounter int
+	Id        *key.Key `datastore:"-"`
+	Name      string
+	Age       int
+	Processes []string
 }
 
 func (self *ts) GetId() *key.Key {
@@ -89,14 +87,6 @@ func (self *ts) GetId() *key.Key {
 
 func (self *ts) SetId(id *key.Key) {
 	self.Id = id
-}
-
-func (self *ts) SetCreatedAt() {
-	self.CreatedAtCounter++
-}
-
-func (self *ts) SetUpdatedAt() {
-	self.UpdatedAtCounter++
 }
 
 func (self *ts) Equal(o *ts) bool {
@@ -156,9 +146,6 @@ func testGet(c gaecontext.HTTPContext) {
 	if err := gae.Put(c, t); err != nil {
 		panic(err)
 	}
-	if t.CreatedAtCounter != 1 || t.UpdatedAtCounter != 0 {
-		panic("wrong counters")
-	}
 	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterCreate", "AfterSave"}
 	if !reflect.DeepEqual(t.Processes, wantedProcesses) {
 		panic("wrong processes!")
@@ -181,9 +168,6 @@ func testGet(c gaecontext.HTTPContext) {
 	if err := gae.Put(c, t2); err != nil {
 		panic(err)
 	}
-	if t2.CreatedAtCounter != 1 || t2.UpdatedAtCounter != 1 {
-		panic(fmt.Sprintf("wrong counters %+v", t2))
-	}
 	wantedProcesses = append(wantedProcesses, "BeforeUpdate", "BeforeSave", "AfterUpdate", "AfterSave")
 	if !reflect.DeepEqual(t2.Processes, wantedProcesses) {
 		panic("wrong processes!")
@@ -194,9 +178,6 @@ func testGet(c gaecontext.HTTPContext) {
 	wantedProcesses = append(wantedProcesses, "AfterDelete")
 	if !reflect.DeepEqual(t2.Processes, wantedProcesses) {
 		panic("wrong processes")
-	}
-	if t2.CreatedAtCounter != 1 || t2.UpdatedAtCounter != 1 {
-		panic("wrong counters")
 	}
 }
 
