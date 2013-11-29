@@ -14,13 +14,35 @@ const (
 	idFieldName = "Id"
 )
 
+type Identified interface {
+	GetId() *key.Key
+	SetId(*key.Key)
+}
+
+type TimeStamped interface {
+	SetUpdatedAt()
+	SetCreatedAt()
+}
+
+type PersistenceContext interface {
+	memcache.TransactionContext
+	AfterCreate(Identified) error
+	AfterSave(Identified) error
+	AfterUpdate(Identified) error
+	BeforeCreate(Identified) error
+	BeforeSave(Identified) error
+	BeforeUpdate(Identified) error
+	AfterLoad(Identified) error
+	AfterDelete(Identified) error
+}
+
 /*
 MemcacheKeys will append to oldKeys, and also return as newKeys, any memcache keys this package knows about that would
 result in the provided model being found.
 
 It will use the id based key, and any memcache keys provided by finders created by Finder or AncestorFinder.
 */
-func MemcacheKeys(c memcache.TransactionContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
+func MemcacheKeys(c PersistenceContext, model Identified, oldKeys *[]string) (newKeys []string, err error) {
 	if oldKeys == nil {
 		oldKeys = &[]string{}
 	}
@@ -34,35 +56,9 @@ func MemcacheKeys(c memcache.TransactionContext, model interface{}, oldKeys *[]s
 	return
 }
 
-// getTypeAndId will validate that the model is a pointer to a struct, and that it has a *key.Key field name Id.
-func getTypeAndId(model interface{}) (typ reflect.Type, id *key.Key, err error) {
-	val := reflect.ValueOf(model)
-	if val.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer", model)
-		return
-	}
-	if val.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a pointer to a struct", model)
-		return
-	}
-	typ = val.Elem().Type()
-	idField := val.Elem().FieldByName(idFieldName)
-	if !idField.IsValid() {
-		err = fmt.Errorf("%+v does not have a field named Id", model)
-		return
-	}
-	if !idField.Type().AssignableTo(reflect.TypeOf(&key.Key{})) {
-		err = fmt.Errorf("%+v does not have a field named Id that is a *key.Key", model)
-		return
-	}
-	id = idField.Interface().(*key.Key)
-	return
-}
-
 // keyById will return the memcache key used to find dst by id.
-func keyById(dst interface{}) string {
-	elem := reflect.ValueOf(dst).Elem()
-	return fmt.Sprintf("%s{Id:%v}", elem.Type().Name(), elem.FieldByName(idFieldName).Interface())
+func keyById(dst Identified) string {
+	return fmt.Sprintf("%s{Id:%v}", reflect.TypeOf(dst).Elem().Name(), dst.GetId())
 }
 
 /*
@@ -113,37 +109,28 @@ func (self ErrNoSuchEntity) GetStatus() int {
 	return 404
 }
 
-func newError(dst interface{}, cause error) (err error) {
-	var typ reflect.Type
-	var id *key.Key
-	if typ, id, err = getTypeAndId(dst); err != nil {
-		return
-	}
+func newError(dst Identified, cause error) (err error) {
 	return ErrNoSuchEntity{
-		Type:  typ.Name(),
+		Type:  reflect.TypeOf(dst).Elem().Name(),
 		Cause: cause,
-		Id:    id,
+		Id:    dst.GetId(),
 	}
 }
 
 /*
 Del will delete src from datastore and invalidate it from memcache.
 */
-func Del(c memcache.TransactionContext, src interface{}) (err error) {
-	var id *key.Key
-	var typ reflect.Type
-	if typ, id, err = getTypeAndId(src); err != nil {
-		return
-	}
+func Del(c PersistenceContext, src Identified) (err error) {
+	id := src.GetId()
 	if id == nil {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
 	gaeKey := id.ToGAE(c)
 	if !gaeKey.Incomplete() {
-		old := reflect.New(typ)
+		old := reflect.New(reflect.TypeOf(src).Elem())
 		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
-		err = GetById(c, old.Interface())
+		err = GetById(c, old.Interface().(Identified))
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 		} else if err == nil {
@@ -151,7 +138,7 @@ func Del(c memcache.TransactionContext, src interface{}) (err error) {
 				return
 			}
 			memKeys := []string{}
-			if memKeys, err = MemcacheKeys(c, old.Interface(), nil); err != nil {
+			if memKeys, err = MemcacheKeys(c, old.Interface().(Identified), nil); err != nil {
 				return
 			}
 			if err = memcache.Del(c, memKeys...); err != nil {
@@ -159,7 +146,7 @@ func Del(c memcache.TransactionContext, src interface{}) (err error) {
 			}
 		}
 	}
-	return
+	return runProcess(c, src, AfterDeleteName)
 }
 
 /*
@@ -170,12 +157,8 @@ the datastore before.
 
 It will also (after the BeforeUpdate/BeforeCreate functions) run BeforeSave.
 */
-func Put(c memcache.TransactionContext, src interface{}) (err error) {
-	var id *key.Key
-	var typ reflect.Type
-	if typ, id, err = getTypeAndId(src); err != nil {
-		return
-	}
+func Put(c PersistenceContext, src Identified) (err error) {
+	id := src.GetId()
 	if id == nil {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
@@ -186,15 +169,15 @@ func Put(c memcache.TransactionContext, src interface{}) (err error) {
 	if gaeKey.Incomplete() {
 		isNew = true
 	} else {
-		old := reflect.New(typ)
+		old := reflect.New(reflect.TypeOf(src).Elem())
 		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
-		err = GetById(c, old.Interface())
+		err = GetById(c, old.Interface().(Identified))
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 			isNew = true
 		} else if err == nil {
 			isNew = false
-			if _, err = MemcacheKeys(c, old.Interface(), &memcacheKeys); err != nil {
+			if _, err = MemcacheKeys(c, old.Interface().(Identified), &memcacheKeys); err != nil {
 				return
 			}
 		} else {
@@ -202,15 +185,21 @@ func Put(c memcache.TransactionContext, src interface{}) (err error) {
 		}
 	}
 	if isNew {
-		if err = runProcess(c, src, beforeCreateName); err != nil {
+		if err = runProcess(c, src, BeforeCreateName); err != nil {
 			return
+		}
+		if timeStamped, ok := src.(TimeStamped); ok {
+			timeStamped.SetCreatedAt()
 		}
 	} else {
-		if err = runProcess(c, src, beforeUpdateName); err != nil {
+		if err = runProcess(c, src, BeforeUpdateName); err != nil {
 			return
 		}
+		if timeStamped, ok := src.(TimeStamped); ok {
+			timeStamped.SetUpdatedAt()
+		}
 	}
-	if err = runProcess(c, src, beforeSaveName); err != nil {
+	if err = runProcess(c, src, BeforeSaveName); err != nil {
 		return
 	}
 	if id, err = key.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
@@ -220,15 +209,24 @@ func Put(c memcache.TransactionContext, src interface{}) (err error) {
 	if _, err = MemcacheKeys(c, src, &memcacheKeys); err != nil {
 		return
 	}
-	return memcache.Del(c, memcacheKeys...)
+	if err = memcache.Del(c, memcacheKeys...); err != nil {
+		return
+	}
+	if isNew {
+		if err = runProcess(c, src, AfterCreateName); err != nil {
+			return
+		}
+	} else {
+		if err = runProcess(c, src, AfterUpdateName); err != nil {
+			return
+		}
+	}
+	return runProcess(c, src, AfterSaveName)
 }
 
 // findById will find dst in the datastore and set its id.
-func findById(c memcache.TransactionContext, dst interface{}) (err error) {
-	var id *key.Key
-	if _, id, err = getTypeAndId(dst); err != nil {
-		return
-	}
+func findById(c PersistenceContext, dst Identified) (err error) {
+	id := dst.GetId()
 	if err = datastore.Get(c, id.ToGAE(c), dst); err == datastore.ErrNoSuchEntity {
 		err = newError(dst, err)
 		return
@@ -242,7 +240,7 @@ func findById(c memcache.TransactionContext, dst interface{}) (err error) {
 /*
 GetById will find memoize finding dst in the datastore, setting its id and running its AfterLoad function, if any.
 */
-func GetById(c memcache.TransactionContext, dst interface{}) (err error) {
+func GetById(c PersistenceContext, dst Identified) (err error) {
 	if err = memcache.Memoize(c, keyById(dst), dst, func() (result interface{}, err error) {
 		err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {
@@ -254,9 +252,28 @@ func GetById(c memcache.TransactionContext, dst interface{}) (err error) {
 		result = dst
 		return
 	}); err == nil {
-		err = runProcess(c, dst, afterLoadName)
+		err = runProcess(c, dst, AfterLoadName)
 	} else if err == memcache.ErrCacheMiss {
 		err = newError(dst, datastore.ErrNoSuchEntity)
+	}
+	return
+}
+
+func DelAll(c PersistenceContext, src Identified) (err error) {
+	var dataIds []*datastore.Key
+	results := reflect.New(reflect.SliceOf(reflect.TypeOf(src).Elem()))
+	dataIds, err = datastore.NewQuery(reflect.TypeOf(src).Elem().Name()).GetAll(c, results.Interface())
+	if err = FilterOkErrors(err); err != nil {
+		return
+	}
+	resultsSlice := results.Elem()
+	var el Identified
+	for i := 0; i < resultsSlice.Len(); i++ {
+		el = resultsSlice.Index(i).Addr().Interface().(Identified)
+		el.SetId(key.FromGAE(dataIds[i]))
+		if err = Del(c, el); err != nil {
+			return
+		}
 	}
 	return
 }

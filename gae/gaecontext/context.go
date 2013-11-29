@@ -6,6 +6,7 @@ import (
 	"appengine/urlfetch"
 	"fmt"
 	"github.com/mjibson/appstats"
+	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"net/http"
@@ -14,8 +15,7 @@ import (
 )
 
 type GAEContext interface {
-	appengine.Context
-	InTransaction() bool
+	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
 	Client() *http.Client
 }
@@ -59,6 +59,15 @@ type DefaultContext struct {
 	appengine.Context
 	inTransaction bool
 }
+
+func (self *DefaultContext) AfterSave(i gae.Identified) error    { return nil }
+func (self *DefaultContext) AfterCreate(i gae.Identified) error  { return nil }
+func (self *DefaultContext) AfterUpdate(i gae.Identified) error  { return nil }
+func (self *DefaultContext) BeforeSave(i gae.Identified) error   { return nil }
+func (self *DefaultContext) AfterLoad(i gae.Identified) error    { return nil }
+func (self *DefaultContext) AfterDelete(i gae.Identified) error  { return nil }
+func (self *DefaultContext) BeforeCreate(i gae.Identified) error { return nil }
+func (self *DefaultContext) BeforeUpdate(i gae.Identified) error { return nil }
 
 func (self *DefaultContext) Debugf(format string, i ...interface{}) {
 	self.Context.Debugf(format, i...)

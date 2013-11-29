@@ -75,37 +75,71 @@ func testMutex(c gaecontext.HTTPContext) {
 }
 
 type ts struct {
-	Id        *key.Key `datastore:"-"`
-	Name      string
-	Age       int
-	Processes []string
+	Id               *key.Key `datastore:"-"`
+	Name             string
+	Age              int
+	Processes        []string
+	CreatedAtCounter int
+	UpdatedAtCounter int
+}
+
+func (self *ts) GetId() *key.Key {
+	return self.Id
+}
+
+func (self *ts) SetId(id *key.Key) {
+	self.Id = id
+}
+
+func (self *ts) SetCreatedAt() {
+	self.CreatedAtCounter++
+}
+
+func (self *ts) SetUpdatedAt() {
+	self.UpdatedAtCounter++
 }
 
 func (self *ts) Equal(o *ts) bool {
 	return self.Id.Equal(o.Id) && self.Name == o.Name && self.Age == o.Age
 }
 
-func (self *ts) AfterLoad(c gaecontext.HTTPContext) (result *ts, err error) {
-	result = self
-	result.Processes = append(result.Processes, "AfterLoad")
+func (self *ts) AfterLoad(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "AfterLoad")
 	return
 }
 
-func (self *ts) BeforeSave(c gaecontext.HTTPContext) (result *ts, err error) {
-	result = self
-	result.Processes = append(result.Processes, "BeforeSave")
+func (self *ts) AfterDelete(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "AfterDelete")
 	return
 }
 
-func (self *ts) BeforeCreate(c gaecontext.HTTPContext) (result *ts, err error) {
-	result = self
-	result.Processes = append(result.Processes, "BeforeCreate")
+func (self *ts) AfterSave(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "AfterSave")
 	return
 }
 
-func (self *ts) BeforeUpdate(c gaecontext.HTTPContext) (result *ts, err error) {
-	result = self
-	result.Processes = append(result.Processes, "BeforeUpdate")
+func (self *ts) AfterCreate(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "AfterCreate")
+	return
+}
+
+func (self *ts) AfterUpdate(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "AfterUpdate")
+	return
+}
+
+func (self *ts) BeforeSave(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "BeforeSave")
+	return
+}
+
+func (self *ts) BeforeCreate(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "BeforeCreate")
+	return
+}
+
+func (self *ts) BeforeUpdate(c gaecontext.HTTPContext) (err error) {
+	self.Processes = append(self.Processes, "BeforeUpdate")
 	return
 }
 
@@ -113,6 +147,7 @@ var findTsByName = gae.Finder(&ts{}, "Name")
 var findTsByAncestorAndName = gae.AncestorFinder(&ts{}, "Name")
 
 func testGet(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
 	t := &ts{
 		Id:   key.For(&ts{}, "", 0, nil),
 		Name: "the t",
@@ -121,7 +156,10 @@ func testGet(c gaecontext.HTTPContext) {
 	if err := gae.Put(c, t); err != nil {
 		panic(err)
 	}
-	wantedProcesses := []string{"BeforeCreate", "BeforeSave"}
+	if t.CreatedAtCounter != 1 || t.UpdatedAtCounter != 0 {
+		panic("wrong counters")
+	}
+	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterCreate", "AfterSave"}
 	if !reflect.DeepEqual(t.Processes, wantedProcesses) {
 		panic("wrong processes!")
 	}
@@ -135,21 +173,35 @@ func testGet(c gaecontext.HTTPContext) {
 	if !t.Equal(t2) {
 		panic("1 should be equal")
 	}
-	wantedProcesses = append(wantedProcesses, "AfterLoad")
+	wantedProcesses = []string{"BeforeCreate", "BeforeSave", "AfterLoad"}
 	if !reflect.DeepEqual(t2.Processes, wantedProcesses) {
-		panic("wrong processes!")
+		panic(fmt.Sprintf("wrong processes! wanted %+v but got %+v", wantedProcesses, t2.Processes))
 	}
 	t2.Age = 13
 	if err := gae.Put(c, t2); err != nil {
 		panic(err)
 	}
-	wantedProcesses = append(wantedProcesses, "BeforeUpdate", "BeforeSave")
+	if t2.CreatedAtCounter != 1 || t2.UpdatedAtCounter != 1 {
+		panic(fmt.Sprintf("wrong counters %+v", t2))
+	}
+	wantedProcesses = append(wantedProcesses, "BeforeUpdate", "BeforeSave", "AfterUpdate", "AfterSave")
 	if !reflect.DeepEqual(t2.Processes, wantedProcesses) {
 		panic("wrong processes!")
+	}
+	if err := gae.Del(c, t2); err != nil {
+		panic(err)
+	}
+	wantedProcesses = append(wantedProcesses, "AfterDelete")
+	if !reflect.DeepEqual(t2.Processes, wantedProcesses) {
+		panic("wrong processes")
+	}
+	if t2.CreatedAtCounter != 1 || t2.UpdatedAtCounter != 1 {
+		panic("wrong counters")
 	}
 }
 
 func testAncestorFind(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
 	parentKey := key.New("Parent", "gnu", 0, nil)
 	t2 := &ts{
 		Id:   key.For(&ts{}, "", 0, parentKey),
@@ -176,6 +228,7 @@ func testAncestorFind(c gaecontext.HTTPContext) {
 }
 
 func testFind(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
 	t2 := &ts{
 		Id:   key.For(&ts{}, "", 0, nil),
 		Name: "another t",
