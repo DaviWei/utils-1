@@ -71,6 +71,14 @@ func MemcacheKeys(c PersistenceContext, model interface{}, oldKeys *[]string) (n
 	return
 }
 
+func MemcacheDel(c PersistenceContext, model interface{}) (err error) {
+	var keys []string
+	if keys, err = MemcacheKeys(c, model, nil); err != nil {
+		return
+	}
+	return memcache.Del(c, keys...)
+}
+
 // keyById will return the memcache key used to find dst by id.
 func keyById(dst interface{}) string {
 	typ, id, err := getTypeAndId(dst)
