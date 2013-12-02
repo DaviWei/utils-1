@@ -302,14 +302,18 @@ func DelAll(c PersistenceContext, src interface{}) (err error) {
 	if err = FilterOkErrors(err); err != nil {
 		return
 	}
-	resultsSlice := results.Elem()
+	memcacheKeys := []string{}
 	var el reflect.Value
-	for i := 0; i < resultsSlice.Len(); i++ {
-		el = resultsSlice.Index(i)
-		el.FieldByName("Id").Set(reflect.ValueOf(key.FromGAE(dataIds[i])))
-		if err = Del(c, el.Addr().Interface()); err != nil {
+	resultsSlice := results.Elem()
+	for index, dataId := range dataIds {
+		el = resultsSlice.Index(index)
+		el.FieldByName("Id").Set(reflect.ValueOf(key.FromGAE(dataId)))
+		if _, err = MemcacheKeys(c, el.Addr().Interface(), &memcacheKeys); err != nil {
 			return
 		}
 	}
-	return
+	if err = datastore.DeleteMulti(c, dataIds); err != nil {
+		return
+	}
+	return memcache.Del(c, memcacheKeys...)
 }
