@@ -110,6 +110,11 @@ func test(c gaecontext.JSONContext) (result jsoncontext.Resp, err error) {
 		}
 		i++
 	})
+	ch := make(chan bool, 1)
+	b.Measure(10000, "Channel send/receive", func() {
+		ch <- true
+		x = <-ch
+	})
 	result.Body = b
 	return
 }
