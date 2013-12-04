@@ -91,11 +91,7 @@ func (self *Key) GobEncode() ([]byte, error) {
 }
 
 func (self *Key) MarshalJSON() (b []byte, err error) {
-	s, err := self.Encode()
-	if err != nil {
-		return
-	}
-	return json.Marshal(s)
+	return json.Marshal(self.Encode())
 }
 
 func (self *Key) UnmarshalJSON(b []byte) (err error) {
@@ -220,24 +216,20 @@ func (self *Key) encode(buf *bytes.Buffer) (err error) {
 	return
 }
 
-func (self *Key) Encode() (result string, err error) {
+func (self *Key) Encode() (result string) {
 	if self == nil {
 		return
 	}
 	buf := &bytes.Buffer{}
-	if err = self.encode(buf); err != nil {
-		return
+	if err := self.encode(buf); err != nil {
+		panic(err)
 	}
 	result = base64.URLEncoding.EncodeToString(buf.Bytes())
 	return
 }
 
-func (self *Key) EncodeEmailId() (result string, err error) {
-	if result, err = self.Encode(); err != nil {
-		return
-	}
-	result = strings.Replace(result, "=", "_", -1)
-	return
+func (self *Key) EncodeEmailId() (result string) {
+	return strings.Replace(self.Encode(), "=", "_", -1)
 }
 
 func (self *Key) decode(buf *bytes.Buffer) (err error) {
