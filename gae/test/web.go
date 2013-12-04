@@ -7,12 +7,26 @@ import (
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 )
+
+type Token struct {
+	Name string
+}
+
+func (self Token) Encode() ([]byte, error) {
+	return []byte(self.Name), nil
+}
+
+func init() {
+	httpcontext.ParseAccessTokens([]byte("so secret"), &Token{})
+}
 
 func testMutex(c gaecontext.HTTPContext) {
 	returns := []int{}
@@ -287,6 +301,30 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 	}
 }
 
+func testAccessTokens(c gaecontext.HTTPContext) {
+	enc, err := httpcontext.EncodeToken(&Token{Name: "hehu"}, time.Hour)
+	if err != nil {
+		panic(err)
+	}
+	c.Req().Header.Set("Authorization", fmt.Sprintf("Bearer %v", enc))
+	tok := &Token{}
+	if err := c.AccessToken(tok); err != nil {
+		panic(err)
+	}
+	if tok.Name != "hehu" {
+		panic("wrong name!")
+	}
+	enc, err = httpcontext.EncodeToken(&Token{Name: "hehu"}, time.Millisecond)
+	if err != nil {
+		panic(err)
+	}
+	time.Sleep(time.Millisecond * 5)
+	c.Req().Header.Set("Authorization", fmt.Sprintf("Bearer %v", enc))
+	if err := c.AccessToken(tok); !strings.Contains(err.Error(), "Expired") {
+		panic("should be expired")
+	}
+}
+
 func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -307,6 +345,7 @@ func test(c gaecontext.HTTPContext) error {
 	run(c, testGet)
 	run(c, testFind)
 	run(c, testAncestorFind)
+	run(c, testAccessTokens)
 	return nil
 }
 
