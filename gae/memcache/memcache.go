@@ -29,47 +29,64 @@ var ErrCacheMiss = memcache.ErrCacheMiss
 /*
 Keyify will create a memcache-safe key from k by hashing and base64-encoding it.
 */
-func Keyify(k string) string {
+func Keyify(k string) (result string, err error) {
 	buf := new(bytes.Buffer)
 	enc := base64.NewEncoder(base64.URLEncoding, buf)
 	h := sha1.New()
 	io.WriteString(h, k)
 	sum := h.Sum(nil)
-	if wrote, err := enc.Write(sum); err != nil {
-		panic(err)
+	wrote, err := enc.Write(sum)
+	if err != nil {
+		return
 	} else if wrote != len(sum) {
-		panic(fmt.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote))
+		err = fmt.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote)
+		return
 	}
-	if err := enc.Close(); err != nil {
-		panic(err)
+	if err = enc.Close(); err != nil {
+		return
 	}
-	return string(buf.Bytes())
+	result = string(buf.Bytes())
+	return
 }
 
 func Incr(c TransactionContext, key string, delta int64, initial uint64) (newValue uint64, err error) {
-	return memcache.Increment(c, Keyify(key), delta, initial)
+	k, err := Keyify(key)
+	if err != nil {
+		return
+	}
+	return memcache.Increment(c, k, delta, initial)
 }
 
 func IncrExisting(c TransactionContext, key string, delta int64) (newValue uint64, err error) {
-	return memcache.IncrementExisting(c, Keyify(key), delta)
+	k, err := Keyify(key)
+	if err != nil {
+		return
+	}
+	return memcache.IncrementExisting(c, k, delta)
 }
 
 /*
 Del will delete the keys from memcache.
 */
-func Del(c TransactionContext, keys ...string) error {
+func Del(c TransactionContext, keys ...string) (err error) {
 	for index, key := range keys {
-		keys[index] = Keyify(key)
+		var k string
+		k, err = Keyify(key)
+		if err != nil {
+			return
+		}
+		keys[index] = k
 	}
-	if err := memcache.DeleteMulti(c, keys); err != nil {
+	if err = memcache.DeleteMulti(c, keys); err != nil {
 		if multiError, ok := err.(appengine.MultiError); ok {
 			for _, singleError := range multiError {
 				if singleError != memcache.ErrCacheMiss {
-					return singleError
+					err = singleError
+					return
 				}
 			}
 		} else {
-			return err
+			return
 		}
 	}
 	return nil
@@ -84,7 +101,11 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 	if c.InTransaction() {
 		return
 	}
-	_, err = Codec.Get(c, Keyify(key), val)
+	k, err := Keyify(key)
+	if err != nil {
+		return
+	}
+	_, err = Codec.Get(c, k, val)
 	if err == memcache.ErrCacheMiss {
 		err = nil
 		found = false
@@ -96,7 +117,10 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 CAS will replace expected with replacement in memcache if expected is the current value.
 */
 func CAS(c TransactionContext, key string, expected, replacement interface{}) (success bool, err error) {
-	keyHash := Keyify(key)
+	keyHash, err := Keyify(key)
+	if err != nil {
+		return
+	}
 	var item *memcache.Item
 	if item, err = memcache.Get(c, keyHash); err != nil {
 		if err == memcache.ErrCacheMiss {
@@ -128,9 +152,13 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 /*
 Put will put val under key.
 */
-func Put(c TransactionContext, key string, val interface{}) error {
+func Put(c TransactionContext, key string, val interface{}) (err error) {
+	k, err := Keyify(key)
+	if err != nil {
+		return
+	}
 	return Codec.Set(c, &memcache.Item{
-		Key:    Keyify(key),
+		Key:    k,
 		Object: val,
 	})
 }
@@ -145,7 +173,10 @@ It returns whether the value was nil (either from memcache or from the generator
 Deleting super will invalidate all keys under it due to the composite keys being impossible to regenerate again.
 */
 func Memoize2(c TransactionContext, super, key string, destP interface{}, f func() (interface{}, error)) (err error) {
-	superH := Keyify(super)
+	superH, err := Keyify(super)
+	if err != nil {
+		return
+	}
 	var seed string
 	var item *memcache.Item
 	if item, err = memcache.Get(c, superH); err != nil && err != memcache.ErrCacheMiss {
@@ -261,7 +292,12 @@ func memoizeMulti(
 
 	keyHashes := make([]string, len(keys))
 	for index, key := range keys {
-		keyHashes[index] = Keyify(key)
+		k, err := Keyify(key)
+		if err != nil {
+			errors = appengine.MultiError{err}
+			return
+		}
+		keyHashes[index] = k
 	}
 
 	t := time.Now()

@@ -106,6 +106,10 @@ type Error struct {
 	Info  string
 }
 
+func (self Error) Error() string {
+	return fmt.Sprintf("%+v, %v, %#v", self.Resp, self.Cause, self.Info)
+}
+
 func NewError(status int, body interface{}, info string, cause error) Error {
 	return Error{
 		Resp: Resp{
@@ -130,7 +134,7 @@ type ValidationError struct {
 	Fields map[string]field `json:"fields,omitempty"`
 }
 
-func (self *ValidationError ) AddField(fieldName, message string, code int, cause error, status int) *ValidationError {
+func (self *ValidationError) AddField(fieldName, message string, code int, cause error, status int) *ValidationError {
 	if self == nil {
 		return &ValidationError{
 			Fields: map[string]field{

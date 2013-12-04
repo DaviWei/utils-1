@@ -61,7 +61,11 @@ func MemcacheKeys(c PersistenceContext, model interface{}, oldKeys *[]string) (n
 	if oldKeys == nil {
 		oldKeys = &[]string{}
 	}
-	*oldKeys = append(*oldKeys, keyById(model))
+	newKey, err := keyById(model)
+	if err != nil {
+		return
+	}
+	*oldKeys = append(*oldKeys, newKey)
 	for _, finder := range registeredFinders[reflect.TypeOf(model).Elem().Name()] {
 		if _, err = finder.cacheKeys(c, model, oldKeys); err != nil {
 			return
@@ -80,12 +84,13 @@ func MemcacheDel(c PersistenceContext, model interface{}) (err error) {
 }
 
 // keyById will return the memcache key used to find dst by id.
-func keyById(dst interface{}) string {
+func keyById(dst interface{}) (result string, err error) {
 	typ, id, err := getTypeAndId(dst)
 	if err != nil {
-		panic(err)
+		return
 	}
-	return fmt.Sprintf("%s{Id:%v}", typ.Name(), id)
+	result = fmt.Sprintf("%s{Id:%v}", typ.Name(), id)
+	return
 }
 
 /*
@@ -277,7 +282,11 @@ func findById(c PersistenceContext, dst interface{}) (err error) {
 GetById will find memoize finding dst in the datastore, setting its id and running its AfterLoad function, if any.
 */
 func GetById(c PersistenceContext, dst interface{}) (err error) {
-	if err = memcache.Memoize(c, keyById(dst), dst, func() (result interface{}, err error) {
+	k, err := keyById(dst)
+	if err != nil {
+		return
+	}
+	if err = memcache.Memoize(c, k, dst, func() (result interface{}, err error) {
 		err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = memcache.ErrCacheMiss

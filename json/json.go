@@ -50,7 +50,11 @@ func LoadJSON(in io.Reader, out interface{}, accessScope string) (err error) {
 		}
 
 		// Check that the scope user are in, is allowed to update this field.
-		if !utils.InSlice(allowedScopes, accessScope) {
+		in := false
+		if in, err = utils.InSlice(allowedScopes, accessScope); err != nil {
+			return
+		}
+		if !in {
 			continue
 		}
 

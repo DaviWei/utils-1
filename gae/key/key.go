@@ -91,7 +91,11 @@ func (self *Key) GobEncode() ([]byte, error) {
 }
 
 func (self *Key) MarshalJSON() (b []byte, err error) {
-	return json.Marshal(self.Encode())
+	s, err := self.Encode()
+	if err != nil {
+		return
+	}
+	return json.Marshal(s)
 }
 
 func (self *Key) UnmarshalJSON(b []byte) (err error) {
@@ -216,16 +220,24 @@ func (self *Key) encode(buf *bytes.Buffer) (err error) {
 	return
 }
 
-func (self *Key) Encode() string {
-	buf := &bytes.Buffer{}
-	if err := self.encode(buf); err != nil {
-		panic(err)
+func (self *Key) Encode() (result string, err error) {
+	if self == nil {
+		return
 	}
-	return base64.URLEncoding.EncodeToString(buf.Bytes())
+	buf := &bytes.Buffer{}
+	if err = self.encode(buf); err != nil {
+		return
+	}
+	result = base64.URLEncoding.EncodeToString(buf.Bytes())
+	return
 }
 
-func (self *Key) EncodeEmailId() string {
-	return strings.Replace(self.Encode(), "=", "_", -1)
+func (self *Key) EncodeEmailId() (result string, err error) {
+	if result, err = self.Encode(); err != nil {
+		return
+	}
+	result = strings.Replace(result, "=", "_", -1)
+	return
 }
 
 func (self *Key) decode(buf *bytes.Buffer) (err error) {
@@ -251,6 +263,9 @@ func (self *Key) decode(buf *bytes.Buffer) (err error) {
 }
 
 func Decode(s string) (result *Key, err error) {
+	if s == "" {
+		return
+	}
 	b := []byte{}
 	if b, err = base64.URLEncoding.DecodeString(s); err != nil {
 		return
