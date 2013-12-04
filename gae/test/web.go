@@ -2,12 +2,12 @@ package web
 
 import (
 	"fmt"
+	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
-	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -25,7 +25,7 @@ func (self Token) Encode() ([]byte, error) {
 }
 
 func init() {
-	httpcontext.ParseAccessTokens([]byte("so secret"), &Token{})
+	utils.ParseAccessTokens([]byte("so secret"), &Token{})
 }
 
 func testMutex(c gaecontext.HTTPContext) {
@@ -302,7 +302,7 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 }
 
 func testAccessTokens(c gaecontext.HTTPContext) {
-	enc, err := httpcontext.EncodeToken(&Token{Name: "hehu"}, time.Hour)
+	enc, err := utils.EncodeToken(&Token{Name: "hehu"}, time.Hour)
 	if err != nil {
 		panic(err)
 	}
@@ -314,7 +314,7 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	if tok.Name != "hehu" {
 		panic("wrong name!")
 	}
-	enc, err = httpcontext.EncodeToken(&Token{Name: "hehu"}, time.Millisecond)
+	enc, err = utils.EncodeToken(&Token{Name: "hehu"}, time.Millisecond)
 	if err != nil {
 		panic(err)
 	}
