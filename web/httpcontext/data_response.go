@@ -11,17 +11,19 @@ import (
 const (
 	ContentJSON     = "application/json; charset=UTF-8"
 	ContentExcelCSV = "application/vnd.ms-excel"
+	ContentHTML     = "text/html"
 )
 
 type DataResp struct {
-	Body        []map[string]interface{}
-	Status      int
-	ContentType string
-	Filename    string
+	Data        [][]interface{} `json:"data"`
+	Headers     []string        `json:"headers"`
+	Status      int             `json:"-"`
+	ContentType string          `json:"-"`
+	Filename    string          `json:"-"`
 }
 
 func (self DataResp) Write(w http.ResponseWriter) error {
-	if self.Body == nil {
+	if self.Data == nil {
 		return nil
 	}
 	if self.Filename != "" {
@@ -33,23 +35,17 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		if self.Status != 0 {
 			w.WriteHeader(self.Status)
 		}
+		fmt.Fprintf(w, "sep=\t\n")
 		writer := csv.NewWriter(w)
 		writer.Comma = '\t'
-		var keys []string = nil
-		for _, row := range self.Body {
-			if keys == nil {
-				keys = make([]string, 0, len(row))
-				for k := range row {
-					keys = append(keys, k)
-				}
-				err := writer.Write(keys)
-				if err != nil {
-					return err
-				}
-			}
-			vals := make([]string, 0, len(keys))
-			for _, v := range keys {
-				vals = append(vals, fmt.Sprintf("%v", row[v]))
+		err := writer.Write(self.Headers)
+		if err != nil {
+			return err
+		}
+		for _, row := range self.Data {
+			vals := make([]string, 0, len(self.Headers))
+			for index := range self.Headers {
+				vals = append(vals, fmt.Sprintf("%v", row[index]))
 			}
 			err := writer.Write(vals)
 			if err != nil {
@@ -58,15 +54,29 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		}
 		writer.Flush()
 		return writer.Error()
+	case ContentHTML:
+		fmt.Fprintf(w, "<html><body><table><thead><tr>")
+		for _, k := range self.Headers {
+			fmt.Fprintf(w, "<th>%v</th>", k)
+		}
+		fmt.Fprintf(w, "</tr></thead><tbody>")
+		for _, row := range self.Data {
+			fmt.Fprintf(w, "<tr>")
+			for _, v := range row {
+				fmt.Fprintf(w, "<td>%v</td>", v)
+			}
+			fmt.Fprintf(w, "</tr>")
+		}
+		fmt.Fprintf(w, "</tbody></body></html>")
 	case ContentJSON:
-		return json.NewEncoder(w).Encode(self.Body)
+		return json.NewEncoder(w).Encode(self)
 	}
 	return fmt.Errorf("Unknown content type %#v", self.ContentType)
 }
 
 var suffixPattern = regexp.MustCompile("\\.(\\w{1,4})$")
 
-func DataHandlerFunc(f func(c HTTPContextLogger) (result DataResp, err error)) http.Handler {
+func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error)) http.Handler {
 	return HandlerFunc(func(c HTTPContextLogger) (err error) {
 		resp, err := f(c)
 		match := suffixPattern.FindStringSubmatch(c.Req().URL.Path)
@@ -77,6 +87,8 @@ func DataHandlerFunc(f func(c HTTPContextLogger) (result DataResp, err error)) h
 		switch suffix {
 		case "csv":
 			resp.ContentType = ContentExcelCSV
+		case "html":
+			resp.ContentType = ContentHTML
 		default:
 			resp.ContentType = ContentJSON
 		}
