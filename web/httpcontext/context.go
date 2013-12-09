@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
+	"io"
 	"log"
+	"log/syslog"
 	"net/http"
 	"os"
 	"regexp"
@@ -47,11 +49,11 @@ type HTTPContextLogger interface {
 }
 
 type DefaultLogger struct {
-	debugLogger    *log.Logger
-	infoLogger     *log.Logger
-	warningLogger  *log.Logger
-	errorLogger    *log.Logger
-	criticalLogger *log.Logger
+	DebugLogger    *log.Logger
+	InfoLogger     *log.Logger
+	WarningLogger  *log.Logger
+	ErrorLogger    *log.Logger
+	CriticalLogger *log.Logger
 }
 
 type DefaultHTTPContext struct {
@@ -61,39 +63,76 @@ type DefaultHTTPContext struct {
 	vars     map[string]string
 }
 
-func NewDefaultLogger() *DefaultLogger {
-	return &DefaultLogger{
-		debugLogger:    log.New(os.Stdout, "DEBUG", 0),
-		infoLogger:     log.New(os.Stdout, "INFO", 0),
-		warningLogger:  log.New(os.Stdout, "WARNING", 0),
-		errorLogger:    log.New(os.Stdout, "ERROR", 0),
-		criticalLogger: log.New(os.Stdout, "CRITICAL", 0),
+var defaultLogger = NewSTDOUTLogger(4)
+
+func NewDefaultLogger(w io.Writer, level int) (result *DefaultLogger) {
+	result = &DefaultLogger{}
+	result.CriticalLogger = log.New(w, "CRITICAL", 0)
+	if level > 0 {
+		result.ErrorLogger = log.New(w, "ERROR", 0)
 	}
+	if level > 1 {
+		result.WarningLogger = log.New(w, "WARNING", 0)
+	}
+	if level > 2 {
+		result.InfoLogger = log.New(w, "INFO", 0)
+	}
+	if level > 3 {
+		result.DebugLogger = log.New(w, "DEBUG", 0)
+	}
+	return
+}
+
+func NewSTDOUTLogger(level int) (result *DefaultLogger) {
+	return NewDefaultLogger(os.Stdout, level)
+}
+
+func NewSysLogger(level int) (result *DefaultLogger, err error) {
+	result = &DefaultLogger{}
+	priorities := []syslog.Priority{syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_INFO, syslog.LOG_DEBUG}
+	loggers := []**log.Logger{&result.CriticalLogger, &result.ErrorLogger, &result.WarningLogger, &result.InfoLogger, &result.DebugLogger}
+	for index, logger := range loggers {
+		if level >= index {
+			*logger, err = syslog.NewLogger(priorities[index], 0)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
 }
 
 func (self *DefaultLogger) Debugf(format string, i ...interface{}) {
-	self.debugLogger.Printf(format, i...)
+	if self.DebugLogger != nil {
+		self.DebugLogger.Printf(format, i...)
+	}
 }
 
 func (self *DefaultLogger) Infof(format string, i ...interface{}) {
-	self.infoLogger.Printf(format, i...)
+	if self.InfoLogger != nil {
+		self.InfoLogger.Printf(format, i...)
+	}
 }
 
 func (self *DefaultLogger) Warningf(format string, i ...interface{}) {
-	self.warningLogger.Printf(format, i...)
+	if self.WarningLogger != nil {
+		self.WarningLogger.Printf(format, i...)
+	}
 }
 
 func (self *DefaultLogger) Errorf(format string, i ...interface{}) {
-	self.errorLogger.Printf(format, i...)
+	if self.ErrorLogger != nil {
+		self.ErrorLogger.Printf(format, i...)
+	}
 }
 
 func (self *DefaultLogger) Criticalf(format string, i ...interface{}) {
-	self.criticalLogger.Printf(format, i...)
+	self.CriticalLogger.Printf(format, i...)
 }
 
 func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTPContext) {
 	result = &DefaultHTTPContext{
-		Logger:   NewDefaultLogger(),
+		Logger:   defaultLogger,
 		response: w,
 		request:  r,
 		vars:     mux.Vars(r),
