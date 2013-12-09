@@ -2,9 +2,15 @@ package httpcontext
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
+)
+
+const (
+	ContentJSON     = "application/json; charset=UTF-8"
+	ContentExcelCSV = "application/vnd.ms-excel"
 )
 
 type DataResp struct {
@@ -21,9 +27,9 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 	if self.Filename != "" {
 		w.Header().Set("Content-disposition", "attachment; filename="+self.Filename)
 	}
+	w.Header().Set("Content-Type", self.ContentType)
 	switch self.ContentType {
-	case "application/vnd.ms-excel":
-		w.Header().Set("Content-Type", self.ContentType)
+	case ContentExcelCSV:
 		if self.Status != 0 {
 			w.WriteHeader(self.Status)
 		}
@@ -52,12 +58,13 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		}
 		writer.Flush()
 		return writer.Error()
-	default:
-		return fmt.Errorf("Unknown content type %#v", self.ContentType)
+	case ContentJSON:
+		return json.NewEncoder(w).Encode(self.Body)
 	}
+	return fmt.Errorf("Unknown content type %#v", self.ContentType)
 }
 
-var suffixPattern = regexp.MustCompile("\\.(\\w){1,4}$")
+var suffixPattern = regexp.MustCompile("\\.(\\w{1,4})$")
 
 func DataHandlerFunc(f func(c HTTPContextLogger) (result DataResp, err error)) http.Handler {
 	return HandlerFunc(func(c HTTPContextLogger) (err error) {
@@ -69,9 +76,9 @@ func DataHandlerFunc(f func(c HTTPContextLogger) (result DataResp, err error)) h
 		}
 		switch suffix {
 		case "csv":
-			resp.ContentType = "application/vnd.ms-excel"
+			resp.ContentType = ContentExcelCSV
 		default:
-			resp.ContentType = "application/json; charset=UTF-8"
+			resp.ContentType = ContentJSON
 		}
 		if err == nil {
 			c.Render(resp)
