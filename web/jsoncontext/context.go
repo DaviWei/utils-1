@@ -105,7 +105,8 @@ func (self Resp) Write(w http.ResponseWriter) error {
 	if self.Body != nil {
 		return json.NewEncoder(w).Encode(self.Body)
 	}
-	return nil
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	return json.NewEncoder(w).Encode(self.Body)
 }
 
 type Error struct {
@@ -192,8 +193,7 @@ func (self ValidationError) Write(w http.ResponseWriter) error {
 func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
 	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) (err error) {
 		c := NewJSONContext(cont)
-		var resp httpcontext.Response
-		resp, err = f(c)
+		resp, err := f(c)
 		if err == nil {
 			c.Render(resp)
 		}

@@ -204,3 +204,12 @@ func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error)) h
 		}).ServeHTTP(w, r)
 	})
 }
+
+func DataHandlerFunc(f func(c HTTPContext) (resp httpcontext.DataResp, err error)) http.Handler {
+	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+		httpcontext.DataHandlerFunc(func(httpCont httpcontext.HTTPContextLogger) (resp httpcontext.DataResp, err error) {
+			c := NewHTTPContext(gaeCont, httpCont)
+			return f(c)
+		}).ServeHTTP(w, r)
+	})
+}
