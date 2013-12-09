@@ -95,6 +95,14 @@ func (self Resp) Error() string {
 func (self Resp) Write(w http.ResponseWriter) error {
 	if self.Body != nil {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	}
+	if self.Location != "" {
+		w.Header().Set("Location", self.Location)
+	}
+	if self.Status != 0 {
+		w.WriteHeader(self.Status)
+	}
+	if self.Body != nil {
 		return json.NewEncoder(w).Encode(self.Body)
 	}
 	return nil
@@ -138,7 +146,7 @@ func (self *ValidationError) AddField(fieldName, message string, code int, cause
 	if self == nil {
 		return &ValidationError{
 			Fields: map[string]field{
-				fieldName: field{
+				fieldName: {
 					Message: message,
 					Code:    code,
 					Cause:   cause,

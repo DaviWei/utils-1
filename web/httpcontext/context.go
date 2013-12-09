@@ -21,8 +21,6 @@ var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
 type Response interface {
 	Write(w http.ResponseWriter) error
-	GetLocation() string
-	GetStatus() int
 }
 
 type Logger interface {
@@ -39,7 +37,6 @@ type HTTPContext interface {
 	Resp() http.ResponseWriter
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
-	SetContentType(t string)
 	Render(resp Response) error
 	AccessToken(dst interface{}) error
 }
@@ -139,17 +136,7 @@ func (self *DefaultHTTPContext) AccessToken(dst interface{}) (err error) {
 	return
 }
 
-func (self *DefaultHTTPContext) SetContentType(t string) {
-	self.Resp().Header().Set("Content-Type", t)
-}
-
 func (self *DefaultHTTPContext) Render(resp Response) error {
-	if resp.GetLocation() != "" {
-		self.Resp().Header().Set("Location", resp.GetLocation())
-	}
-	if resp.GetStatus() != 0 {
-		self.Resp().WriteHeader(resp.GetStatus())
-	}
 	return resp.Write(self.Resp())
 }
 
