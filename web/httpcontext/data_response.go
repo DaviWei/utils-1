@@ -90,6 +90,9 @@ var suffixPattern = regexp.MustCompile("\\.(\\w{1,4})$")
 func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error)) http.Handler {
 	return HandlerFunc(func(c HTTPContextLogger) (err error) {
 		resp, err := f(c)
+		if err != nil {
+			return
+		}
 		match := suffixPattern.FindStringSubmatch(c.Req().URL.Path)
 		suffix := ""
 		if match != nil {
