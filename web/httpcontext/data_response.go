@@ -15,11 +15,16 @@ const (
 )
 
 type DataResp struct {
-	Data        [][]interface{} `json:"data"`
-	Headers     []string        `json:"headers"`
-	Status      int             `json:"-"`
-	ContentType string          `json:"-"`
-	Filename    string          `json:"-"`
+	Data        chan []interface{}
+	Headers     []string
+	Status      int
+	ContentType string
+	Filename    string
+}
+
+type JsonResp struct {
+	Data    [][]interface{} `json:"data"`
+	Headers []string        `json:"headers"`
 }
 
 func (self DataResp) Write(w http.ResponseWriter) error {
@@ -42,7 +47,7 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		if err != nil {
 			return err
 		}
-		for _, row := range self.Data {
+		for row := range self.Data {
 			vals := make([]string, 0, len(self.Headers))
 			for index := range self.Headers {
 				vals = append(vals, fmt.Sprintf("%v", row[index]))
@@ -60,7 +65,7 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 			fmt.Fprintf(w, "<th>%v</th>", k)
 		}
 		fmt.Fprintf(w, "</tr></thead><tbody>")
-		for _, row := range self.Data {
+		for row := range self.Data {
 			fmt.Fprintf(w, "<tr>")
 			for _, v := range row {
 				fmt.Fprintf(w, "<td>%v</td>", v)
@@ -69,7 +74,13 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		}
 		fmt.Fprintf(w, "</tbody></body></html>")
 	case ContentJSON:
-		return json.NewEncoder(w).Encode(self)
+		// I dont know a way of creating json, and streaming it to the user.
+		resp := JsonResp{}
+		resp.Headers = self.Headers
+		for row := range self.Data {
+			resp.Data = append(resp.Data, row)
+		}
+		return json.NewEncoder(w).Encode(resp)
 	}
 	return fmt.Errorf("Unknown content type %#v", self.ContentType)
 }
