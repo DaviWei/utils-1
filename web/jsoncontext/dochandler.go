@@ -18,9 +18,10 @@ type DocumentedRoute interface {
 var routes = []DocumentedRoute{}
 
 type JSONType struct {
-	Type   string               `json:"type"`
-	Fields map[string]*JSONType `json:"fields,omitempty"`
-	Elem   *JSONType            `json:"elem,omitempty"`
+	Type    string
+	Fields  map[string]*JSONType `json:",omitempty"`
+	Elem    *JSONType            `json:",omitempty"`
+	Comment string               `json:",omitempty"`
 }
 
 func newJSONType(t reflect.Type) (result *JSONType) {
@@ -48,6 +49,7 @@ func newJSONType(t reflect.Type) (result *JSONType) {
 			} else {
 				jsonToTag := field.Tag.Get("jsonTo")
 				jsonTag := field.Tag.Get("json")
+				docTag := field.Tag.Get("jsonDoc")
 				name := field.Name
 				if jsonTag != "-" {
 					if jsonTag != "" {
@@ -56,10 +58,12 @@ func newJSONType(t reflect.Type) (result *JSONType) {
 					}
 					if jsonToTag != "" {
 						result.Fields[name] = &JSONType{
-							Type: jsonToTag,
+							Type:    jsonToTag,
+							Comment: docTag,
 						}
 					} else {
 						result.Fields[name] = newJSONType(field.Type)
+						result.Fields[name].Comment = docTag
 					}
 				}
 			}
