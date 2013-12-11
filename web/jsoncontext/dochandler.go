@@ -17,42 +17,33 @@ type DocumentedRoute interface {
 
 var routes = []DocumentedRoute{}
 
-func deref(t reflect.Type) reflect.Type {
+type JSONType struct {
+	Type   string               `json:"type"`
+	Fields map[string]*JSONType `json:"fields,omitempty"`
+	Elem   *JSONType            `json:"elem,omitempty"`
+}
+
+func newJSONType(t reflect.Type) (result *JSONType) {
+	result = &JSONType{}
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return t
-}
-
-type JSONType struct {
-	reflect.Type
-}
-
-func (self JSONType) ToMap() map[string]interface{} {
-	return self.toMap(map[reflect.Type]bool{})
-}
-
-func (self JSONType) toMap(seen map[reflect.Type]bool) (result map[string]interface{}) {
-	refType := deref(self.Type)
-	result = map[string]interface{}{}
-	switch refType.Kind() {
+	switch t.Kind() {
 	case reflect.Struct:
-		result["Type"] = refType.Name()
-		if seen[refType] {
-			result["DescribedElsewhere"] = true
-		}
-		seen[refType] = true
-		fields := map[string]interface{}{}
-		for i := 0; i < refType.NumField(); i++ {
-			field := refType.Field(i)
+		result.Type = t.Name()
+		result.Fields = map[string]*JSONType{}
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
-					anonMap := JSONType{field.Type}.toMap(seen)
-					for k, v := range anonMap["Fields"].(map[string]interface{}) {
-						fields[k] = v
+					anonType := newJSONType(field.Type)
+					for name, typ := range anonType.Fields {
+						result.Fields[name] = typ
 					}
 				} else {
-					fields[field.Name] = fmt.Sprintf("Don't know how to describe %v", field.Type.Name())
+					result.Fields[field.Name] = &JSONType{
+						Type: fmt.Sprintf("Don't know how to describe anonymous field that isn't struct or pointer to struct", field.Type.Name()),
+					}
 				}
 			} else {
 				jsonToTag := field.Tag.Get("jsonTo")
@@ -64,38 +55,21 @@ func (self JSONType) toMap(seen map[reflect.Type]bool) (result map[string]interf
 						name = parts[0]
 					}
 					if jsonToTag != "" {
-						fields[name] = map[string]interface{}{
-							"Type": jsonToTag,
+						result.Fields[name] = &JSONType{
+							Type: jsonToTag,
 						}
 					} else {
-						if seen[deref(field.Type)] {
-							fields[name] = map[string]interface{}{
-								"Type": field.Type.Name(),
-							}
-						} else {
-							fields[name] = JSONType{refType.Field(i).Type}.toMap(seen)
-						}
+						result.Fields[name] = newJSONType(field.Type)
 					}
 				}
 			}
 		}
-		result["Fields"] = fields
 	case reflect.Slice:
-		if seen[deref(refType.Elem())] {
-			result["Elem"] = map[string]interface{}{
-				"Type": refType.Elem().Name(),
-			}
-		} else {
-			result["Elem"] = JSONType{refType.Elem()}.toMap(seen)
-		}
+		result.Elem = newJSONType(t.Elem())
 	default:
-		result["Type"] = refType.Name()
+		result.Type = t.Name()
 	}
 	return
-}
-
-func (self JSONType) MarshalJSON() (b []byte, err error) {
-	return json.Marshal(self.ToMap())
 }
 
 type DefaultDocumentedRoute struct {
@@ -152,10 +126,10 @@ func Document(fIn interface{}, path string, methods ...string) (docRoute *Defaul
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
 	if fType.NumIn() == 2 {
-		docRoute.In = &JSONType{fType.In(1)}
+		docRoute.In = newJSONType(fType.In(1))
 	}
 	if fType.NumOut() == 3 {
-		docRoute.Out = &JSONType{fType.Out(1)}
+		docRoute.Out = newJSONType(fType.Out(1))
 	}
 
 	fOut = func(c JSONContextLogger) (response Resp, err error) {
