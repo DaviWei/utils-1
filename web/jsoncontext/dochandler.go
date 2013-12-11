@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"io"
-	"net/http"
 	"reflect"
+	"strings"
 )
 
 type DocumentedRoute interface {
@@ -16,38 +17,92 @@ type DocumentedRoute interface {
 
 var routes = []DocumentedRoute{}
 
-type DocType struct {
+func deref(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
+}
+
+type JSONType struct {
 	reflect.Type
 }
 
-func (self DocType) ToMap() (result map[string]interface{}) {
-	refType := reflect.Type(self)
-	result = map[string]interface{}{
-		"Kind": refType.Kind().String(),
-	}
+func (self JSONType) ToMap() map[string]interface{} {
+	return self.toMap(map[reflect.Type]bool{})
+}
+
+func (self JSONType) toMap(seen map[reflect.Type]bool) (result map[string]interface{}) {
+	refType := deref(self.Type)
+	result = map[string]interface{}{}
 	switch refType.Kind() {
 	case reflect.Struct:
 		result["Type"] = refType.Name()
+		if seen[refType] {
+			result["DescribedElsewhere"] = true
+		}
+		seen[refType] = true
 		fields := map[string]interface{}{}
 		for i := 0; i < refType.NumField(); i++ {
-			fields[refType.Field(i).Name] = DocType{refType.Field(i).Type}.ToMap()
+			field := refType.Field(i)
+			if field.Anonymous {
+				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
+					anonMap := JSONType{field.Type}.toMap(seen)
+					for k, v := range anonMap["Fields"].(map[string]interface{}) {
+						fields[k] = v
+					}
+				} else {
+					fields[field.Name] = fmt.Sprintf("Don't know how to describe %v", field.Type.Name())
+				}
+			} else {
+				jsonToTag := field.Tag.Get("jsonTo")
+				jsonTag := field.Tag.Get("json")
+				name := field.Name
+				if jsonTag != "-" {
+					if jsonTag != "" {
+						parts := strings.Split(jsonTag, ",")
+						name = parts[0]
+					}
+					if jsonToTag != "" {
+						fields[name] = map[string]interface{}{
+							"Type": jsonToTag,
+						}
+					} else {
+						if seen[deref(field.Type)] {
+							fields[name] = map[string]interface{}{
+								"Type": field.Type.Name(),
+							}
+						} else {
+							fields[name] = JSONType{refType.Field(i).Type}.toMap(seen)
+						}
+					}
+				}
+			}
 		}
 		result["Fields"] = fields
 	case reflect.Slice:
-		result["Elem"] = DocType{refType.Elem()}.ToMap()
+		if seen[deref(refType.Elem())] {
+			result["Elem"] = map[string]interface{}{
+				"Type": refType.Elem().Name(),
+			}
+		} else {
+			result["Elem"] = JSONType{refType.Elem()}.toMap(seen)
+		}
+	default:
+		result["Type"] = refType.Name()
 	}
 	return
 }
 
-func (self DocType) MarshalJSON() (b []byte, err error) {
+func (self JSONType) MarshalJSON() (b []byte, err error) {
 	return json.Marshal(self.ToMap())
 }
 
 type DefaultDocumentedRoute struct {
 	Methods []string
 	Path    string
-	In      DocType
-	Out     DocType
+	In      *JSONType
+	Out     *JSONType
 }
 
 func (self *DefaultDocumentedRoute) Write(w io.Writer) error {
@@ -97,10 +152,10 @@ func Document(fIn interface{}, path string, methods ...string) (docRoute *Defaul
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
 	if fType.NumIn() == 2 {
-		docRoute.In = DocType{fType.In(1)}
+		docRoute.In = &JSONType{fType.In(1)}
 	}
 	if fType.NumOut() == 3 {
-		docRoute.Out = DocType{fType.Out(1)}
+		docRoute.Out = &JSONType{fType.Out(1)}
 	}
 
 	fOut = func(c JSONContextLogger) (response Resp, err error) {
@@ -129,13 +184,13 @@ func Document(fIn interface{}, path string, methods ...string) (docRoute *Defaul
 	return
 }
 
-var DocHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+var DocHandler = httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
 	for _, route := range routes {
-		if err := route.Write(w); err != nil {
-			w.WriteHeader(500)
-			fmt.Fprintln(w, err)
+		if err = route.Write(c.Resp()); err != nil {
+			return
 		}
 	}
+	return
 })
 
 func DocHandle(router *mux.Router, path string, methods string, f interface{}) {

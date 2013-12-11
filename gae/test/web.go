@@ -373,10 +373,19 @@ func getUsers(c gaecontext.JSONContext, q Query) (status int, result Users, err 
 	return
 }
 
+func getUser(c gaecontext.JSONContext, q Query) (status int, result *User, err error) {
+	result = &User{
+		Name:  "hehu",
+		Email: "blabl@bla.bla",
+	}
+	return
+}
+
 func init() {
 	router := mux.NewRouter()
 	router.Path("/").Handler(gaecontext.HTTPHandlerFunc(test))
 	gaecontext.DocHandle(router, getUsers, "/api/users", "GET")
+	gaecontext.DocHandle(router, getUser, "/api/user", "GET")
 	router.Handle("/doc", jsoncontext.DocHandler)
 	http.Handle("/", router)
 }
