@@ -130,3 +130,55 @@ func ParseAccessToken(d string, dst interface{}) (err error) {
 	dstVal.Elem().Set(tokenVal.Elem())
 	return
 }
+
+func ValidateFuncOutput(f interface{}, out []reflect.Type) error {
+	fVal := reflect.ValueOf(f)
+	if fVal.Kind() != reflect.Func {
+		return fmt.Errorf("%v is not a func", f)
+	}
+	fType := fVal.Type()
+	if fType.NumOut() != len(out) {
+		return fmt.Errorf("%v should take %v arguments", f, len(out))
+	}
+	for index, outType := range out {
+		if !fType.Out(index).AssignableTo(outType) {
+			return fmt.Errorf("Return value %v for %v (%v) should be assignable to %v", index, f, fType.Out(index), outType)
+		}
+	}
+	return nil
+}
+
+func ValidateFuncOutputs(f interface{}, outs ...[]reflect.Type) (errs []error) {
+	for _, out := range outs {
+		if err := ValidateFuncOutput(f, out); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return
+}
+
+func ValidateFuncInput(f interface{}, in []reflect.Type) error {
+	fVal := reflect.ValueOf(f)
+	if fVal.Kind() != reflect.Func {
+		return fmt.Errorf("%v is not a func", f)
+	}
+	fType := fVal.Type()
+	if fType.NumIn() != len(in) {
+		return fmt.Errorf("%v should take %v arguments", f, len(in))
+	}
+	for index, inType := range in {
+		if !fType.In(index).AssignableTo(inType) {
+			return fmt.Errorf("Argument %v for %v (%v) should be assignable to %v", index, f, fType.In(index), inType)
+		}
+	}
+	return nil
+}
+
+func ValidateFuncInputs(f interface{}, ins ...[]reflect.Type) (errs []error) {
+	for _, in := range ins {
+		if err := ValidateFuncInput(f, in); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return
+}
