@@ -9,9 +9,26 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"time"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+const (
+	randomChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
+func RandomString(i int) string {
+	buf := new(bytes.Buffer)
+	for buf.Len() < i {
+		fmt.Fprintf(buf, "%c", randomChars[rand.Intn(len(randomChars))])
+	}
+	return string(buf.Bytes())
+}
 
 func Prettify(obj interface{}) string {
 	b, err := json.MarshalIndent(obj, "", "  ")
