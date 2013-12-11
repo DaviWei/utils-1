@@ -67,18 +67,18 @@ var defaultLogger = NewSTDOUTLogger(4)
 
 func NewDefaultLogger(w io.Writer, level int) (result *DefaultLogger) {
 	result = &DefaultLogger{}
-	result.CriticalLogger = log.New(w, "CRITICAL", 0)
+	result.CriticalLogger = log.New(w, "CRITICAL: ", 0)
 	if level > 0 {
-		result.ErrorLogger = log.New(w, "ERROR", 0)
+		result.ErrorLogger = log.New(w, "ERROR: ", 0)
 	}
 	if level > 1 {
-		result.WarningLogger = log.New(w, "WARNING", 0)
+		result.WarningLogger = log.New(w, "WARNING: ", 0)
 	}
 	if level > 2 {
-		result.InfoLogger = log.New(w, "INFO", 0)
+		result.InfoLogger = log.New(w, "INFO: ", 0)
 	}
 	if level > 3 {
-		result.DebugLogger = log.New(w, "DEBUG", 0)
+		result.DebugLogger = log.New(w, "DEBUG: ", 0)
 	}
 	return
 }
