@@ -75,17 +75,8 @@ func (self *DefaultJSONContext) APIVersion() int {
 }
 
 type Resp struct {
-	Status   int
-	Location string
-	Body     interface{}
-}
-
-func (self Resp) GetStatus() int {
-	return self.Status
-}
-
-func (self Resp) GetLocation() string {
-	return self.Location
+	Status int
+	Body   interface{}
 }
 
 func (self Resp) Error() string {
@@ -96,17 +87,13 @@ func (self Resp) Write(w http.ResponseWriter) error {
 	if self.Body != nil {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
-	if self.Location != "" {
-		w.Header().Set("Location", self.Location)
-	}
 	if self.Status != 0 {
 		w.WriteHeader(self.Status)
 	}
 	if self.Body != nil {
 		return json.NewEncoder(w).Encode(self.Body)
 	}
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	return json.NewEncoder(w).Encode(self.Body)
+	return nil
 }
 
 type Error struct {
@@ -170,14 +157,6 @@ func (self *ValidationError) AddField(fieldName, message string, code int, cause
 	return self
 }
 
-func (self ValidationError) GetStatus() int {
-	return self.Status
-}
-
-func (self ValidationError) GetLocation() string {
-	return ""
-}
-
 func (self ValidationError) Error() string {
 	return fmt.Sprint(self.Fields)
 }
@@ -185,8 +164,11 @@ func (self ValidationError) Error() string {
 func (self ValidationError) Write(w http.ResponseWriter) error {
 	if self.Fields != nil {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		return json.NewEncoder(w).Encode(self)
 	}
+	if self.Status != 0 {
+		w.WriteHeader(self.Status)
+	}
+	return json.NewEncoder(w).Encode(self)
 	return nil
 }
 

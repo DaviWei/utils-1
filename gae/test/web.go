@@ -2,12 +2,14 @@ package web
 
 import (
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -349,6 +351,41 @@ func test(c gaecontext.HTTPContext) error {
 	return nil
 }
 
+type Query struct {
+	Offset int
+	Limit  int
+}
+
+type User struct {
+	Name  string
+	Email string
+}
+
+type Users []User
+
+func getUsers(c gaecontext.JSONContext, q Query) (status int, result Users, err error) {
+	result = Users{
+		User{
+			Name:  "charlie brown",
+			Email: "charlie@brown.net",
+		},
+	}
+	return
+}
+
+func getUser(c gaecontext.JSONContext, q Query) (status int, result *User, err error) {
+	result = &User{
+		Name:  "hehu",
+		Email: "blabl@bla.bla",
+	}
+	return
+}
+
 func init() {
-	http.Handle("/", gaecontext.HTTPHandlerFunc(test))
+	router := mux.NewRouter()
+	router.Path("/").Handler(gaecontext.HTTPHandlerFunc(test))
+	gaecontext.DocHandle(router, getUsers, "/api/users", "GET")
+	gaecontext.DocHandle(router, getUser, "/api/user", "GET")
+	router.Handle("/doc", jsoncontext.DocHandler)
+	http.Handle("/", router)
 }

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -202,14 +201,6 @@ func (self *DefaultHTTPContext) Vars() map[string]string {
 func HandlerFunc(f func(c HTTPContextLogger) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(w, r)
-		defer func() {
-			if e := recover(); e != nil {
-				c.Resp().WriteHeader(500)
-				fmt.Fprintf(c.Resp(), "%v\n", e)
-				c.Criticalf("%v\n%s", e, debug.Stack())
-				panic(e)
-			}
-		}()
 		err := f(c)
 		if err != nil {
 			if errResponse, ok := err.(Response); ok {

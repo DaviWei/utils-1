@@ -278,7 +278,7 @@ memoizeMulti will look for all provided keys, and load them into the destination
 
 Any missing values will be generated using the generatorFunctions and put in memcache with a duration timeout.
 
-If cacheNil is true, nil values will be cached if the generatorFunction returns a memcache.ErrCacheMiss error.
+If cacheNil is true, nil results or memcacheErrCacheMiss errors from the generator function will be cached.
 
 It returns a slice of bools that show whether each value was found (either from memcache or from the genrator function).
 */
@@ -326,27 +326,24 @@ func memoizeMulti(
 					return
 				}
 				resultValue := reflect.ValueOf(result)
-				if err == memcache.ErrCacheMiss {
-					if cacheNil {
-						nilObj := reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
-						if err2 := Codec.Set(c, &memcache.Item{
-							Key:        keyHash,
-							Flags:      nilCache,
-							Object:     nilObj,
-							Expiration: duration,
-						}); err2 != nil {
-							err = err2
-							return
-						}
+				found := err == nil && !resultValue.IsNil()
+				var flags uint32
+				obj := result
+				if found || cacheNil {
+					if !found {
+						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
+						flags = nilCache
 					}
-				} else {
-					if err = Codec.Set(c, &memcache.Item{
+					if err2 := Codec.Set(c, &memcache.Item{
 						Key:        keyHash,
-						Object:     result,
+						Flags:      flags,
+						Object:     obj,
 						Expiration: duration,
-					}); err != nil {
+					}); err2 != nil {
+						err = err2
 						return
-					} else {
+					}
+					if found {
 						reflectCopy(resultValue, result, destinationPointer)
 					}
 				}

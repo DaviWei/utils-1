@@ -5,7 +5,9 @@ import (
 	"appengine/datastore"
 	"appengine/urlfetch"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/mjibson/appstats"
+	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
@@ -30,26 +32,19 @@ type JSONContext interface {
 	jsoncontext.JSONContext
 }
 
-func CallTransactionFunction(c GAEContext, f interface{}) error {
-	val := reflect.ValueOf(f)
-	if val.Kind() != reflect.Func {
-		return fmt.Errorf("%v is not a function", f)
+func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
+	if err = utils.ValidateFuncInput(f, []reflect.Type{
+		reflect.TypeOf((*GAEContext)(nil)).Elem(),
+	}); err != nil {
+		return
 	}
-	typ := val.Type()
-	if typ.NumOut() != 1 {
-		return fmt.Errorf("%v does not return exactly one value", f)
+	if err = utils.ValidateFuncOutput(f, []reflect.Type{
+		reflect.TypeOf((*error)(nil)).Elem(),
+	}); err != nil {
+		return
 	}
-	if !typ.Out(0).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		return fmt.Errorf("%v does not return an error", f)
-	}
-	if typ.NumIn() != 1 {
-		return fmt.Errorf("%v does not take exactly one argument", f)
-	}
-	argValue := reflect.ValueOf(c)
-	if !argValue.Type().AssignableTo(typ.In(0)) {
-		return fmt.Errorf("%v does not take exactly one argument assignable to GAEContext", f)
-	}
-	if err := val.Call([]reflect.Value{argValue})[0].Interface(); err != nil {
+	if errVal := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(c)})[0]; !errVal.IsNil() {
+		err = errVal.Interface().(error)
 		return err.(error)
 	}
 	return nil
@@ -96,7 +91,6 @@ type Transport struct {
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
 	if t.t.Context.(GAEContext).InTransaction() {
 		return nil, fmt.Errorf("Avoid using Client() when in an transaction. %s %s", req.Method, req.URL.String())
-		//t.t.Context.Warningf("Avoid using Client() when in an transaction. %s %s", req.Method, req.URL.String())
 	}
 	start := time.Now()
 	resp, err := t.t.RoundTrip(req)
@@ -212,4 +206,23 @@ func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err erro
 			return f(c)
 		}).ServeHTTP(w, r)
 	})
+}
+
+func DocHandle(router *mux.Router, f interface{}, path string, methods ...string) {
+	if errs := utils.ValidateFuncInputs(f, []reflect.Type{
+		reflect.TypeOf((*JSONContext)(nil)).Elem(),
+		reflect.TypeOf((*interface{})(nil)).Elem(),
+	}, []reflect.Type{
+		reflect.TypeOf((*JSONContext)(nil)).Elem(),
+	}); len(errs) == 2 {
+		panic(fmt.Errorf("%v does not conform. Fix one of %v", errs))
+	}
+	doc, fu := jsoncontext.Document(f, path, methods...)
+	jsoncontext.Remember(doc)
+	router.Path(path).Methods(methods...).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+		jsoncontext.HandlerFunc(func(jsonCont jsoncontext.JSONContextLogger) (resp jsoncontext.Resp, err error) {
+			c := NewJSONContext(gaeCont, jsonCont)
+			return fu(c)
+		}).ServeHTTP(w, r)
+	}))
 }
