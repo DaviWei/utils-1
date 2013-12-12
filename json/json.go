@@ -3,13 +3,15 @@ package json
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils"
 	"io"
 	"reflect"
 	"strings"
 )
 
-func LoadJSON(in io.Reader, out interface{}, accessScope string) (err error) {
+/*
+LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes.
+*/
+func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error) {
 
 	var decodedJSON map[string]*json.RawMessage
 	if err = json.NewDecoder(in).Decode(&decodedJSON); err != nil {
@@ -49,12 +51,17 @@ func LoadJSON(in io.Reader, out interface{}, accessScope string) (err error) {
 			continue
 		}
 
-		// Check that the scope user are in, is allowed to update this field.
-		in := false
-		if in, err = utils.InSlice(allowedScopes, accessScope); err != nil {
-			return
+		// Check that at least one of the scopes is allowed to update this field.
+		inScope := false
+		for _, scope := range accessScopes {
+			for _, allowedScope := range allowedScopes {
+				if scope == allowedScope {
+					inScope = true
+					break
+				}
+			}
 		}
-		if !in {
+		if !inScope {
 			continue
 		}
 
