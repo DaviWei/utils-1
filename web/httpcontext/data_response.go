@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	ContentJSON     = "application/json; charset=UTF-8"
-	ContentExcelCSV = "application/vnd.ms-excel"
-	ContentHTML     = "text/html"
+	ContentJSON       = "application/json; charset=UTF-8"
+	ContentJSONStream = "application/x-json-stream; charset=UTF-8"
+	ContentExcelCSV   = "application/vnd.ms-excel"
+	ContentHTML       = "text/html"
 )
 
 type DataResp struct {
@@ -20,11 +21,6 @@ type DataResp struct {
 	Status      int
 	ContentType string
 	Filename    string
-}
-
-type JsonResp struct {
-	Data    [][]interface{} `json:"data"`
-	Headers []string        `json:"headers"`
 }
 
 func (self DataResp) Write(w http.ResponseWriter) error {
@@ -68,24 +64,44 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		for row := range self.Data {
 			fmt.Fprintf(w, "<tr>")
 			for _, v := range row {
-				fmt.Fprintf(w, "<td>%v</td>", v)
+				switch v.(type) {
+				default:
+					fmt.Fprintf(w, "<td>%v</td>", v)
+				case float64:
+					fmt.Fprintf(w, "<td>%.2f</td>", v)
+				}
 			}
 			fmt.Fprintf(w, "</tr>")
 		}
 		fmt.Fprintf(w, "</tbody></body></html>")
 	case ContentJSON:
 		// I dont know a way of creating json, and streaming it to the user.
-		resp := JsonResp{}
-		resp.Headers = self.Headers
+		var resp []map[string]interface{}
 		for row := range self.Data {
-			resp.Data = append(resp.Data, row)
+			m := map[string]interface{}{}
+			for k, v := range self.Headers {
+				m[v] = row[k]
+			}
+			resp = append(resp, m)
 		}
 		return json.NewEncoder(w).Encode(resp)
+
+	case ContentJSONStream:
+		for row := range self.Data {
+			m := map[string]interface{}{}
+			for k, v := range self.Headers {
+				m[v] = row[k]
+			}
+			err := json.NewEncoder(w).Encode(m)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return fmt.Errorf("Unknown content type %#v", self.ContentType)
 }
 
-var suffixPattern = regexp.MustCompile("\\.(\\w{1,4})$")
+var suffixPattern = regexp.MustCompile("\\.(\\w{1,6})$")
 
 func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), scopes ...string) http.Handler {
 	return HandlerFunc(func(c HTTPContextLogger) (err error) {
@@ -103,6 +119,8 @@ func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), 
 			resp.ContentType = ContentExcelCSV
 		case "html":
 			resp.ContentType = ContentHTML
+		case "jjson":
+			resp.ContentType = ContentJSONStream
 		default:
 			resp.ContentType = ContentJSON
 		}

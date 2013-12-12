@@ -1,12 +1,22 @@
 package json
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
 )
+
+func CopyJSON(in interface{}, out interface{}, accessScopes ...string) (err error) {
+	buf := &bytes.Buffer{}
+	if err = json.NewEncoder(buf).Encode(in); err != nil {
+		return
+	}
+	err = LoadJSON(buf, out)
+	return
+}
 
 /*
 LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes.
