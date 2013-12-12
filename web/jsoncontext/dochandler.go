@@ -9,7 +9,18 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"time"
 )
+
+var knownEncodings = map[reflect.Type]string{
+	reflect.TypeOf(time.Time{}):      "string",
+	reflect.TypeOf(time.Duration(0)): "int",
+}
+
+var knownDocTags = map[reflect.Type]string{
+	reflect.TypeOf(time.Duration(0)): "Duration in nanoseconds",
+	reflect.TypeOf(time.Time{}):      "Time encoded like '2013-12-12T20:52:20.963842672+01:00'",
+}
 
 type DocumentedRoute interface {
 	Write(io.Writer) error
@@ -69,6 +80,12 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 						}
 					}
 					if !filterOnScopes || len(updateScopes) > 0 {
+						if jsonToTag == "" && knownEncodings[field.Type] != "" {
+							jsonToTag = knownEncodings[field.Type]
+						}
+						if docTag == "" && knownDocTags[field.Type] != "" {
+							docTag = knownDocTags[field.Type]
+						}
 						if jsonToTag != "" {
 							result.Fields[name] = &JSONType{
 								Type:    jsonToTag,
@@ -86,6 +103,7 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 			}
 		}
 	case reflect.Slice:
+		result.Type = "Array"
 		result.Elem = newJSONType(t.Elem(), filterOnScopes, relevantScopes...)
 	default:
 		result.Type = t.Name()
