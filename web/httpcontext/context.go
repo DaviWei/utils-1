@@ -20,6 +20,36 @@ var authPattern = regexp.MustCompile("^Bearer (.*)$")
 
 var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
+type Error struct {
+	Status int
+	Body   interface{}
+	Cause  error
+	Info   string
+}
+
+func NewError(status int, body interface{}, info string, cause error) Error {
+	return Error{
+		Status: status,
+		Body:   body,
+		Cause:  cause,
+		Info:   info,
+	}
+}
+
+func (self Error) Write(w http.ResponseWriter) (err error) {
+	if self.Status != 0 {
+		w.WriteHeader(self.Status)
+	}
+	if self.Body != nil {
+		_, err = fmt.Fprint(w, self.Body)
+	}
+	return nil
+}
+
+func (self Error) Error() string {
+	return fmt.Sprintf("%+v", self)
+}
+
 type Response interface {
 	Write(w http.ResponseWriter) error
 }
@@ -39,7 +69,7 @@ type HTTPContext interface {
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
 	Render(resp Response) error
-	AccessToken(dst interface{}) error
+	AccessToken(dst utils.AccessToken) (utils.AccessToken, error)
 }
 
 type HTTPContextLogger interface {
@@ -158,15 +188,15 @@ func MostAccepted(r *http.Request, name, def string) string {
 	return bestValue
 }
 
-func (self *DefaultHTTPContext) AccessToken(dst interface{}) (err error) {
+func (self *DefaultHTTPContext) AccessToken(dst utils.AccessToken) (result utils.AccessToken, err error) {
 	for _, authHead := range self.Req().Header["Authorization"] {
 		match := authPattern.FindStringSubmatch(authHead)
 		if match != nil {
-			err = utils.ParseAccessToken(match[1], dst)
+			result, err = utils.ParseAccessToken(match[1], dst)
 			return
 		}
 		if authToken := self.Req().URL.Query().Get("token"); authToken != "" {
-			err = utils.ParseAccessToken(authToken, dst)
+			result, err = utils.ParseAccessToken(authToken, dst)
 			return
 		}
 	}
@@ -198,20 +228,48 @@ func (self *DefaultHTTPContext) Vars() map[string]string {
 	return self.vars
 }
 
-func HandlerFunc(f func(c HTTPContextLogger) error) http.Handler {
+func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) {
+	if len(allowedScopes) == 0 {
+		return
+	}
+	token, err := self.AccessToken(nil)
+	if err != nil {
+		err = NewError(401, "Unauthorized", "", err)
+		return
+	}
+	for _, allowedScope := range allowedScopes {
+		for _, scope := range token.Scopes() {
+			if scope == allowedScope {
+				return
+			}
+		}
+	}
+	return NewError(401, "Unauthorized", fmt.Sprintf("Requires one of %+v, but got %+v", allowedScopes, token.Scopes()), nil)
+}
+
+func HandlerFunc(f func(c HTTPContextLogger) error, scopes ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(w, r)
-		err := f(c)
+		// Note: This is called before f, which makes any SetLogger called inside f NOT be called if c.CheckScopes produces an error.
+		err := c.CheckScopes(scopes)
+		funcCalled := false
+		if err == nil {
+			err = f(c)
+			funcCalled = true
+		}
 		if err != nil {
 			if errResponse, ok := err.(Response); ok {
 				if err2 := c.Render(errResponse); err2 != nil {
-					c.Criticalf("Unable to render error %+v: %v", err, err2)
+					c.Resp().WriteHeader(500)
+					fmt.Fprintf(c.Resp(), "Unable to render the proper error %+v: %v", err, err2)
 				}
 			} else {
 				c.Resp().WriteHeader(500)
 				fmt.Fprintf(c.Resp(), "%v", err)
 			}
-			c.Infof("%+v", err)
+			if funcCalled {
+				c.Infof("%+v", err)
+			}
 		}
 	})
 }

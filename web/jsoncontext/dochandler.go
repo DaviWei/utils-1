@@ -20,11 +20,12 @@ var routes = []DocumentedRoute{}
 type JSONType struct {
 	Type    string
 	Fields  map[string]*JSONType `json:",omitempty"`
+	Scopes  []string             `json:",omitempty"`
 	Elem    *JSONType            `json:",omitempty"`
 	Comment string               `json:",omitempty"`
 }
 
-func newJSONType(t reflect.Type) (result *JSONType) {
+func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
 	result = &JSONType{}
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -37,7 +38,7 @@ func newJSONType(t reflect.Type) (result *JSONType) {
 			field := t.Field(i)
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
-					anonType := newJSONType(field.Type)
+					anonType := newJSONType(field.Type, filterOnScopes, relevantScopes...)
 					for name, typ := range anonType.Fields {
 						result.Fields[name] = typ
 					}
@@ -50,26 +51,42 @@ func newJSONType(t reflect.Type) (result *JSONType) {
 				jsonToTag := field.Tag.Get("jsonTo")
 				jsonTag := field.Tag.Get("json")
 				docTag := field.Tag.Get("jsonDoc")
+				updateScopesTag := field.Tag.Get("update_scopes")
 				name := field.Name
+				updateScopes := []string{}
 				if jsonTag != "-" {
 					if jsonTag != "" {
 						parts := strings.Split(jsonTag, ",")
 						name = parts[0]
 					}
-					if jsonToTag != "" {
-						result.Fields[name] = &JSONType{
-							Type:    jsonToTag,
-							Comment: docTag,
+					if updateScopesTag != "" {
+						for _, updateScope := range strings.Split(updateScopesTag, ",") {
+							for _, relevantScope := range relevantScopes {
+								if updateScope == relevantScope {
+									updateScopes = append(updateScopes, updateScope)
+								}
+							}
 						}
-					} else {
-						result.Fields[name] = newJSONType(field.Type)
-						result.Fields[name].Comment = docTag
+					}
+					if !filterOnScopes || len(updateScopes) > 0 {
+						if jsonToTag != "" {
+							result.Fields[name] = &JSONType{
+								Type:    jsonToTag,
+								Comment: docTag,
+							}
+						} else {
+							result.Fields[name] = newJSONType(field.Type, filterOnScopes, relevantScopes...)
+							result.Fields[name].Comment = docTag
+						}
+						if len(updateScopes) > 0 {
+							result.Fields[name].Scopes = updateScopes
+						}
 					}
 				}
 			}
 		}
 	case reflect.Slice:
-		result.Elem = newJSONType(t.Elem())
+		result.Elem = newJSONType(t.Elem(), filterOnScopes, relevantScopes...)
 	default:
 		result.Type = t.Name()
 	}
@@ -77,10 +94,12 @@ func newJSONType(t reflect.Type) (result *JSONType) {
 }
 
 type DefaultDocumentedRoute struct {
-	Methods []string
-	Path    string
-	In      *JSONType
-	Out     *JSONType
+	Method        string
+	Path          string
+	Scopes        []string
+	MinAPIVersion int
+	In            *JSONType
+	Out           *JSONType
 }
 
 func (self *DefaultDocumentedRoute) Write(w io.Writer) error {
@@ -95,7 +114,7 @@ func Remember(doc DocumentedRoute) {
 }
 
 /*
-Document will take a path, a set of methods and a func, and return a documented route and a function suitable for HandlerFunc.
+Document will take a func, a path, a method and a set of scopes that will be used when updating models in the func, and return a documented route and a function suitable for HandlerFunc.
 
 The input func must match func(context JSONContextLogger) (status int, err error)
 
@@ -103,7 +122,7 @@ One extra input argument after context is allowed, and will be JSON decoded from
 
 One extra return value between status and error is allowed, and will be JSON encoded to the response body, and used in the documentation struct.
 */
-func Document(fIn interface{}, path string, methods ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
+func Document(fIn interface{}, path string, method string, minAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
 	if errs := utils.ValidateFuncInputs(fIn, []reflect.Type{
 		reflect.TypeOf((*JSONContextLogger)(nil)).Elem(),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -124,16 +143,18 @@ func Document(fIn interface{}, path string, methods ...string) (docRoute *Defaul
 	}
 
 	docRoute = &DefaultDocumentedRoute{
-		Path:    path,
-		Methods: methods,
+		Path:          path,
+		Method:        method,
+		MinAPIVersion: minAPIVersion,
+		Scopes:        scopes,
 	}
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
 	if fType.NumIn() == 2 {
-		docRoute.In = newJSONType(fType.In(1))
+		docRoute.In = newJSONType(fType.In(1), true, scopes...)
 	}
 	if fType.NumOut() == 3 {
-		docRoute.Out = newJSONType(fType.Out(1))
+		docRoute.Out = newJSONType(fType.Out(1), false)
 	}
 
 	fOut = func(c JSONContextLogger) (response Resp, err error) {
@@ -171,8 +192,8 @@ var DocHandler = httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (
 	return
 })
 
-func DocHandle(router *mux.Router, path string, methods string, f interface{}) {
-	doc, fu := Document(f, path, methods)
+func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
+	doc, fu := Document(f, path, method, minAPIVersion, scopes...)
 	Remember(doc)
-	router.Path(path).Methods(methods).Handler(HandlerFunc(fu))
+	router.Path(path).Methods(method).MatcherFunc(MinAPIVersionMatcher(minAPIVersion)).Handler(HandlerFunc(fu, minAPIVersion, scopes...))
 }

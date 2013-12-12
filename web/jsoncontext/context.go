@@ -35,7 +35,7 @@ type JSONContext interface {
 	httpcontext.HTTPContext
 	APIVersion() int
 	DecodeJSON(i interface{}) error
-	LoadJSON(i interface{}, accessScope string) error
+	LoadJSON(i interface{}) error
 }
 
 type JSONContextLogger interface {
@@ -66,8 +66,13 @@ func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 	return json.NewDecoder(self.Req().Body).Decode(i)
 }
 
-func (self *DefaultJSONContext) LoadJSON(out interface{}, accessScope string) (err error) {
-	return jsonUtils.LoadJSON(self.Req().Body, out, accessScope)
+func (self *DefaultJSONContext) LoadJSON(out interface{}) (err error) {
+	at, err := self.AccessToken(nil)
+	if err != nil {
+		return
+	}
+	scopes := at.Scopes()
+	return jsonUtils.LoadJSON(self.Req().Body, out, scopes...)
 }
 
 func (self *DefaultJSONContext) APIVersion() int {
@@ -172,13 +177,17 @@ func (self ValidationError) Write(w http.ResponseWriter) error {
 	return nil
 }
 
-func HandlerFunc(f func(c JSONContextLogger) (Resp, error)) http.Handler {
+func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion int, scopes ...string) http.Handler {
 	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) (err error) {
 		c := NewJSONContext(cont)
+		if c.APIVersion() < minAPIVersion {
+			err = NewError(417, fmt.Sprintf("X-API-Version header has to request API version greater than 0"), fmt.Sprintf("Headers: %+v", c.Req().Header), nil)
+			return
+		}
 		resp, err := f(c)
 		if err == nil {
 			c.Render(resp)
 		}
 		return
-	})
+	}, scopes...)
 }

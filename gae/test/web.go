@@ -26,6 +26,10 @@ func (self Token) Encode() ([]byte, error) {
 	return []byte(self.Name), nil
 }
 
+func (self Token) Scopes() []string {
+	return []string{"basic"}
+}
+
 func init() {
 	utils.ParseAccessTokens([]byte("so secret"), &Token{})
 }
@@ -310,7 +314,7 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	}
 	c.Req().Header.Set("Authorization", fmt.Sprintf("Bearer %v", enc))
 	tok := &Token{}
-	if err := c.AccessToken(tok); err != nil {
+	if _, err := c.AccessToken(tok); err != nil {
 		panic(err)
 	}
 	if tok.Name != "hehu" {
@@ -322,7 +326,7 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	}
 	time.Sleep(time.Millisecond * 5)
 	c.Req().Header.Set("Authorization", fmt.Sprintf("Bearer %v", enc))
-	if err := c.AccessToken(tok); !strings.Contains(err.Error(), "Expired") {
+	if _, err := c.AccessToken(tok); !strings.Contains(err.Error(), "Expired") {
 		panic("should be expired")
 	}
 }
@@ -384,8 +388,8 @@ func getUser(c gaecontext.JSONContext, q Query) (status int, result *User, err e
 func init() {
 	router := mux.NewRouter()
 	router.Path("/").Handler(gaecontext.HTTPHandlerFunc(test))
-	gaecontext.DocHandle(router, getUsers, "/api/users", "GET")
-	gaecontext.DocHandle(router, getUser, "/api/user", "GET")
+	gaecontext.DocHandle(router, getUsers, "/api/users", "GET", 0)
+	gaecontext.DocHandle(router, getUser, "/api/user", "GET", 0, "basic")
 	router.Handle("/doc", jsoncontext.DocHandler)
 	http.Handle("/", router)
 }

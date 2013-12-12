@@ -87,7 +87,7 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 
 var suffixPattern = regexp.MustCompile("\\.(\\w{1,4})$")
 
-func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error)) http.Handler {
+func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), scopes ...string) http.Handler {
 	return HandlerFunc(func(c HTTPContextLogger) (err error) {
 		resp, err := f(c)
 		if err != nil {
@@ -110,5 +110,5 @@ func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error)) 
 			c.Render(resp)
 		}
 		return
-	})
+	}, scopes...)
 }

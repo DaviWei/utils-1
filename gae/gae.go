@@ -131,14 +131,9 @@ func (self ErrNoSuchEntity) Error() string {
 }
 
 func (self ErrNoSuchEntity) Write(w http.ResponseWriter) (err error) {
+	w.WriteHeader(404)
 	_, err = fmt.Fprint(w, self.Error())
 	return
-}
-func (self ErrNoSuchEntity) GetLocation() string {
-	return ""
-}
-func (self ErrNoSuchEntity) GetStatus() int {
-	return 404
 }
 
 func newError(dst interface{}, cause error) (err error) {

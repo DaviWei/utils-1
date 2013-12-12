@@ -57,6 +57,7 @@ func InSlice(slice interface{}, needle interface{}) (result bool, err error) {
 
 type AccessToken interface {
 	Encode() ([]byte, error)
+	Scopes() []string
 }
 
 type tokenEnvelope struct {
@@ -66,9 +67,14 @@ type tokenEnvelope struct {
 }
 
 var secret []byte
+var accessTokenType reflect.Type
 
 func ParseAccessTokens(s []byte, token AccessToken) {
 	secret = s
+	accessTokenType = reflect.TypeOf(token)
+	if accessTokenType.Kind() != reflect.Ptr || accessTokenType.Elem().Kind() != reflect.Struct {
+		panic(fmt.Errorf("%v is not a pointer to a struct", token))
+	}
 	gob.Register(token)
 }
 
@@ -111,7 +117,14 @@ func (self *tokenEnvelope) generateHash() (result []byte, err error) {
 	return
 }
 
-func ParseAccessToken(d string, dst interface{}) (err error) {
+/*
+ParseAccessToken will return the AccessToken encoded in d. If dst is provided it will encode into it.
+*/
+func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error) {
+	if dst == nil {
+		dst = reflect.New(accessTokenType.Elem()).Interface().(AccessToken)
+	}
+	result = dst
 	envelope := &tokenEnvelope{}
 	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(d)))
 	if err = dec.Decode(&envelope); err != nil {

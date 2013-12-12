@@ -181,34 +181,34 @@ func NewJSONContext(gaeCont appengine.Context, jsonCont jsoncontext.JSONContextL
 	return
 }
 
-func HTTPHandlerFunc(f func(c HTTPContext) error) http.Handler {
+func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		httpcontext.HandlerFunc(func(httpCont httpcontext.HTTPContextLogger) error {
 			c := NewHTTPContext(gaeCont, httpCont)
 			return f(c)
-		}).ServeHTTP(w, r)
+		}, scopes...).ServeHTTP(w, r)
 	})
 }
 
-func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error)) http.Handler {
+func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion int, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		jsoncontext.HandlerFunc(func(jsonCont jsoncontext.JSONContextLogger) (resp jsoncontext.Resp, err error) {
 			c := NewJSONContext(gaeCont, jsonCont)
 			return f(c)
-		}).ServeHTTP(w, r)
+		}, minAPIVersion, scopes...).ServeHTTP(w, r)
 	})
 }
 
-func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error)) http.Handler {
+func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		httpcontext.DataHandlerFunc(func(httpCont httpcontext.HTTPContextLogger) (resp *httpcontext.DataResp, err error) {
 			c := NewHTTPContext(gaeCont, httpCont)
 			return f(c)
-		}).ServeHTTP(w, r)
+		}, scopes...).ServeHTTP(w, r)
 	})
 }
 
-func DocHandle(router *mux.Router, f interface{}, path string, methods ...string) {
+func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
 	if errs := utils.ValidateFuncInputs(f, []reflect.Type{
 		reflect.TypeOf((*JSONContext)(nil)).Elem(),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -217,12 +217,12 @@ func DocHandle(router *mux.Router, f interface{}, path string, methods ...string
 	}); len(errs) == 2 {
 		panic(fmt.Errorf("%v does not conform. Fix one of %v", errs))
 	}
-	doc, fu := jsoncontext.Document(f, path, methods...)
+	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
-	router.Path(path).Methods(methods...).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		jsoncontext.HandlerFunc(func(jsonCont jsoncontext.JSONContextLogger) (resp jsoncontext.Resp, err error) {
 			c := NewJSONContext(gaeCont, jsonCont)
 			return fu(c)
-		}).ServeHTTP(w, r)
+		}, minAPIVersion, scopes...).ServeHTTP(w, r)
 	}))
 }
