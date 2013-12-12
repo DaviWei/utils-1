@@ -161,11 +161,19 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 		args := make([]reflect.Value, fType.NumIn())
 		args[0] = reflect.ValueOf(c)
 		if fType.NumIn() == 2 {
-			in := reflect.New(fType.In(1))
-			if err = c.DecodeJSON(in.Interface()); err != nil {
-				return
+			if fType.In(1).Kind() == reflect.Ptr {
+				in := reflect.New(fType.In(1).Elem())
+				if err = c.DecodeJSON(in.Interface()); err != nil {
+					return
+				}
+				args[1] = in
+			} else {
+				in := reflect.New(fType.In(1))
+				if err = c.DecodeJSON(in.Interface()); err != nil {
+					return
+				}
+				args[1] = in.Elem()
 			}
-			args[1] = in
 		}
 		results := fVal.Call(args)
 		if !results[len(results)-1].IsNil() {
