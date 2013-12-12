@@ -1,14 +1,16 @@
 package jsoncontext
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
-	"io"
+	"net/http"
 	"reflect"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -22,8 +24,93 @@ var knownDocTags = map[reflect.Type]string{
 	reflect.TypeOf(time.Time{}):      "Time encoded like '2013-12-12T20:52:20.963842672+01:00'",
 }
 
+var DefaultDocTemplate *template.Template
+
+var DefaultDocTemplateContent = `
+<html>
+<head>
+<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
+<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap-theme.min.css">
+<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+</head>
+<body>
+{{range .Endpoints}}
+<div class="panel-group" id="accordion">
+{{RenderEndpoint .}}
+</div>
+{{end}}
+</body>
+`
+
+var DefaultEndpointTemplateContent = `
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h4 class="panel-title">
+      <a data-toggle="collapse" href="#collapse-{{UUID}}">
+        {{.Method}} {{.Path}}
+      </a>
+    </h4>
+  </div>
+  <div id="collapse-{{UUID}}" class="panel-collapse collapse">
+    <div class="panel-body">
+      <table class="table-bordered">
+      {{if .MinAPIVersion}}
+        <tr>
+          <td>Minimum API version</td>
+          <td>.MinAPIVersion</td>
+        </tr>
+      {{end}}
+      {{if .Scopes}}
+        <tr>
+          <td>Required access scopes</td>
+          <td>.Scopes</td>
+        </tr>
+      {{end}}
+			{{if .In}}
+			  <tr>
+				  <td>JSON request body</td>
+					<td>{{.In.Type}}</td>
+				</tr>
+			{{end}}
+			{{if .Out}}
+			  <tr>
+				  <td>JSON response body</td>
+					<td>{{.Out.Type}}</td>
+				</tr>
+			{{end}}
+      </table>
+    </div>
+  </div>
+</div>
+`
+
+func init() {
+	DefaultDocTemplate = template.Must(template.New("DefaultDocTemplate").Funcs(map[string]interface{}{
+		"RenderEndpoint": func(r DocumentedRoute) (result string, err error) {
+			return
+		},
+		"JSON": func(i interface{}) (result string, err error) {
+			b, err := json.MarshalIndent(i, "", "  ")
+			if err != nil {
+				return
+			}
+			result = string(b)
+			return
+		},
+	}).Parse(DefaultDocTemplateContent))
+	template.Must(DefaultDocTemplate.New("EndpointTemplate").Funcs(map[string]interface{}{
+		"UUID": func() string {
+			return ""
+		},
+	}).Parse(DefaultEndpointTemplateContent))
+	DefaultDocHandler = DocHandler(DefaultDocTemplate)
+}
+
+var DefaultDocHandler http.Handler
+
 type DocumentedRoute interface {
-	Write(io.Writer) error
+	Render(*template.Template) (string, error)
 }
 
 var routes = []DocumentedRoute{}
@@ -120,8 +207,18 @@ type DefaultDocumentedRoute struct {
 	Out           *JSONType
 }
 
-func (self *DefaultDocumentedRoute) Write(w io.Writer) error {
-	return json.NewEncoder(w).Encode(self)
+func (self *DefaultDocumentedRoute) Render(templ *template.Template) (result string, err error) {
+	buf := &bytes.Buffer{}
+	r := utils.RandomString(10)
+	if err = templ.Funcs(map[string]interface{}{
+		"UUID": func() string {
+			return r
+		},
+	}).Execute(buf, self); err != nil {
+		return
+	}
+	result = buf.String()
+	return
 }
 
 /*
@@ -209,14 +306,19 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 	return
 }
 
-var DocHandler = httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
-	for _, route := range routes {
-		if err = route.Write(c.Resp()); err != nil {
-			return
-		}
-	}
-	return
-})
+func DocHandler(templ *template.Template) http.Handler {
+	return httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
+		c.Resp().Header().Set("Content-Type", "text/html; charset=UTF-8")
+		err = templ.Funcs(map[string]interface{}{
+			"RenderEndpoint": func(r DocumentedRoute) (string, error) {
+				return r.Render(templ.Lookup("EndpointTemplate"))
+			},
+		}).Execute(c.Resp(), map[string]interface{}{
+			"Endpoints": routes,
+		})
+		return
+	})
+}
 
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
 	doc, fu := Document(f, path, method, minAPIVersion, scopes...)
