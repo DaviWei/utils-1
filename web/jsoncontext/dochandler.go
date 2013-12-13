@@ -33,6 +33,29 @@ var DefaultDocTemplateContent = `
 <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap-theme.min.css">
 <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
 <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+<style type="text/css">
+table {
+	width: 100%;
+}
+.spec caption {
+	text-align: left;
+}
+.spec em {
+	float: right;
+}
+</style>
+<script>
+$(document).ready(function() {
+	$('.type-template').on('click', '.tab-switch', function(ev) {
+		ev.preventDefault();
+		var par = $(ev.target).closest('.type-template');
+		par.children('.tab').addClass('hidden');
+		par.children('.' + $(ev.target).attr('data-tab')).removeClass('hidden');
+		par.children('ul').children('li').removeClass('active');
+		par.children('ul').children('li.' + $(ev.target).attr('data-tab')).addClass('active');
+	});
+});
+</script>
 </head>
 <body>
 {{range .Endpoints}}
@@ -43,11 +66,35 @@ var DefaultDocTemplateContent = `
 </body>
 `
 
+var DefaultTypeTemplateContent = `
+<div class="type-template">
+<ul class="nav nav-tabs">
+<li class="active example"><a data-tab="example" class="tab-switch" href="#">Example</a></li>
+<li class="spec"><a data-tab="spec" class="tab-switch" href="#">Spec</a></li>
+</ul>
+<pre class="example tab">
+{{Example .}}
+</pre>
+<table class="spec tab table-bordered hidden">
+<caption><strong>{{.Type}}</strong>{{if .Comment}}<em>{{.Comment}}</em>{{end}}</caption>
+{{if .Scopes}}
+<tr><td>Scopes</td><td>{{.Scopes}}</td></tr>
+{{end}}
+{{if .Elem}}
+<tr><td valign="top">Element</td><td>{{RenderType .Elem}}</td></tr>
+{{end}}
+{{range $name, $typ := .Fields}}
+<tr><td valign="top">{{$name}}</td><td>{{RenderType $typ}}</td></tr>
+{{end}}
+</table>
+</div>
+`
+
 var DefaultEndpointTemplateContent = `
 <div class="panel panel-default">
-  <div class="panel-heading">
+  <div class="panel-heading" data-toggle="collapse" href="#collapse-{{UUID}}">
     <h4 class="panel-title">
-      <a data-toggle="collapse" href="#collapse-{{UUID}}">
+      <a>
         {{.Method}} {{.Path}}
       </a>
     </h4>
@@ -63,20 +110,20 @@ var DefaultEndpointTemplateContent = `
       {{end}}
       {{if .Scopes}}
         <tr>
-          <td>Required access scopes</td>
-          <td>.Scopes</td>
+          <td>Scopes</td>
+          <td>{{.Scopes}}</td>
         </tr>
       {{end}}
 			{{if .In}}
 			  <tr>
-				  <td>JSON request body</td>
-					<td>{{.In.Type}}</td>
+				  <td valign="top">JSON request body</td>
+					<td>{{RenderType .In}}</td>
 				</tr>
 			{{end}}
 			{{if .Out}}
 			  <tr>
-				  <td>JSON response body</td>
-					<td>{{.Out.Type}}</td>
+				  <td valign="top">JSON response body</td>
+					<td>{{RenderType .Out}}</td>
 				</tr>
 			{{end}}
       </table>
@@ -98,12 +145,18 @@ func init() {
 			result = string(b)
 			return
 		},
-	}).Parse(DefaultDocTemplateContent))
-	template.Must(DefaultDocTemplate.New("EndpointTemplate").Funcs(map[string]interface{}{
 		"UUID": func() string {
 			return ""
 		},
-	}).Parse(DefaultEndpointTemplateContent))
+		"RenderType": func(t JSONType) (result string, err error) {
+			return
+		},
+		"Example": func(r JSONType) (result string, err error) {
+			return
+		},
+	}).Parse(DefaultDocTemplateContent))
+	template.Must(DefaultDocTemplate.New("EndpointTemplate").Parse(DefaultEndpointTemplateContent))
+	template.Must(DefaultDocTemplate.New("TypeTemplate").Parse(DefaultTypeTemplateContent))
 	DefaultDocHandler = DocHandler(DefaultDocTemplate)
 }
 
@@ -116,15 +169,18 @@ type DocumentedRoute interface {
 var routes = []DocumentedRoute{}
 
 type JSONType struct {
-	Type    string
-	Fields  map[string]*JSONType `json:",omitempty"`
-	Scopes  []string             `json:",omitempty"`
-	Elem    *JSONType            `json:",omitempty"`
-	Comment string               `json:",omitempty"`
+	ReflectType reflect.Type
+	Type        string
+	Fields      map[string]*JSONType `json:",omitempty"`
+	Scopes      []string             `json:",omitempty"`
+	Elem        *JSONType            `json:",omitempty"`
+	Comment     string               `json:",omitempty"`
 }
 
 func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
-	result = &JSONType{}
+	result = &JSONType{
+		ReflectType: t,
+	}
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -142,7 +198,8 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 					}
 				} else {
 					result.Fields[field.Name] = &JSONType{
-						Type: fmt.Sprintf("Don't know how to describe anonymous field that isn't struct or pointer to struct", field.Type.Name()),
+						ReflectType: field.Type,
+						Type:        fmt.Sprintf("Don't know how to describe anonymous field that isn't struct or pointer to struct", field.Type.Name()),
 					}
 				}
 			} else {
@@ -175,8 +232,9 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 						}
 						if jsonToTag != "" {
 							result.Fields[name] = &JSONType{
-								Type:    jsonToTag,
-								Comment: docTag,
+								ReflectType: field.Type,
+								Type:        jsonToTag,
+								Comment:     docTag,
 							}
 						} else {
 							result.Fields[name] = newJSONType(field.Type, filterOnScopes, relevantScopes...)
@@ -312,6 +370,23 @@ func DocHandler(templ *template.Template) http.Handler {
 		err = templ.Funcs(map[string]interface{}{
 			"RenderEndpoint": func(r DocumentedRoute) (string, error) {
 				return r.Render(templ.Lookup("EndpointTemplate"))
+			},
+			"RenderType": func(t JSONType) (result string, err error) {
+				buf := &bytes.Buffer{}
+				if err = templ.ExecuteTemplate(buf, "TypeTemplate", t); err != nil {
+					return
+				}
+				result = buf.String()
+				return
+			},
+			"Example": func(r JSONType) (result string, err error) {
+				x := utils.Example(r.ReflectType)
+				b, err := json.MarshalIndent(x, "", "  ")
+				if err != nil {
+					return
+				}
+				result = string(b)
+				return
 			},
 		}).Execute(c.Resp(), map[string]interface{}{
 			"Endpoints": routes,
