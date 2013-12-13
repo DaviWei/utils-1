@@ -118,7 +118,7 @@ func NewSTDOUTLogger(level int) (result *DefaultLogger) {
 
 func NewSysLogger(level int) (result *DefaultLogger, err error) {
 	result = &DefaultLogger{}
-	priorities := []syslog.Priority{syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_INFO, syslog.LOG_DEBUG}
+	priorities := []syslog.Priority{syslog.LOG_CRIT, syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_INFO, syslog.LOG_DEBUG}
 	loggers := []**log.Logger{&result.CriticalLogger, &result.ErrorLogger, &result.WarningLogger, &result.InfoLogger, &result.DebugLogger}
 	for index, logger := range loggers {
 		if level >= index {
