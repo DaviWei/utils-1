@@ -213,34 +213,44 @@ func ValidateFuncInputs(f interface{}, ins ...[]reflect.Type) (errs []error) {
 	return
 }
 
-var examples = map[reflect.Type]interface{}{}
+const (
+	maxExampleRecursion = 5
+)
 
 func Example(t reflect.Type) (result interface{}) {
-	result, found := examples[t]
-	if found {
-		return
-	}
+	return example(t, 0)
+}
+
+func example(t reflect.Type, n int) (result interface{}) {
 	switch t.Kind() {
 	case reflect.Slice:
 		val := reflect.MakeSlice(t, 1, 1)
 		result = val.Interface()
-		examples[t] = result
-		val.Index(0).Set(reflect.ValueOf(Example(t.Elem())))
+		if n > maxExampleRecursion {
+			return
+		}
+		val.Index(0).Set(reflect.ValueOf(example(t.Elem(), n+1)))
+		result = val.Interface()
 	case reflect.Ptr:
 		val := reflect.New(t.Elem())
 		result = val.Interface()
-		examples[t] = result
-		x := Example(t.Elem())
+		if n > maxExampleRecursion {
+			return
+		}
+		x := example(t.Elem(), n+1)
 		val.Elem().Set(reflect.ValueOf(x))
+		result = val.Interface()
 	default:
 		val := reflect.New(t)
 		result = val.Elem().Interface()
-		examples[t] = result
+		if n > maxExampleRecursion {
+			return
+		}
 		if t.Kind() == reflect.Struct {
 			for i := 0; i < t.NumField(); i++ {
 				field := t.Field(i)
 				if field.PkgPath == "" {
-					val.Elem().Field(i).Set(reflect.ValueOf(Example(field.Type)))
+					val.Elem().Field(i).Set(reflect.ValueOf(example(field.Type, n+1)))
 				}
 			}
 		}
