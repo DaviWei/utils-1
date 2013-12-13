@@ -164,21 +164,24 @@ var DefaultDocHandler http.Handler
 
 type DocumentedRoute interface {
 	Render(*template.Template) (string, error)
+	GetScopes() []string
 }
 
 var routes = []DocumentedRoute{}
 
 type JSONType struct {
+	In          bool
 	ReflectType reflect.Type
 	Type        string
-	Fields      map[string]*JSONType `json:",omitempty"`
-	Scopes      []string             `json:",omitempty"`
-	Elem        *JSONType            `json:",omitempty"`
-	Comment     string               `json:",omitempty"`
+	Fields      map[string]*JSONType
+	Scopes      []string
+	Elem        *JSONType
+	Comment     string
 }
 
-func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
+func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
 	result = &JSONType{
+		In:          in,
 		ReflectType: t,
 	}
 	for t.Kind() == reflect.Ptr {
@@ -192,12 +195,13 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 			field := t.Field(i)
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
-					anonType := newJSONType(field.Type, filterOnScopes, relevantScopes...)
+					anonType := newJSONType(in, field.Type, filterOnScopes, relevantScopes...)
 					for name, typ := range anonType.Fields {
 						result.Fields[name] = typ
 					}
 				} else {
 					result.Fields[field.Name] = &JSONType{
+						In:          in,
 						ReflectType: field.Type,
 						Type:        fmt.Sprintf("Don't know how to describe anonymous field that isn't struct or pointer to struct", field.Type.Name()),
 					}
@@ -232,24 +236,23 @@ func newJSONType(t reflect.Type, filterOnScopes bool, relevantScopes ...string) 
 						}
 						if jsonToTag != "" {
 							result.Fields[name] = &JSONType{
+								In:          in,
 								ReflectType: field.Type,
 								Type:        jsonToTag,
 								Comment:     docTag,
 							}
 						} else {
-							result.Fields[name] = newJSONType(field.Type, filterOnScopes, relevantScopes...)
+							result.Fields[name] = newJSONType(in, field.Type, filterOnScopes, relevantScopes...)
 							result.Fields[name].Comment = docTag
 						}
-						if len(updateScopes) > 0 {
-							result.Fields[name].Scopes = updateScopes
-						}
+						result.Fields[name].Scopes = updateScopes
 					}
 				}
 			}
 		}
 	case reflect.Slice:
 		result.Type = "Array"
-		result.Elem = newJSONType(t.Elem(), filterOnScopes, relevantScopes...)
+		result.Elem = newJSONType(in, t.Elem(), filterOnScopes, relevantScopes...)
 	default:
 		result.Type = t.Name()
 	}
@@ -263,6 +266,10 @@ type DefaultDocumentedRoute struct {
 	MinAPIVersion int
 	In            *JSONType
 	Out           *JSONType
+}
+
+func (self *DefaultDocumentedRoute) GetScopes() []string {
+	return self.Scopes
 }
 
 func (self *DefaultDocumentedRoute) Render(templ *template.Template) (result string, err error) {
@@ -324,10 +331,10 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
 	if fType.NumIn() == 2 {
-		docRoute.In = newJSONType(fType.In(1), true, scopes...)
+		docRoute.In = newJSONType(true, fType.In(1), true, scopes...)
 	}
 	if fType.NumOut() == 3 {
-		docRoute.Out = newJSONType(fType.Out(1), false)
+		docRoute.Out = newJSONType(false, fType.Out(1), false)
 	}
 
 	fOut = func(c JSONContextLogger) (response Resp, err error) {
@@ -384,6 +391,23 @@ func DocHandler(templ *template.Template) http.Handler {
 				b, err := json.MarshalIndent(x, "", "  ")
 				if err != nil {
 					return
+				}
+				if len(r.Fields) > 0 {
+					var i interface{}
+					if err = json.Unmarshal(b, &i); err != nil {
+						return
+					}
+					if m, ok := i.(map[string]interface{}); ok {
+						newMap := map[string]interface{}{}
+						for k, v := range m {
+							if _, found := r.Fields[k]; found {
+								newMap[k] = v
+							}
+						}
+						if b, err = json.MarshalIndent(newMap, "", "  "); err != nil {
+							return
+						}
+					}
 				}
 				result = string(b)
 				return
