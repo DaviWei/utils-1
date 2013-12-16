@@ -102,6 +102,12 @@ var DefaultEndpointTemplateContent = `
   <div id="collapse-{{UUID}}" class="panel-collapse collapse">
     <div class="panel-body">
       <table class="table-bordered">
+			<tr>
+  			<td>curl</td>
+				<td>
+				  <pre>curl{{if .Scopes}} -H "Authorization: bearer ${TOKEN}"{{end}} -X{{.Method}} ${HOST}{{.Path}}{{if .In}} -d'{{Example .In}}'{{end}}</pre>
+				</td>
+			</tr>
       {{if .MinAPIVersion}}
         <tr>
           <td>Minimum API version</td>
