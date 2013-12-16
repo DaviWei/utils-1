@@ -52,7 +52,40 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 
 type DefaultContext struct {
 	appengine.Context
-	inTransaction bool
+	inTransaction    bool
+	afterTransaction []func(GAEContext) error
+}
+
+func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
+	// validate that f take one argument of whatever type and returns nothing
+	if err = utils.ValidateFuncInput(f, []reflect.Type{
+		reflect.TypeOf((*interface{})(nil)).Elem(),
+	}); err != nil {
+		return
+	}
+	if err = utils.ValidateFuncOutput(f, []reflect.Type{
+		reflect.TypeOf((*error)(nil)).Elem(),
+	}); err != nil {
+		return
+	}
+	// validate that whatever argument f took, a GAEContext would implement it
+	if !reflect.TypeOf((*GAEContext)(nil)).Elem().AssignableTo(reflect.TypeOf(f).In(0)) {
+		err = fmt.Errorf("%v does not take an argument that is satisfied by %v", f, self)
+		return
+	}
+	// create our after func
+	afterFunc := func(c GAEContext) (err error) {
+		if errVal := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(c)})[0]; !errVal.IsNil() {
+			err = errVal.Interface().(error)
+		}
+		return
+	}
+	if self.inTransaction {
+		self.afterTransaction = append(self.afterTransaction, afterFunc)
+	} else {
+		afterFunc(self)
+	}
+	return
 }
 
 func (self *DefaultContext) AfterSave(i interface{}) error    { return nil }
@@ -119,16 +152,28 @@ func (self *DefaultContext) InTransaction() bool {
 	return self.inTransaction
 }
 
-func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) error {
+func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err error) {
 	if self.inTransaction {
 		return CallTransactionFunction(self, f)
 	}
-	return datastore.RunInTransaction(self, func(c appengine.Context) error {
-		newContext := *self
+	var newContext DefaultContext
+	if err = datastore.RunInTransaction(self, func(c appengine.Context) error {
+		newContext = *self
 		newContext.Context = c
 		newContext.inTransaction = true
 		return CallTransactionFunction(&newContext, f)
-	}, &datastore.TransactionOptions{XG: crossGroup})
+	}, &datastore.TransactionOptions{XG: crossGroup}); err == nil {
+		var multiErr appengine.MultiError
+		for _, cb := range newContext.afterTransaction {
+			if err := cb(self); err != nil {
+				multiErr = append(multiErr, err)
+			}
+		}
+		if len(multiErr) > 0 {
+			err = multiErr
+		}
+	}
+	return
 }
 
 type DefaultHTTPContext struct {

@@ -390,6 +390,6 @@ func init() {
 	router.Path("/").Handler(gaecontext.HTTPHandlerFunc(test))
 	gaecontext.DocHandle(router, getUsers, "/api/users", "GET", 0)
 	gaecontext.DocHandle(router, getUser, "/api/user", "GET", 0, "basic")
-	router.Handle("/doc", jsoncontext.DocHandler)
+	router.Handle("/doc", jsoncontext.DefaultDocHandler)
 	http.Handle("/", router)
 }

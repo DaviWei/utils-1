@@ -16,6 +16,7 @@ import (
 type TransactionContext interface {
 	appengine.Context
 	InTransaction() bool
+	AfterTransaction(interface{}) error
 }
 
 const (
@@ -67,8 +68,23 @@ func IncrExisting(c TransactionContext, key string, delta int64) (newValue uint6
 
 /*
 Del will delete the keys from memcache.
+
+If c is InTransaction it will put the actual deletion inside c.AfterTransaction, otherwise
+the deletion will execute immediately.
 */
 func Del(c TransactionContext, keys ...string) (err error) {
+	if c.InTransaction() {
+		return c.AfterTransaction(func(c TransactionContext) error {
+			return del(c, keys...)
+		})
+	}
+	return del(c, keys...)
+}
+
+/*
+del will delete the keys from memcache.
+*/
+func del(c TransactionContext, keys ...string) (err error) {
 	for index, key := range keys {
 		var k string
 		k, err = Keyify(key)
