@@ -90,7 +90,6 @@ func Del(c TransactionContext, keys ...string) (err error) {
 del will delete the keys from memcache.
 */
 func del(c TransactionContext, keys ...string) (err error) {
-	c.Infof("### gonna delete %v", keys)
 	for index, key := range keys {
 		var k string
 		k, err = Keyify(key)
@@ -357,7 +356,7 @@ func memoizeMulti(
 				found := err == nil && !resultValue.IsNil()
 				var flags uint32
 				obj := result
-				if found || cacheNil {
+				if !c.InTransaction() && (found || cacheNil) {
 					if !found {
 						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
 						flags = nilCache

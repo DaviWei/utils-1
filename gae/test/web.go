@@ -309,7 +309,8 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 
 func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	t1 := &ts{}
-	t1.Id = key.For(t1, "", 0, nil)
+	parentKey := key.For(t1, "parent", 0, nil)
+	t1.Id = key.For(t1, "", 0, parentKey)
 	t1.Name = "hej"
 	if err := gae.Put(c, t1); err != nil {
 		panic(err)
@@ -321,7 +322,8 @@ func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	if t2.Name != "hej" {
 		panic("wrong name")
 	}
-	time.Sleep(1)
+
+	time.Sleep(time.Second)
 	found := []ts{}
 	if err := findTsByName(c, &found, "hej"); err != nil {
 		panic(err)
@@ -332,17 +334,100 @@ func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	if found[0].Name != "hej" {
 		panic("wrong name")
 	}
+	found = []ts{}
+	if err := findTsByAncestorAndName(c, &found, parentKey, "hej"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "hej" {
+		panic("wrong name")
+	}
+
 	t1.Name = "hehu"
 	if err := gae.Put(c, t1); err != nil {
 		panic(err)
 	}
-	time.Sleep(1)
+
+	time.Sleep(time.Second)
 	found = []ts{}
 	if err := findTsByName(c, &found, "hej"); err != nil {
 		panic(err)
 	}
 	if len(found) != 0 {
 		panic("wrong len")
+	}
+	found = []ts{}
+	if err := findTsByAncestorAndName(c, &found, parentKey, "hej"); err != nil {
+		panic(err)
+	}
+	if len(found) != 0 {
+		panic("wrong len")
+	}
+	found = []ts{}
+	if err := findTsByName(c, &found, "hehu"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "hehu" {
+		panic("wrong name")
+	}
+	found = []ts{}
+	if err := findTsByAncestorAndName(c, &found, parentKey, "hehu"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "hehu" {
+		panic("wrong name")
+	}
+
+	if err := c.Transaction(func(c gaecontext.HTTPContext) (err error) {
+		t1.Name = "blapp"
+		err = gae.Put(c, t1)
+		return
+	}, false); err != nil {
+		panic(err)
+	}
+
+	time.Sleep(time.Second)
+	found = []ts{}
+	if err := findTsByName(c, &found, "hehu"); err != nil {
+		panic(err)
+	}
+	if len(found) != 0 {
+		panic("wrong len")
+	}
+	found = []ts{}
+	if err := findTsByAncestorAndName(c, &found, parentKey, "hehu"); err != nil {
+		panic(err)
+	}
+	if len(found) != 0 {
+		panic("wrong len")
+	}
+	found = []ts{}
+	if err := findTsByName(c, &found, "blapp"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "blapp" {
+		panic("wrong name")
+	}
+	found = []ts{}
+	if err := findTsByAncestorAndName(c, &found, parentKey, "blapp"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "blapp" {
+		panic("wrong name")
 	}
 
 }

@@ -85,7 +85,7 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor *key.Key
 
 // keyForValues returns the memcache key to use for the given ancestor and values searched for
 func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string {
-	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Name(), ancestor, self.fields, values)
+	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Elem().Name(), ancestor, self.fields, values)
 }
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
