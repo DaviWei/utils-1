@@ -307,6 +307,46 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 	}
 }
 
+func testMemcacheDeletion(c gaecontext.HTTPContext) {
+	t1 := &ts{}
+	t1.Id = key.For(t1, "", 0, nil)
+	t1.Name = "hej"
+	if err := gae.Put(c, t1); err != nil {
+		panic(err)
+	}
+	t2 := &ts{Id: t1.Id}
+	if err := gae.GetById(c, t2); err != nil {
+		panic(err)
+	}
+	if t2.Name != "hej" {
+		panic("wrong name")
+	}
+	time.Sleep(1)
+	found := []ts{}
+	if err := findTsByName(c, &found, "hej"); err != nil {
+		panic(err)
+	}
+	if len(found) != 1 {
+		panic("wrong len")
+	}
+	if found[0].Name != "hej" {
+		panic("wrong name")
+	}
+	t1.Name = "hehu"
+	if err := gae.Put(c, t1); err != nil {
+		panic(err)
+	}
+	time.Sleep(1)
+	found = []ts{}
+	if err := findTsByName(c, &found, "hej"); err != nil {
+		panic(err)
+	}
+	if len(found) != 0 {
+		panic("wrong len")
+	}
+
+}
+
 func testAccessTokens(c gaecontext.HTTPContext) {
 	enc, err := utils.EncodeToken(&Token{Name: "hehu"}, time.Hour)
 	if err != nil {
@@ -352,6 +392,7 @@ func test(c gaecontext.HTTPContext) error {
 	run(c, testFind)
 	run(c, testAncestorFind)
 	run(c, testAccessTokens)
+	run(c, testMemcacheDeletion)
 	return nil
 }
 

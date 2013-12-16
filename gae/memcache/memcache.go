@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var MemcacheEnabled = true
+
 type TransactionContext interface {
 	appengine.Context
 	InTransaction() bool
@@ -73,6 +75,9 @@ If c is InTransaction it will put the actual deletion inside c.AfterTransaction,
 the deletion will execute immediately.
 */
 func Del(c TransactionContext, keys ...string) (err error) {
+	if !MemcacheEnabled {
+		return
+	}
 	if c.InTransaction() {
 		return c.AfterTransaction(func(c TransactionContext) error {
 			return del(c, keys...)
@@ -85,6 +90,7 @@ func Del(c TransactionContext, keys ...string) (err error) {
 del will delete the keys from memcache.
 */
 func del(c TransactionContext, keys ...string) (err error) {
+	c.Infof("### gonna delete %v", keys)
 	for index, key := range keys {
 		var k string
 		k, err = Keyify(key)
@@ -114,6 +120,9 @@ Get will lookup key and load it into val.
 If c is in a transaction no lookup will take place.
 */
 func Get(c TransactionContext, key string, val interface{}) (found bool, err error) {
+	if !MemcacheEnabled {
+		return
+	}
 	if c.InTransaction() {
 		return
 	}
@@ -169,6 +178,9 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 Put will put val under key.
 */
 func Put(c TransactionContext, key string, val interface{}) (err error) {
+	if !MemcacheEnabled {
+		return
+	}
 	k, err := Keyify(key)
 	if err != nil {
 		return
@@ -250,7 +262,7 @@ If c is within a transaction no lookup will take place and errors will be slice 
 func memGetMulti(c TransactionContext, keys []string, destinationPointers []interface{}) (items []*memcache.Item, errors appengine.MultiError) {
 	items = make([]*memcache.Item, len(keys))
 	errors = make(appengine.MultiError, len(keys))
-	if c.InTransaction() {
+	if !MemcacheEnabled || c.InTransaction() {
 		for index, _ := range errors {
 			errors[index] = memcache.ErrCacheMiss
 		}
