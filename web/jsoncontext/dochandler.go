@@ -105,7 +105,7 @@ var DefaultEndpointTemplateContent = `
 			<tr>
   			<td valign="top">curl</td>
 				<td>
-				<pre>curl{{if .In}} -H "Content-Type: application/json" {{end}}{{if .Scopes}} -H "Authorization: bearer ${TOKEN}"{{end}} -X{{.Method}} ${HOST}{{.Path}}{{if .In}} -d'{{Example .In}}'{{end}}</pre>
+				<pre>curl{{if .In}} -H "Content-Type: application/json" {{end}}{{if .Scopes}} -H "Authorization: Bearer ${TOKEN}"{{end}} -X{{.Method}} ${HOST}{{.Path}}{{if .In}} -d'{{Example .In}}'{{end}}</pre>
 				</td>
 			</tr>
       {{if .MinAPIVersion}}
