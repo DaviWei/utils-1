@@ -16,6 +16,15 @@ import (
 	"time"
 )
 
+func init() {
+	httpcontext.DefaultLoggerFactory = func(r *http.Request) httpcontext.Logger {
+		if r == nil {
+			return httpcontext.StandardLogger
+		}
+		return appengine.NewContext(r)
+	}
+}
+
 type GAEContext interface {
 	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
