@@ -92,7 +92,11 @@ type DefaultHTTPContext struct {
 	vars     map[string]string
 }
 
-var defaultLogger = NewSTDOUTLogger(4)
+var StandardLogger = NewSTDOUTLogger(4)
+
+var DefaultLoggerFactory = func(r *http.Request) Logger {
+	return StandardLogger
+}
 
 func NewDefaultLogger(w io.Writer, level int) (result *DefaultLogger) {
 	result = &DefaultLogger{}
@@ -161,7 +165,7 @@ func (self *DefaultLogger) Criticalf(format string, i ...interface{}) {
 
 func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTPContext) {
 	result = &DefaultHTTPContext{
-		Logger:   defaultLogger,
+		Logger:   DefaultLoggerFactory(r),
 		response: w,
 		request:  r,
 		vars:     mux.Vars(r),
