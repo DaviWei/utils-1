@@ -111,7 +111,7 @@ var DefaultEndpointTemplateContent = `
       {{if .MinAPIVersion}}
         <tr>
           <td>Minimum API version</td>
-          <td>.MinAPIVersion</td>
+          <td>{{.MinAPIVersion}}</td>
         </tr>
       {{end}}
       {{if .Scopes}}
