@@ -151,6 +151,54 @@ func TestFromAndToGAE(t *testing.T) {
 	}
 }
 
+type testWrapper struct {
+	Id   *Key
+	Name string
+}
+
+type testWrapperString struct {
+	Id   string
+	Name string
+}
+
+func TestToAndFromJSONInsideWrapper(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		k := randomKey(5)
+		w := &testWrapper{
+			Id:   k,
+			Name: "hehu",
+		}
+		enc, err := json.Marshal(w)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		var i interface{}
+		err = json.Unmarshal(enc, &i)
+		if err != nil {
+			t.Errorf("Bad json: %#v: %v", string(enc), err.Error())
+		}
+		w2 := &testWrapper{}
+		if err := json.Unmarshal(enc, w2); err != nil {
+			t.Errorf(err.Error())
+		}
+		if !reflect.DeepEqual(w, w2) {
+			t.Errorf("%+v != %+v", w, w2)
+		}
+		w3 := &testWrapperString{}
+		if err := json.Unmarshal(enc, w3); err != nil {
+			t.Errorf(err.Error())
+		}
+		k2, err := Decode(w3.Id)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		if !k.Equal(k2) {
+			t.Errorf("%v != %v", k, k2)
+		}
+	}
+
+}
+
 func TestToAndFromJSON(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		k := randomKey(5)
