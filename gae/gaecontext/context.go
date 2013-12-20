@@ -17,12 +17,10 @@ import (
 )
 
 func init() {
-	httpcontext.DefaultLoggerFactory = func(r *http.Request) httpcontext.Logger {
-		if r == nil {
-			return httpcontext.StandardLogger
-		}
-		return appengine.NewContext(r)
-	}
+	httpcontext.DefaultPreProcessors = append(httpcontext.DefaultPreProcessors, func(c httpcontext.HTTPContextLogger) error {
+		c.SetLogger(appengine.NewContext(c.Req()))
+		return nil
+	})
 }
 
 type GAEContext interface {

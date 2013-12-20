@@ -43,11 +43,11 @@ func (self Error) Write(w http.ResponseWriter) (err error) {
 	if self.Body != nil {
 		_, err = fmt.Fprint(w, self.Body)
 	}
-	return nil
+	return
 }
 
 func (self Error) Error() string {
-	return fmt.Sprintf("%+v", self)
+	return fmt.Sprintf("%v, %+v, %v, %#v", self.Status, self.Body, self.Cause, self.Info)
 }
 
 type Response interface {
@@ -92,11 +92,9 @@ type DefaultHTTPContext struct {
 	vars     map[string]string
 }
 
-var StandardLogger = NewSTDOUTLogger(4)
+var defaultLogger = NewSTDOUTLogger(4)
 
-var DefaultLoggerFactory = func(r *http.Request) Logger {
-	return StandardLogger
-}
+var DefaultPreProcessors []func(c HTTPContextLogger) error
 
 func NewDefaultLogger(w io.Writer, level int) (result *DefaultLogger) {
 	result = &DefaultLogger{}
@@ -165,7 +163,7 @@ func (self *DefaultLogger) Criticalf(format string, i ...interface{}) {
 
 func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTPContext) {
 	result = &DefaultHTTPContext{
-		Logger:   DefaultLoggerFactory(r),
+		Logger:   defaultLogger,
 		response: w,
 		request:  r,
 		vars:     mux.Vars(r),
@@ -254,12 +252,17 @@ func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) 
 func HandlerFunc(f func(c HTTPContextLogger) error, scopes ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(w, r)
-		// Note: This is called before f, which makes any SetLogger called inside f NOT be called if c.CheckScopes produces an error.
-		err := c.CheckScopes(scopes)
-		funcCalled := false
+		var err error
+		for _, processor := range DefaultPreProcessors {
+			if err = processor(c); err != nil {
+				break
+			}
+		}
+		if err == nil {
+			err = c.CheckScopes(scopes)
+		}
 		if err == nil {
 			err = f(c)
-			funcCalled = true
 		}
 		if err != nil {
 			if errResponse, ok := err.(Response); ok {
@@ -271,9 +274,7 @@ func HandlerFunc(f func(c HTTPContextLogger) error, scopes ...string) http.Handl
 				c.Resp().WriteHeader(500)
 				fmt.Fprintf(c.Resp(), "%v", err)
 			}
-			if funcCalled {
-				c.Infof("%+v", err)
-			}
+			c.Infof("%+v", err)
 		}
 	})
 }
