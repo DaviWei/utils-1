@@ -186,10 +186,19 @@ type JSONType struct {
 }
 
 func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
+	return newJSONTypeLoopProtector(map[reflect.Type]*JSONType{}, in, t, filterOnScopes, relevantScopes...)
+}
+
+func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
+	if old, found := seen[t]; found {
+		result = old
+		return
+	}
 	result = &JSONType{
 		In:          in,
 		ReflectType: t,
 	}
+	seen[t] = result
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -199,9 +208,12 @@ func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ..
 		result.Fields = map[string]*JSONType{}
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
+			if field.PkgPath != "" {
+				continue
+			}
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
-					anonType := newJSONType(in, field.Type, filterOnScopes, relevantScopes...)
+					anonType := newJSONTypeLoopProtector(seen, in, field.Type, filterOnScopes, relevantScopes...)
 					for name, typ := range anonType.Fields {
 						result.Fields[name] = typ
 					}
@@ -248,7 +260,7 @@ func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ..
 								Comment:     docTag,
 							}
 						} else {
-							result.Fields[name] = newJSONType(in, field.Type, filterOnScopes, relevantScopes...)
+							result.Fields[name] = newJSONTypeLoopProtector(seen, in, field.Type, filterOnScopes, relevantScopes...)
 							result.Fields[name].Comment = docTag
 						}
 						result.Fields[name].Scopes = updateScopes
@@ -258,7 +270,7 @@ func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ..
 		}
 	case reflect.Slice:
 		result.Type = "Array"
-		result.Elem = newJSONType(in, t.Elem(), filterOnScopes, relevantScopes...)
+		result.Elem = newJSONTypeLoopProtector(seen, in, t.Elem(), filterOnScopes, relevantScopes...)
 	default:
 		result.Type = t.Name()
 	}
