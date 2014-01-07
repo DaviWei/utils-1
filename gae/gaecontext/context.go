@@ -164,21 +164,37 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 		return CallTransactionFunction(self, f)
 	}
 	var newContext DefaultContext
-	if err = datastore.RunInTransaction(self, func(c appengine.Context) error {
-		newContext = *self
-		newContext.Context = c
-		newContext.inTransaction = true
-		return CallTransactionFunction(&newContext, f)
-	}, &datastore.TransactionOptions{XG: crossGroup}); err == nil {
-		var multiErr appengine.MultiError
-		for _, cb := range newContext.afterTransaction {
-			if err := cb(self); err != nil {
-				multiErr = append(multiErr, err)
-			}
+	/*
+	 * Instead of retrying 3 times, something that we see fail multible times, try
+	 * get transaction working waiting for max 20 seconds.
+	 */
+	start := time.Now()
+	for time.Since(start) < (time.Second * 20) {
+		err = datastore.RunInTransaction(self, func(c appengine.Context) error {
+			newContext = *self
+			newContext.Context = c
+			newContext.inTransaction = true
+			return CallTransactionFunction(&newContext, f)
+		}, &datastore.TransactionOptions{XG: crossGroup})
+
+		/* Dont fail on concurrent transaction.. Continue trying... */
+		if err != datastore.ErrConcurrentTransaction {
+			break
 		}
-		if len(multiErr) > 0 {
-			err = multiErr
+	}
+	if err != nil {
+		return
+	}
+
+	// After transaction sucessfull stuff.
+	var multiErr appengine.MultiError
+	for _, cb := range newContext.afterTransaction {
+		if err := cb(self); err != nil {
+			multiErr = append(multiErr, err)
 		}
+	}
+	if len(multiErr) > 0 {
+		err = multiErr
 	}
 	return
 }
