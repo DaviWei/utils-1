@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
-	"net/http"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"reflect"
 )
 
@@ -130,9 +130,9 @@ func (self ErrNoSuchEntity) Error() string {
 	return fmt.Sprintf("No %v with id %v found", self.Type, self.Id)
 }
 
-func (self ErrNoSuchEntity) Write(w http.ResponseWriter) (err error) {
-	w.WriteHeader(404)
-	_, err = fmt.Fprint(w, self.Error())
+func (self ErrNoSuchEntity) Respond(c httpcontext.HTTPContextLogger) (err error) {
+	c.Resp().WriteHeader(404)
+	_, err = fmt.Fprint(c.Resp(), self.Error())
 	return
 }
 

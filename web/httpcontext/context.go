@@ -36,12 +36,13 @@ func NewError(status int, body interface{}, info string, cause error) Error {
 	}
 }
 
-func (self Error) Write(w http.ResponseWriter) (err error) {
+func (self Error) Respond(c HTTPContextLogger) (err error) {
+	c.Infof("ERROR httpcontext %v", self.Status)
 	if self.Status != 0 {
-		w.WriteHeader(self.Status)
+		c.Resp().WriteHeader(self.Status)
 	}
 	if self.Body != nil {
-		_, err = fmt.Fprint(w, self.Body)
+		_, err = fmt.Fprint(c.Resp(), self.Body)
 	}
 	return
 }
@@ -50,8 +51,8 @@ func (self Error) Error() string {
 	return fmt.Sprintf("%v, %+v, %v, %#v", self.Status, self.Body, self.Cause, self.Info)
 }
 
-type Response interface {
-	Write(w http.ResponseWriter) error
+type Responder interface {
+	Respond(c HTTPContextLogger) error
 }
 
 type Logger interface {
@@ -68,8 +69,8 @@ type HTTPContext interface {
 	Resp() http.ResponseWriter
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
-	Render(resp Response) error
 	AccessToken(dst utils.AccessToken) (utils.AccessToken, error)
+	CheckScopes([]string) error
 }
 
 type HTTPContextLogger interface {
@@ -93,8 +94,6 @@ type DefaultHTTPContext struct {
 }
 
 var defaultLogger = NewSTDOUTLogger(4)
-
-var DefaultPreProcessors []func(c HTTPContextLogger) error
 
 func NewDefaultLogger(w io.Writer, level int) (result *DefaultLogger) {
 	result = &DefaultLogger{}
@@ -206,10 +205,6 @@ func (self *DefaultHTTPContext) AccessToken(dst utils.AccessToken) (result utils
 	return
 }
 
-func (self *DefaultHTTPContext) Render(resp Response) error {
-	return resp.Write(self.Resp())
-}
-
 func (self *DefaultHTTPContext) MostAccepted(name, def string) string {
 	return MostAccepted(self.Req(), name, def)
 }
@@ -249,32 +244,30 @@ func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) 
 	return NewError(401, "Unauthorized", fmt.Sprintf("Requires one of %+v, but got %+v", allowedScopes, token.Scopes()), nil)
 }
 
+func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
+	err := c.CheckScopes(scopes)
+	if err == nil {
+		err = f()
+	}
+	if err != nil {
+		if errResponse, ok := err.(Responder); ok {
+			if err2 := errResponse.Respond(c); err2 != nil {
+				c.Resp().WriteHeader(500)
+				fmt.Fprintf(c.Resp(), "Unable to render the proper error %+v: %v", err, err2)
+			}
+		} else {
+			c.Resp().WriteHeader(500)
+			fmt.Fprintf(c.Resp(), "%v", err)
+		}
+		c.Infof("%+v", err)
+	}
+}
+
 func HandlerFunc(f func(c HTTPContextLogger) error, scopes ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(w, r)
-		var err error
-		for _, processor := range DefaultPreProcessors {
-			if err = processor(c); err != nil {
-				break
-			}
-		}
-		if err == nil {
-			err = c.CheckScopes(scopes)
-		}
-		if err == nil {
-			err = f(c)
-		}
-		if err != nil {
-			if errResponse, ok := err.(Response); ok {
-				if err2 := c.Render(errResponse); err2 != nil {
-					c.Resp().WriteHeader(500)
-					fmt.Fprintf(c.Resp(), "Unable to render the proper error %+v: %v", err, err2)
-				}
-			} else {
-				c.Resp().WriteHeader(500)
-				fmt.Fprintf(c.Resp(), "%v", err)
-			}
-			c.Infof("%+v", err)
-		}
+		Handle(c, func() error {
+			return f(c)
+		}, scopes...)
 	})
 }

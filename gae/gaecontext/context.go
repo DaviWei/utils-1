@@ -16,13 +16,6 @@ import (
 	"time"
 )
 
-func init() {
-	httpcontext.DefaultPreProcessors = append(httpcontext.DefaultPreProcessors, func(c httpcontext.HTTPContextLogger) error {
-		c.SetLogger(appengine.NewContext(c.Req()))
-		return nil
-	})
-}
-
 type GAEContext interface {
 	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
@@ -251,46 +244,38 @@ func NewJSONContext(gaeCont appengine.Context, jsonCont jsoncontext.JSONContextL
 
 func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
-		httpcontext.HandlerFunc(func(httpCont httpcontext.HTTPContextLogger) error {
-			c := NewHTTPContext(gaeCont, httpCont)
+		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
+		httpcontext.Handle(c, func() error {
 			return f(c)
-		}, scopes...).ServeHTTP(w, r)
+		}, scopes...)
 	})
 }
 
 func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion int, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
-		jsoncontext.HandlerFunc(func(jsonCont jsoncontext.JSONContextLogger) (resp jsoncontext.Resp, err error) {
-			c := NewJSONContext(gaeCont, jsonCont)
+		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
+		jsoncontext.Handle(c, func() (jsoncontext.Resp, error) {
 			return f(c)
-		}, minAPIVersion, scopes...).ServeHTTP(w, r)
+		}, minAPIVersion, scopes...)
 	})
 }
 
 func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
-		httpcontext.DataHandlerFunc(func(httpCont httpcontext.HTTPContextLogger) (resp *httpcontext.DataResp, err error) {
-			c := NewHTTPContext(gaeCont, httpCont)
+		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
+		httpcontext.DataHandle(c, func() (*httpcontext.DataResp, error) {
 			return f(c)
-		}, scopes...).ServeHTTP(w, r)
+		}, scopes...)
 	})
 }
 
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
-	if errs := utils.ValidateFuncInputs(f, []reflect.Type{
-		reflect.TypeOf((*JSONContext)(nil)).Elem(),
-		reflect.TypeOf((*interface{})(nil)).Elem(),
-	}, []reflect.Type{
-		reflect.TypeOf((*JSONContext)(nil)).Elem(),
-	}); len(errs) == 2 {
-		panic(fmt.Errorf("%v does not conform. Fix one of %v", errs))
-	}
 	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
 	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
-		jsoncontext.HandlerFunc(func(jsonCont jsoncontext.JSONContextLogger) (resp jsoncontext.Resp, err error) {
-			c := NewJSONContext(gaeCont, jsonCont)
+		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
+		jsoncontext.Handle(c, func() (resp jsoncontext.Resp, err error) {
 			return fu(c)
-		}, minAPIVersion, scopes...).ServeHTTP(w, r)
+		}, minAPIVersion, scopes...)
 	}))
 }

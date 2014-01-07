@@ -97,15 +97,15 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func (self Resp) Write(w http.ResponseWriter) error {
+func (self Resp) Respond(c httpcontext.HTTPContextLogger) error {
 	if self.Body != nil {
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
 	if self.Status != 0 {
-		w.WriteHeader(self.Status)
+		c.Resp().WriteHeader(self.Status)
 	}
 	if self.Body != nil {
-		return json.NewEncoder(w).Encode(self.Body)
+		return json.NewEncoder(c.Resp()).Encode(self.Body)
 	}
 	return nil
 }
@@ -175,28 +175,36 @@ func (self ValidationError) Error() string {
 	return fmt.Sprint(self.Fields)
 }
 
-func (self ValidationError) Write(w http.ResponseWriter) error {
+func (self ValidationError) Respond(c httpcontext.HTTPContextLogger) error {
 	if self.Fields != nil {
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
 	if self.Status != 0 {
-		w.WriteHeader(self.Status)
+		c.Resp().WriteHeader(self.Status)
 	}
-	return json.NewEncoder(w).Encode(self)
+	return json.NewEncoder(c.Resp()).Encode(self)
 	return nil
 }
 
-func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion int, scopes ...string) http.Handler {
-	return httpcontext.HandlerFunc(func(cont httpcontext.HTTPContextLogger) (err error) {
-		c := NewJSONContext(cont)
+func Handle(c JSONContextLogger, f func() (Resp, error), minAPIVersion int, scopes ...string) {
+	httpcontext.Handle(c, func() (err error) {
 		if c.APIVersion() < minAPIVersion {
 			err = NewError(417, fmt.Sprintf("X-API-Version header has to request API version greater than 0"), fmt.Sprintf("Headers: %+v", c.Req().Header), nil)
 			return
 		}
-		resp, err := f(c)
+		resp, err := f()
 		if err == nil {
-			c.Render(resp)
+			err = resp.Respond(c)
 		}
 		return
 	}, scopes...)
+}
+
+func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion int, scopes ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewJSONContext(httpcontext.NewHTTPContext(w, r))
+		Handle(c, func() (Resp, error) {
+			return f(c)
+		}, minAPIVersion, scopes...)
+	})
 }

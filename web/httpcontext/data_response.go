@@ -23,21 +23,21 @@ type DataResp struct {
 	Filename    string
 }
 
-func (self DataResp) Write(w http.ResponseWriter) error {
+func (self DataResp) Render(c HTTPContextLogger) error {
 	if self.Data == nil {
 		return nil
 	}
 	if self.Filename != "" {
-		w.Header().Set("Content-disposition", "attachment; filename="+self.Filename)
+		c.Resp().Header().Set("Content-disposition", "attachment; filename="+self.Filename)
 	}
-	w.Header().Set("Content-Type", self.ContentType)
+	c.Resp().Header().Set("Content-Type", self.ContentType)
 	switch self.ContentType {
 	case ContentExcelCSV:
 		if self.Status != 0 {
-			w.WriteHeader(self.Status)
+			c.Resp().WriteHeader(self.Status)
 		}
-		fmt.Fprintf(w, "sep=\t\n")
-		writer := csv.NewWriter(w)
+		fmt.Fprintf(c.Resp(), "sep=\t\n")
+		writer := csv.NewWriter(c.Resp())
 		writer.Comma = '\t'
 		err := writer.Write(self.Headers)
 		if err != nil {
@@ -56,24 +56,24 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 		writer.Flush()
 		return writer.Error()
 	case ContentHTML:
-		fmt.Fprintf(w, "<html><body><table><thead><tr>")
+		fmt.Fprintf(c.Resp(), "<html><body><table><thead><tr>")
 		for _, k := range self.Headers {
-			fmt.Fprintf(w, "<th>%v</th>", k)
+			fmt.Fprintf(c.Resp(), "<th>%v</th>", k)
 		}
-		fmt.Fprintf(w, "</tr></thead><tbody>")
+		fmt.Fprintf(c.Resp(), "</tr></thead><tbody>")
 		for row := range self.Data {
-			fmt.Fprintf(w, "<tr>")
+			fmt.Fprintf(c.Resp(), "<tr>")
 			for _, v := range row {
 				switch v.(type) {
 				default:
-					fmt.Fprintf(w, "<td>%v</td>", v)
+					fmt.Fprintf(c.Resp(), "<td>%v</td>", v)
 				case float64:
-					fmt.Fprintf(w, "<td>%.2f</td>", v)
+					fmt.Fprintf(c.Resp(), "<td>%.2f</td>", v)
 				}
 			}
-			fmt.Fprintf(w, "</tr>")
+			fmt.Fprintf(c.Resp(), "</tr>")
 		}
-		fmt.Fprintf(w, "</tbody></body></html>")
+		fmt.Fprintf(c.Resp(), "</tbody></body></html>")
 	case ContentJSON:
 		// I dont know a way of creating json, and streaming it to the user.
 		var resp []map[string]interface{}
@@ -84,7 +84,7 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 			}
 			resp = append(resp, m)
 		}
-		return json.NewEncoder(w).Encode(resp)
+		return json.NewEncoder(c.Resp()).Encode(resp)
 
 	case ContentJSONStream:
 		for row := range self.Data {
@@ -92,7 +92,7 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 			for k, v := range self.Headers {
 				m[v] = row[k]
 			}
-			err := json.NewEncoder(w).Encode(m)
+			err := json.NewEncoder(c.Resp()).Encode(m)
 			if err != nil {
 				return err
 			}
@@ -103,9 +103,9 @@ func (self DataResp) Write(w http.ResponseWriter) error {
 
 var suffixPattern = regexp.MustCompile("\\.(\\w{1,6})$")
 
-func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), scopes ...string) http.Handler {
-	return HandlerFunc(func(c HTTPContextLogger) (err error) {
-		resp, err := f(c)
+func DataHandle(c HTTPContextLogger, f func() (*DataResp, error), scopes ...string) {
+	Handle(c, func() (err error) {
+		resp, err := f()
 		if err != nil {
 			return
 		}
@@ -125,8 +125,17 @@ func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), 
 			resp.ContentType = ContentJSON
 		}
 		if err == nil {
-			c.Render(resp)
+			err = resp.Render(c)
 		}
 		return
 	}, scopes...)
+}
+
+func DataHandlerFunc(f func(c HTTPContextLogger) (result *DataResp, err error), scopes ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewHTTPContext(w, r)
+		DataHandle(c, func() (*DataResp, error) {
+			return f(c)
+		}, scopes...)
+	})
 }
