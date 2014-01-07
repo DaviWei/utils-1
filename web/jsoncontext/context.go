@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
+	"reflect"
 	"strconv"
 )
 
@@ -86,6 +88,83 @@ type Resp struct {
 
 func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
+}
+
+type BeforeMarshaller interface {
+	BeforeMarshal(c interface{}) error
+}
+
+func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
+	var runRecursive func(reflect.Value) error
+
+	cont, ok := c.(JSONContextLogger)
+	if !ok {
+		err = fmt.Errorf("bah")
+	}
+
+	cont.Infof("RunBodyBeforeMarshal %v", self.Body != nil)
+	if self.Body == nil {
+		return
+	}
+
+	cVal := reflect.ValueOf(c)
+	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
+
+	// Validate that c implements JSONContextLogger
+	if !cVal.Type().AssignableTo(contextType) {
+		return fmt.Errorf("Invalid context type")
+	}
+
+	runRecursive = func(val reflect.Value) error {
+		cont.Infof("runRecursive %v %s", val, val.Kind())
+
+		// Try run BeforeMarshal
+		fun := val.MethodByName("BeforeMarshal")
+		if fun.IsValid() {
+			cont.Infof("Valid func")
+
+			// Validate BeforeMarshal takes something that implements JSONContextLogger
+			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType}); err != nil {
+				return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+			}
+
+			// Validate BeforeMarshal returns an error
+			if err = utils.ValidateFuncOutput(fun.Interface(), []reflect.Type{reflect.TypeOf((*error)(nil)).Elem()}); err != nil {
+				return fmt.Errorf("BeforeMarshal needs to return an error")
+			}
+
+			res := fun.Call([]reflect.Value{cVal})
+			cont.Infof("was run: %v", res)
+			return res[0].Interface().(error)
+		}
+
+		// Try do recursion on these types.
+		switch val.Kind() {
+		case reflect.Ptr:
+			return runRecursive(val.Elem())
+			break
+
+		case reflect.Slice:
+			for i := 0; i < val.Len(); i++ {
+				if err := runRecursive(val.Index(i)); err != nil {
+					return err
+				}
+			}
+			break
+
+		case reflect.Struct:
+			for i := 0; i < val.NumField(); i++ {
+				if err := runRecursive(val.Field(i)); err != nil {
+					return err
+				}
+			}
+			break
+		}
+		return nil
+	}
+
+	// Run recursive reflection on self.Body that executes BeforeMarshal on every object possible.
+	return runRecursive(reflect.ValueOf(self.Body))
 }
 
 func (self Resp) Write(w http.ResponseWriter) error {
@@ -186,6 +265,9 @@ func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion int, s
 		}
 		resp, err := f(c)
 		if err == nil {
+			if err = resp.RunBodyBeforeMarshal(c); err != nil {
+				return
+			}
 			c.Render(resp)
 		}
 		return
