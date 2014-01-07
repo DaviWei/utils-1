@@ -36,6 +36,7 @@ type JSONContext interface {
 	APIVersion() int
 	DecodeJSON(i interface{}) error
 	LoadJSON(i interface{}) error
+	CopyJSON(in, out interface{}) error
 }
 
 type JSONContextLogger interface {
@@ -60,6 +61,14 @@ func NewJSONContext(c httpcontext.HTTPContextLogger) (result *DefaultJSONContext
 		}
 	}
 	return
+}
+
+func (self *DefaultJSONContext) CopyJSON(in, out interface{}) (err error) {
+	token, err := self.AccessToken(nil)
+	if err != nil {
+		return
+	}
+	return jsonUtils.CopyJSON(in, out, token.Scopes()...)
 }
 
 func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
