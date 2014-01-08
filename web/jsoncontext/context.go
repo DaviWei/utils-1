@@ -99,10 +99,6 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-type BeforeMarshaller interface {
-	BeforeMarshal(c interface{}) error
-}
-
 func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 	var runRecursive func(reflect.Value, reflect.Value) error
 
