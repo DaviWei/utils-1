@@ -112,7 +112,6 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
 		if fun.IsValid() {
-
 			// Validate BeforeMarshal takes something that implements JSONContextLogger
 			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
 				return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
@@ -133,7 +132,7 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 
 		// Try do recursion on these types.
 		switch val.Kind() {
-		case reflect.Ptr:
+		case reflect.Ptr, reflect.Interface:
 			if val.IsNil() {
 				return nil
 			}
@@ -142,7 +141,7 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 
 		case reflect.Slice:
 			for i := 0; i < val.Len(); i++ {
-				if err := runRecursive(val.Index(i), stack); err != nil {
+				if err := runRecursive(val.Index(i).Addr(), stack); err != nil {
 					return err
 				}
 			}
