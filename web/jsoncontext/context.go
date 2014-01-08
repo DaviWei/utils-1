@@ -149,8 +149,10 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 
 		case reflect.Struct:
 			for i := 0; i < val.NumField(); i++ {
-				if err := runRecursive(val.Field(i), stack); err != nil {
-					return err
+				if val.Type().Field(i).PkgPath == "" {
+					if err := runRecursive(val.Field(i), stack); err != nil {
+						return err
+					}
 				}
 			}
 			break
