@@ -104,24 +104,26 @@ type BeforeMarshaller interface {
 }
 
 func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
-	var runRecursive func(reflect.Value) error
+	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
 	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
+	stackType := reflect.TypeOf([]interface{}{})
 
 	// Validate that c implements JSONContextLogger
 	if !cVal.Type().AssignableTo(contextType) {
 		return fmt.Errorf("Invalid context type")
 	}
 
-	runRecursive = func(val reflect.Value) error {
+	runRecursive = func(val reflect.Value, stack reflect.Value) error {
+		stack = reflect.Append(stack, val)
 
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
 		if fun.IsValid() {
 
 			// Validate BeforeMarshal takes something that implements JSONContextLogger
-			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType}); err != nil {
+			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
 				return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
 			}
 
@@ -130,7 +132,7 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 				return fmt.Errorf("BeforeMarshal needs to return an error")
 			}
 
-			res := fun.Call([]reflect.Value{cVal})
+			res := fun.Call([]reflect.Value{cVal, stack})
 			if res[0].IsNil() {
 				return nil
 			} else {
@@ -144,12 +146,12 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 			if val.IsNil() {
 				return nil
 			}
-			return runRecursive(val.Elem())
+			return runRecursive(val.Elem(), stack)
 			break
 
 		case reflect.Slice:
 			for i := 0; i < val.Len(); i++ {
-				if err := runRecursive(val.Index(i)); err != nil {
+				if err := runRecursive(val.Index(i), stack); err != nil {
 					return err
 				}
 			}
@@ -157,7 +159,7 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 
 		case reflect.Struct:
 			for i := 0; i < val.NumField(); i++ {
-				if err := runRecursive(val.Field(i)); err != nil {
+				if err := runRecursive(val.Field(i), stack); err != nil {
 					return err
 				}
 			}
@@ -167,7 +169,8 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 	}
 
 	// Run recursive reflection on self.Body that executes BeforeMarshal on every object possible.
-	return runRecursive(reflect.ValueOf(self.Body))
+	stack := []interface{}{}
+	return runRecursive(reflect.ValueOf(self.Body), reflect.ValueOf(stack))
 }
 
 func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
