@@ -14,7 +14,7 @@ func CopyJSON(in interface{}, out interface{}, accessScopes ...string) (err erro
 	if err = json.NewEncoder(buf).Encode(in); err != nil {
 		return
 	}
-	err = LoadJSON(buf, out)
+	err = LoadJSON(buf, out, accessScopes...)
 	return
 }
 
