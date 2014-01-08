@@ -106,11 +106,6 @@ type BeforeMarshaller interface {
 func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 	var runRecursive func(reflect.Value) error
 
-	cont, ok := c.(JSONContextLogger)
-	if !ok {
-		err = fmt.Errorf("bah")
-	}
-
 	cVal := reflect.ValueOf(c)
 	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
 
@@ -120,12 +115,10 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 	}
 
 	runRecursive = func(val reflect.Value) error {
-		cont.Infof("runRecursive %v %s", val, val.Kind())
 
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
 		if fun.IsValid() {
-			cont.Infof("Valid func")
 
 			// Validate BeforeMarshal takes something that implements JSONContextLogger
 			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType}); err != nil {
@@ -138,13 +131,19 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 			}
 
 			res := fun.Call([]reflect.Value{cVal})
-			cont.Infof("was run: %v", res)
-			return res[0].Interface().(error)
+			if res[0].IsNil() {
+				return nil
+			} else {
+				return res[0].Interface().(error)
+			}
 		}
 
 		// Try do recursion on these types.
 		switch val.Kind() {
 		case reflect.Ptr:
+			if val.IsNil() {
+				return nil
+			}
 			return runRecursive(val.Elem())
 			break
 
