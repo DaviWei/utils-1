@@ -106,11 +106,6 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
 	stackType := reflect.TypeOf([]interface{}{})
 
-	// Validate that c implements JSONContextLogger
-	if !cVal.Type().AssignableTo(contextType) {
-		return fmt.Errorf("Invalid context type")
-	}
-
 	runRecursive = func(val reflect.Value, stack reflect.Value) error {
 		stack = reflect.Append(stack, val)
 
