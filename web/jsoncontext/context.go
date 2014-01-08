@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
+	"reflect"
 	"strconv"
 )
 
@@ -97,7 +99,72 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func (self Resp) Respond(c httpcontext.HTTPContextLogger) error {
+func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
+	var runRecursive func(reflect.Value, reflect.Value) error
+
+	cVal := reflect.ValueOf(c)
+	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
+	stackType := reflect.TypeOf([]interface{}{})
+
+	runRecursive = func(val reflect.Value, stack reflect.Value) error {
+		stack = reflect.Append(stack, val)
+
+		// Try run BeforeMarshal
+		fun := val.MethodByName("BeforeMarshal")
+		if fun.IsValid() {
+
+			// Validate BeforeMarshal takes something that implements JSONContextLogger
+			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
+				return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+			}
+
+			// Validate BeforeMarshal returns an error
+			if err = utils.ValidateFuncOutput(fun.Interface(), []reflect.Type{reflect.TypeOf((*error)(nil)).Elem()}); err != nil {
+				return fmt.Errorf("BeforeMarshal needs to return an error")
+			}
+
+			res := fun.Call([]reflect.Value{cVal, stack})
+			if res[0].IsNil() {
+				return nil
+			} else {
+				return res[0].Interface().(error)
+			}
+		}
+
+		// Try do recursion on these types.
+		switch val.Kind() {
+		case reflect.Ptr:
+			if val.IsNil() {
+				return nil
+			}
+			return runRecursive(val.Elem(), stack)
+			break
+
+		case reflect.Slice:
+			for i := 0; i < val.Len(); i++ {
+				if err := runRecursive(val.Index(i), stack); err != nil {
+					return err
+				}
+			}
+			break
+
+		case reflect.Struct:
+			for i := 0; i < val.NumField(); i++ {
+				if err := runRecursive(val.Field(i), stack); err != nil {
+					return err
+				}
+			}
+			break
+		}
+		return nil
+	}
+
+	// Run recursive reflection on self.Body that executes BeforeMarshal on every object possible.
+	stack := []interface{}{}
+	return runRecursive(reflect.ValueOf(self.Body), reflect.ValueOf(stack))
+}
+
+func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
 	if self.Body != nil {
 		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
@@ -105,6 +172,9 @@ func (self Resp) Respond(c httpcontext.HTTPContextLogger) error {
 		c.Resp().WriteHeader(self.Status)
 	}
 	if self.Body != nil {
+		if err = self.RunBodyBeforeMarshal(c); err != nil {
+			return
+		}
 		return json.NewEncoder(c.Resp()).Encode(self.Body)
 	}
 	return nil
