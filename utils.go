@@ -240,6 +240,8 @@ func example(t reflect.Type, n int) (result interface{}) {
 		x := example(t.Elem(), n+1)
 		val.Elem().Set(reflect.ValueOf(x))
 		result = val.Interface()
+	case reflect.Interface:
+		result = struct{}{}
 	default:
 		val := reflect.New(t)
 		result = val.Elem().Interface()

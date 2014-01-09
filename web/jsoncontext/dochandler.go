@@ -9,6 +9,7 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"text/template"
 	"time"
@@ -405,6 +406,11 @@ func DocHandler(templ *template.Template) http.Handler {
 				return
 			},
 			"Example": func(r JSONType) (result string, err error) {
+				defer func() {
+					if e := recover(); e != nil {
+						result = fmt.Sprintf("%v\n%s", e, debug.Stack())
+					}
+				}()
 				x := utils.Example(r.ReflectType)
 				b, err := json.MarshalIndent(x, "", "  ")
 				if err != nil {
