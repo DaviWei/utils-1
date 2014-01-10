@@ -74,18 +74,19 @@ var DefaultTypeTemplateContent = `
 <li class="spec"><a data-tab="spec" class="tab-switch" href="#">Spec</a></li>
 </ul>
 <pre class="example tab">
-{{Example .}}
+{{Example .Type}}
 </pre>
 <table class="spec tab table-bordered hidden">
-<caption><strong>{{.Type}}</strong>{{if .Comment}}<em>{{.Comment}}</em>{{end}}</caption>
-{{if .Scopes}}
-<tr><td>Scopes</td><td>{{.Scopes}}</td></tr>
+<caption><strong>{{.Type.Type}}</strong>{{if .Type.Comment}}<em>{{.Type.Comment}}</em>{{end}}</caption>
+{{if .Type.Scopes}}
+<tr><td>Scopes</td><td>{{.Type.Scopes}}</td></tr>
 {{end}}
-{{if .Elem}}
-<tr><td valign="top">Element</td><td>{{RenderType .Elem}}</td></tr>
+{{if .Type.Elem}}
+<tr><td valign="top">Element</td><td>{{RenderSubType .Type.Elem .Stack}}</td></tr>
 {{end}}
-{{range $name, $typ := .Fields}}
-<tr><td valign="top">{{$name}}</td><td>{{RenderType $typ}}</td></tr>
+{{ $stack := .Stack }}
+{{range $name, $typ := .Type.Fields}}
+<tr><td valign="top">{{$name}}</td><td>{{RenderSubType $typ $stack}}</td></tr>
 {{end}}
 </table>
 </div>
@@ -154,6 +155,9 @@ func init() {
 		},
 		"UUID": func() string {
 			return ""
+		},
+		"RenderSubType": func(t JSONType, stack []string) (result string, err error) {
+			return
 		},
 		"RenderType": func(t JSONType) (result string, err error) {
 			return
@@ -393,17 +397,33 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 func DocHandler(templ *template.Template) http.Handler {
 	return httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
 		c.Resp().Header().Set("Content-Type", "text/html; charset=UTF-8")
+		renderType := func(t JSONType, stack []string) (result string, err error) {
+			for _, parent := range stack {
+				if parent != "" && parent == t.ReflectType.Name() {
+					result = fmt.Sprintf("[loop protector enabled, render stack: %v]", stack)
+					return
+				}
+			}
+			stack = append(stack, t.ReflectType.Name())
+			buf := &bytes.Buffer{}
+			if err = templ.ExecuteTemplate(buf, "TypeTemplate", map[string]interface{}{
+				"Type":  t,
+				"Stack": stack,
+			}); err != nil {
+				return
+			}
+			result = buf.String()
+			return
+		}
 		err = templ.Funcs(map[string]interface{}{
 			"RenderEndpoint": func(r DocumentedRoute) (string, error) {
 				return r.Render(templ.Lookup("EndpointTemplate"))
 			},
+			"RenderSubType": func(t JSONType, stack []string) (result string, err error) {
+				return renderType(t, stack)
+			},
 			"RenderType": func(t JSONType) (result string, err error) {
-				buf := &bytes.Buffer{}
-				if err = templ.ExecuteTemplate(buf, "TypeTemplate", t); err != nil {
-					return
-				}
-				result = buf.String()
-				return
+				return renderType(t, nil)
 			},
 			"Example": func(r JSONType) (result string, err error) {
 				defer func() {
