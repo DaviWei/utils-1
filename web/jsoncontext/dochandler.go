@@ -466,5 +466,6 @@ func DocHandler(templ *template.Template) http.Handler {
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
 	doc, fu := Document(f, path, method, minAPIVersion, scopes...)
 	Remember(doc)
-	router.Path(path).Methods(method).MatcherFunc(MinAPIVersionMatcher(minAPIVersion)).Handler(HandlerFunc(fu, minAPIVersion, scopes...))
+	methods := strings.Split(method, "|")
+	router.Path(path).Methods(methods...).MatcherFunc(MinAPIVersionMatcher(minAPIVersion)).Handler(HandlerFunc(fu, minAPIVersion, scopes...))
 }
