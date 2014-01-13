@@ -13,6 +13,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"sort"
 )
 
 var knownEncodings = map[reflect.Type]string{
@@ -176,9 +177,16 @@ var DefaultDocHandler http.Handler
 type DocumentedRoute interface {
 	Render(*template.Template) (string, error)
 	GetScopes() []string
+	GetSortString() string
 }
 
-var routes = []DocumentedRoute{}
+type DocumentedRoutes []DocumentedRoute
+
+var routes = DocumentedRoutes{}
+
+func (a DocumentedRoutes) Len() int           { return len(a) }
+func (a DocumentedRoutes) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a DocumentedRoutes) Less(i, j int) bool { return a[i].GetSortString() < a[j].GetSortString() }
 
 type JSONType struct {
 	In          bool
@@ -309,11 +317,49 @@ func (self *DefaultDocumentedRoute) Render(templ *template.Template) (result str
 	return
 }
 
+func (self *DefaultDocumentedRoute) GetSortString() string {
+	return self.Path + self.Method
+}
+
 /*
 Remember will record the doc and make sure it shows up in the documentation.
 */
 func Remember(doc DocumentedRoute) {
 	routes = append(routes, doc)
+}
+
+func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) (func(c JSONContextLogger) (response Resp, err error)) {
+	return func(c JSONContextLogger) (response Resp, err error) {
+		args := make([]reflect.Value, fType.NumIn())
+		args[0] = reflect.ValueOf(c)
+		if fType.NumIn() == 2 {
+			if fType.In(1).Kind() == reflect.Ptr {
+				in := reflect.New(fType.In(1).Elem())
+				if err = c.DecodeJSON(in.Interface()); err != nil {
+					return
+				}
+				args[1] = in
+			} else {
+				in := reflect.New(fType.In(1))
+				if err = c.DecodeJSON(in.Interface()); err != nil {
+					return
+				}
+				args[1] = in.Elem()
+			}
+		}
+		results := fVal.Call(args)
+		if !results[len(results) - 1].IsNil() {
+			err = results[len(results)-1].Interface().(error)
+			return
+		}
+		if status := int(results[0].Int()); status != 0 {
+			response.Status = status
+		}
+		if len(results) == 3 {
+			response.Body = results[1].Interface()
+		}
+		return
+	}
 }
 
 /*
@@ -360,37 +406,7 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 		docRoute.Out = newJSONType(false, fType.Out(1), false)
 	}
 
-	fOut = func(c JSONContextLogger) (response Resp, err error) {
-		args := make([]reflect.Value, fType.NumIn())
-		args[0] = reflect.ValueOf(c)
-		if fType.NumIn() == 2 {
-			if fType.In(1).Kind() == reflect.Ptr {
-				in := reflect.New(fType.In(1).Elem())
-				if err = c.DecodeJSON(in.Interface()); err != nil {
-					return
-				}
-				args[1] = in
-			} else {
-				in := reflect.New(fType.In(1))
-				if err = c.DecodeJSON(in.Interface()); err != nil {
-					return
-				}
-				args[1] = in.Elem()
-			}
-		}
-		results := fVal.Call(args)
-		if !results[len(results)-1].IsNil() {
-			err = results[len(results)-1].Interface().(error)
-			return
-		}
-		if status := int(results[0].Int()); status != 0 {
-			response.Status = status
-		}
-		if len(results) == 3 {
-			response.Body = results[1].Interface()
-		}
-		return
-	}
+	fOut = CreateResponseFunc(fType, fVal)
 	return
 }
 
@@ -415,6 +431,8 @@ func DocHandler(templ *template.Template) http.Handler {
 			result = buf.String()
 			return
 		}
+
+		sort.Sort(routes)
 		err = templ.Funcs(map[string]interface{}{
 			"RenderEndpoint": func(r DocumentedRoute) (string, error) {
 				return r.Render(templ.Lookup("EndpointTemplate"))
