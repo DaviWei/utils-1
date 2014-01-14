@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"reflect"
 	"runtime/debug"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
-	"sort"
 )
 
 var knownEncodings = map[reflect.Type]string{
@@ -323,7 +323,7 @@ func (self *DefaultDocumentedRoute) Render(templ *template.Template) (result str
 }
 
 func (self *DefaultDocumentedRoute) GetSortString() string {
-	return self.Path + self.Method
+	return self.Path + self.Methods[0]
 }
 
 /*
@@ -333,7 +333,7 @@ func Remember(doc DocumentedRoute) {
 	routes = append(routes, doc)
 }
 
-func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) (func(c JSONContextLogger) (response Resp, err error)) {
+func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONContextLogger) (response Resp, err error) {
 	return func(c JSONContextLogger) (response Resp, err error) {
 		args := make([]reflect.Value, fType.NumIn())
 		args[0] = reflect.ValueOf(c)
@@ -353,7 +353,7 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) (func(c JSONCont
 			}
 		}
 		results := fVal.Call(args)
-		if !results[len(results) - 1].IsNil() {
+		if !results[len(results)-1].IsNil() {
 			err = results[len(results)-1].Interface().(error)
 			return
 		}
