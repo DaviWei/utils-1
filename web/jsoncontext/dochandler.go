@@ -98,7 +98,7 @@ var DefaultEndpointTemplateContent = `
   <div class="panel-heading" data-toggle="collapse" href="#collapse-{{UUID}}">
     <h4 class="panel-title">
       <a>
-        {{.Method}} {{.Path}}
+        {{.Methods}} {{.Path}}
       </a>
     </h4>
   </div>
@@ -108,7 +108,7 @@ var DefaultEndpointTemplateContent = `
 			<tr>
   			<td valign="top">curl</td>
 				<td>
-				<pre>curl{{if .In}} -H "Content-Type: application/json" {{end}}{{if .Scopes}} -H "Authorization: Bearer ${TOKEN}"{{end}} -X{{.Method}} ${HOST}{{.Path}}{{if .In}} -d'{{Example .In}}'{{end}}</pre>
+				<pre>curl{{if .In}} -H "Content-Type: application/json" {{end}}{{if .Scopes}} -H "Authorization: Bearer ${TOKEN}"{{end}} -X{{First .Methods}} ${HOST}{{.Path}}{{if .In}} -d'{{Example .In}}'{{end}}</pre>
 				</td>
 			</tr>
       {{if .MinAPIVersion}}
@@ -141,6 +141,10 @@ var DefaultEndpointTemplateContent = `
 </div>
 `
 
+func first(i interface{}) string {
+	return fmt.Sprint(reflect.ValueOf(i).Index(0).Interface())
+}
+
 func init() {
 	DefaultDocTemplate = template.Must(template.New("DefaultDocTemplate").Funcs(map[string]interface{}{
 		"RenderEndpoint": func(r DocumentedRoute) (result string, err error) {
@@ -166,6 +170,7 @@ func init() {
 		"Example": func(r JSONType) (result string, err error) {
 			return
 		},
+		"First": first,
 	}).Parse(DefaultDocTemplateContent))
 	template.Must(DefaultDocTemplate.New("EndpointTemplate").Parse(DefaultEndpointTemplateContent))
 	template.Must(DefaultDocTemplate.New("TypeTemplate").Parse(DefaultTypeTemplateContent))
@@ -291,7 +296,7 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 }
 
 type DefaultDocumentedRoute struct {
-	Method        string
+	Methods       []string
 	Path          string
 	Scopes        []string
 	MinAPIVersion int
@@ -363,7 +368,7 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) (func(c JSONCont
 }
 
 /*
-Document will take a func, a path, a method and a set of scopes that will be used when updating models in the func, and return a documented route and a function suitable for HandlerFunc.
+Document will take a func, a path, a set of methods (separated by |) and a set of scopes that will be used when updating models in the func, and return a documented route and a function suitable for HandlerFunc.
 
 The input func must match func(context JSONContextLogger) (status int, err error)
 
@@ -371,7 +376,7 @@ One extra input argument after context is allowed, and will be JSON decoded from
 
 One extra return value between status and error is allowed, and will be JSON encoded to the response body, and used in the documentation struct.
 */
-func Document(fIn interface{}, path string, method string, minAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
+func Document(fIn interface{}, path string, methods string, minAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
 	if errs := utils.ValidateFuncInputs(fIn, []reflect.Type{
 		reflect.TypeOf((*JSONContextLogger)(nil)).Elem(),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -393,7 +398,7 @@ func Document(fIn interface{}, path string, method string, minAPIVersion int, sc
 
 	docRoute = &DefaultDocumentedRoute{
 		Path:          path,
-		Method:        method,
+		Methods:       strings.Split(methods, "|"),
 		MinAPIVersion: minAPIVersion,
 		Scopes:        scopes,
 	}
@@ -443,6 +448,7 @@ func DocHandler(templ *template.Template) http.Handler {
 			"RenderType": func(t JSONType) (result string, err error) {
 				return renderType(t, nil)
 			},
+			"First": first,
 			"Example": func(r JSONType) (result string, err error) {
 				defer func() {
 					if e := recover(); e != nil {

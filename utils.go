@@ -140,7 +140,7 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 		return
 	}
 	if len(wantedHash) != len(envelope.Hash) || subtle.ConstantTimeCompare(envelope.Hash, wantedHash) != 1 {
-		err = fmt.Errorf("Invalid AccessToken hash: %v should be %v", hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
+		err = fmt.Errorf("Invalid AccessToken: hash of %+v should be %v but was %v", envelope.Token, hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
 		return
 	}
 	dstVal := reflect.ValueOf(dst)
