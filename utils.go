@@ -239,6 +239,16 @@ func example(t reflect.Type, seen map[string]int) (result interface{}) {
 		result = val.Interface()
 	case reflect.Interface:
 		result = struct{}{}
+	case reflect.String:
+		result = "[...]"
+	case reflect.Int:
+		result = 1
+	case reflect.Int64:
+		result = int64(1)
+	case reflect.Float64:
+		result = float64(1)
+	case reflect.Bool:
+		result = true
 	default:
 		val := reflect.New(t)
 		result = val.Elem().Interface()
