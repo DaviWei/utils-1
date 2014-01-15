@@ -2,8 +2,6 @@ package httpcontext
 
 import (
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/soundtrackyourbrand/utils"
 	"io"
 	"log"
 	"log/syslog"
@@ -12,6 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
 )
 
 var ErrMissingToken = fmt.Errorf("No authorization header or token query parameter found")
@@ -190,6 +191,10 @@ func MostAccepted(r *http.Request, name, def string) string {
 }
 
 func (self *DefaultHTTPContext) AccessToken(dst utils.AccessToken) (result utils.AccessToken, err error) {
+	if self.Req() == nil {
+		err = ErrMissingToken
+		return
+	}
 	for _, authHead := range self.Req().Header["Authorization"] {
 		match := authPattern.FindStringSubmatch(authHead)
 		if match != nil {
