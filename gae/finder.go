@@ -23,7 +23,7 @@ func newFinder(model interface{}, register bool, fields ...string) (result finde
 	val := reflect.ValueOf(model).Elem()
 	for _, field := range fields {
 		if f := val.FieldByName(field); !f.IsValid() {
-			panic(fmt.Errorf("%+v doesn't have a field named %#v", field))
+			panic(fmt.Errorf("%+v doesn't have a field named %#v", model, field))
 		}
 	}
 	result = finder{
