@@ -9,8 +9,8 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"runtime"
 	"strings"
-
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 )
@@ -26,15 +26,24 @@ type Error struct {
 	Body   interface{}
 	Cause  error
 	Info   string
+	Stack  []byte
+}
+
+func (self Error) String() string {
+	return fmt.Sprintf("Status: %v\nBody: %v\nCause: %v\nInfo: %v\nStack: %s", self.Status, self.Body, self.Cause, self.Info, self.Stack)
 }
 
 func NewError(status int, body interface{}, info string, cause error) Error {
-	return Error{
+	err := Error{
 		Status: status,
 		Body:   body,
 		Cause:  cause,
 		Info:   info,
 	}
+
+	err.Stack = make([]byte, 1024*1024)
+	runtime.Stack(err.Stack, true)
+	return err
 }
 
 func (self Error) Respond(c HTTPContextLogger) (err error) {
@@ -264,7 +273,12 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 			c.Resp().WriteHeader(500)
 			fmt.Fprintf(c.Resp(), "%v", err)
 		}
-		c.Infof("%+v", err)
+		if er, ok := err.(Error); ok {
+			c.Errorf("%v\n%s\n\n", c.Req().URL, er.String())
+		} else {
+			c.Errorf("%v\n\t%+v\n\n", c.Req().URL, err)
+		}
+
 	}
 }
 
