@@ -348,7 +348,7 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 				args[1] = in
 			} else {
 				in := reflect.New(fType.In(1))
-				if err = c.DecodeJSON(in.Interface()); err != nil {
+				if err = c.LoadJSON(in.Interface()); err != nil {
 					return
 				}
 				args[1] = in.Elem()
