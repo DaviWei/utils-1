@@ -19,7 +19,7 @@ func CopyJSON(in interface{}, out interface{}, accessScopes ...string) (err erro
 }
 
 /*
-LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes.
+LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes or '*'.
 */
 func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error) {
 
@@ -44,7 +44,8 @@ func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error)
 		valueField := structValue.Field(i)
 		typeField := structType.Field(i)
 
-		allowedScopes := strings.Split(typeField.Tag.Get("update_scopes"), ",")
+		updateScopesTag := typeField.Tag.Get("update_scopes")
+		allowedScopes := strings.Split(updateScopesTag, ",")
 		jsonAttributeName := typeField.Name
 		if jsonTag := typeField.Tag.Get("json"); jsonTag != "" {
 			jsonAttributeName = strings.Split(jsonTag, ",")[0]
@@ -62,12 +63,14 @@ func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error)
 		}
 
 		// Check that at least one of the scopes is allowed to update this field.
-		inScope := false
-		for _, scope := range accessScopes {
-			for _, allowedScope := range allowedScopes {
-				if scope == allowedScope {
-					inScope = true
-					break
+		inScope := updateScopesTag == "*"
+		if !inScope {
+			for _, scope := range accessScopes {
+				for _, allowedScope := range allowedScopes {
+					if scope == allowedScope {
+						inScope = true
+						break
+					}
 				}
 			}
 		}
