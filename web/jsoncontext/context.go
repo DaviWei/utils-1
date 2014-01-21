@@ -176,6 +176,15 @@ func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
 		if err = self.RunBodyBeforeMarshal(c); err != nil {
 			return
 		}
+
+		// This makes sure that replies that returns a slice that is empty returns a '[]' instad of 'null'
+		if self.Body == nil {
+			t := reflect.ValueOf(&self.Body).Elem()
+			if t.Kind() == reflect.Slice {
+				t.Set(reflect.MakeSlice(t.Type(), 0, 0))
+			}
+		}
+
 		return json.NewEncoder(c.Resp()).Encode(self.Body)
 	}
 	return nil
