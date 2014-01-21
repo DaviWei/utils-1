@@ -47,7 +47,6 @@ func NewError(status int, body interface{}, info string, cause error) Error {
 }
 
 func (self Error) Respond(c HTTPContextLogger) (err error) {
-	c.Infof("ERROR httpcontext %v", self.Status)
 	if self.Status != 0 {
 		c.Resp().WriteHeader(self.Status)
 	}
