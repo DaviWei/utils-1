@@ -31,13 +31,13 @@ func (self dummyContext) Request() interface{}        { return nil }
 
 func randomString() string {
 	buf := make([]byte, 15)
-	for index, _ := range buf {
+	for index := range buf {
 		buf[index] = byte(rand.Int())
 	}
 	return string(buf)
 }
 
-func randomKey(parents int) *Key {
+func randomKey(parents int) Key {
 	if parents == 0 {
 		return New(randomString(), randomString(), rand.Int63(), nil)
 	}
@@ -46,10 +46,9 @@ func randomKey(parents int) *Key {
 
 func TestEncodeString(t *testing.T) {
 	buf := &bytes.Buffer{}
-	k := randomKey(4)
 	x := "aslfdjasdfasdf"
-	k.writeString(buf, x)
-	y, err := k.readString(buf)
+	writeString(buf, x)
+	y, err := readString(buf)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -58,10 +57,9 @@ func TestEncodeString(t *testing.T) {
 	}
 
 	buf = &bytes.Buffer{}
-	k = randomKey(4)
 	x = ""
-	k.writeString(buf, x)
-	y, err = k.readString(buf)
+	writeString(buf, x)
+	y, err = readString(buf)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -72,16 +70,14 @@ func TestEncodeString(t *testing.T) {
 
 func TestEncodeInt64(t *testing.T) {
 	var buf *bytes.Buffer
-	var k *Key
 	var x int64
 	var y int64
 	var err error
 
 	buf = &bytes.Buffer{}
-	k = randomKey(4)
 	x = int64(0)
-	k.writeInt64(buf, x)
-	y, err = k.readInt64(buf)
+	writeInt64(buf, x)
+	y, err = readInt64(buf)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -91,10 +87,9 @@ func TestEncodeInt64(t *testing.T) {
 
 	for i := 1; i < 8; i++ {
 		buf = &bytes.Buffer{}
-		k = randomKey(4)
 		x = int64(1 << uint((8*i)-1))
-		k.writeInt64(buf, x)
-		y, err = k.readInt64(buf)
+		writeInt64(buf, x)
+		y, err = readInt64(buf)
 		if err != nil {
 			t.Errorf(err.Error())
 		}
@@ -105,13 +100,12 @@ func TestEncodeInt64(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		buf = &bytes.Buffer{}
-		k = randomKey(4)
 		x = rand.Int63()
 		if (rand.Int() % 2) == 0 {
 			x = -x
 		}
-		k.writeInt64(buf, x)
-		y, err = k.readInt64(buf)
+		writeInt64(buf, x)
+		y, err = readInt64(buf)
 		if err != nil {
 			t.Errorf(err.Error())
 		}
@@ -152,7 +146,7 @@ func TestFromAndToGAE(t *testing.T) {
 }
 
 type testWrapper struct {
-	Id   *Key
+	Id   Key
 	Name string
 }
 
@@ -211,12 +205,12 @@ func TestToAndFromJSON(t *testing.T) {
 		if err != nil {
 			t.Errorf("Bad json: %#v: %v", string(enc), err.Error())
 		}
-		k2 := &Key{}
+		k2 := Key{}
 		if err := k2.UnmarshalJSON(enc); err != nil {
 			t.Errorf(err.Error())
 		}
 		if !reflect.DeepEqual(k, k2) {
-			t.Errorf("%+v != %+v", k, k2)
+			t.Errorf("\n%#v\n%#v\n", k, k2)
 		}
 	}
 }
@@ -224,7 +218,7 @@ func TestToAndFromJSON(t *testing.T) {
 func TestEqual(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		k := randomKey(6)
-		k2 := New(k.kind, k.stringID, k.intID, k.parent)
+		k2 := New(k.Kind(), k.StringID(), k.IntID(), k.Parent())
 		if !k.Equal(k2) {
 			t.Errorf("Keys not equal")
 		}
@@ -232,8 +226,8 @@ func TestEqual(t *testing.T) {
 }
 
 func TestNilKeys(t *testing.T) {
-	var k *Key
-	var k2 *Key
+	var k Key
+	var k2 Key
 	if !k.Equal(k2) || !k2.Equal(k) {
 		t.Errorf("wth")
 	}
