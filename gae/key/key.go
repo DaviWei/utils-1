@@ -99,7 +99,7 @@ func (self Key) GobEncode() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func (self *Key) MarshalJSON() (b []byte, err error) {
+func (self Key) MarshalJSON() (b []byte, err error) {
 	return json.Marshal(self.Encode())
 }
 
