@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/soundtrackyourbrand/utils"
-	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"net/http"
 	"reflect"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 )
 
 var knownEncodings = map[reflect.Type]string{
@@ -383,7 +385,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion int, s
 	}, []reflect.Type{
 		reflect.TypeOf((*JSONContextLogger)(nil)).Elem(),
 	}); len(errs) == 2 {
-		panic(fmt.Errorf("%v does not conform. Fix one of %v", errs))
+		panic(fmt.Errorf("%v does not conform. Fix one of %+v", runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name(), errs))
 	}
 	if errs := utils.ValidateFuncOutputs(fIn, []reflect.Type{
 		reflect.TypeOf(0),
@@ -393,7 +395,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion int, s
 		reflect.TypeOf(0),
 		reflect.TypeOf((*error)(nil)).Elem(),
 	}); len(errs) == 2 {
-		panic(fmt.Errorf("%v does not conform. Fix one of %v", errs))
+		panic(fmt.Errorf("%v does not conform. Fix one of %+v", runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name(), errs))
 	}
 
 	docRoute = &DefaultDocumentedRoute{

@@ -1,8 +1,6 @@
 package memcache
 
 import (
-	"appengine"
-	"appengine/memcache"
 	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
@@ -11,6 +9,9 @@ import (
 	"math/rand"
 	"reflect"
 	"time"
+
+	"appengine"
+	"appengine/memcache"
 )
 
 var MemcacheEnabled = true
@@ -177,6 +178,17 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 Put will put val under key.
 */
 func Put(c TransactionContext, key string, val interface{}) (err error) {
+	return putUntil(c, nil, key, val)
+}
+
+/*
+PutUntil will put val under key for at most until.
+*/
+func PutUntil(c TransactionContext, until time.Duration, key string, val interface{}) (err error) {
+	return putUntil(c, &until, key, val)
+}
+
+func putUntil(c TransactionContext, until *time.Duration, key string, val interface{}) (err error) {
 	if !MemcacheEnabled {
 		return
 	}
@@ -184,10 +196,14 @@ func Put(c TransactionContext, key string, val interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	return Codec.Set(c, &memcache.Item{
+	item := &memcache.Item{
 		Key:    k,
 		Object: val,
-	})
+	}
+	if until != nil {
+		item.Expiration = *until
+	}
+	return Codec.Set(c, item)
 }
 
 /*
