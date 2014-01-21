@@ -95,17 +95,17 @@ func testMutex(c gaecontext.HTTPContext) {
 }
 
 type ts struct {
-	Id        *key.Key `datastore:"-"`
+	Id        key.Key `datastore:"-"`
 	Name      string
 	Age       int
 	Processes []string
 }
 
-func (self *ts) GetId() *key.Key {
+func (self *ts) GetId() key.Key {
 	return self.Id
 }
 
-func (self *ts) SetId(id *key.Key) {
+func (self *ts) SetId(id key.Key) {
 	self.Id = id
 }
 
@@ -456,6 +456,36 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	}
 }
 
+type FooKey struct {
+	key.Key
+}
+
+type KeyTest struct {
+	Id  key.Key `datastore:"-"`
+	Sub FooKey
+}
+
+func testKey(c gaecontext.HTTPContext) {
+	k := &KeyTest{
+		Id:  key.New("kind", "keyname", 0, nil),
+		Sub: FooKey{key.New("kind", "subname", 0, key.New("rkind", "subname", 0, nil))},
+	}
+
+	if err := gae.Put(c, k); err != nil {
+		panic(err)
+	}
+
+	k2 := &KeyTest{
+		Id: k.Id,
+	}
+	if err := gae.GetById(c, k2); err != nil {
+		panic(err)
+	}
+	if !reflect.DeepEqual(k, k2) {
+		panic(fmt.Errorf("%+v and %+v should be same", k, k2))
+	}
+}
+
 func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -471,6 +501,7 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 }
 
 func test(c gaecontext.HTTPContext) error {
+
 	run(c, testMemcacheBasics)
 	run(c, testMutex)
 	run(c, testGet)
@@ -478,6 +509,7 @@ func test(c gaecontext.HTTPContext) error {
 	run(c, testAncestorFind)
 	run(c, testAccessTokens)
 	run(c, testMemcacheDeletion)
+	run(c, testKey)
 	return nil
 }
 

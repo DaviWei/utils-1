@@ -26,8 +26,8 @@ type PersistenceContext interface {
 	AfterDelete(interface{}) error
 }
 
-// getTypeAndId will validate that the model is a pointer to a struct, and that it has a *key.Key field name Id.
-func getTypeAndId(model interface{}) (typ reflect.Type, id *key.Key, err error) {
+// getTypeAndId will validate that the model is a pointer to a struct, and that it has a key.Key field name Id.
+func getTypeAndId(model interface{}) (typ reflect.Type, id key.Key, err error) {
 	val := reflect.ValueOf(model)
 	if val.Kind() != reflect.Ptr {
 		err = fmt.Errorf("%+v is not a pointer", model)
@@ -43,11 +43,11 @@ func getTypeAndId(model interface{}) (typ reflect.Type, id *key.Key, err error) 
 		err = fmt.Errorf("%+v does not have a field named Id", model)
 		return
 	}
-	if !idField.Type().AssignableTo(reflect.TypeOf(&key.Key{})) {
-		err = fmt.Errorf("%+v does not have a field named Id that is a *key.Key", model)
+	if !idField.Type().AssignableTo(reflect.TypeOf(key.Key{})) {
+		err = fmt.Errorf("%+v does not have a field named Id that is a key.Key", model)
 		return
 	}
-	id = idField.Interface().(*key.Key)
+	id = idField.Interface().(key.Key)
 	return
 }
 
@@ -123,7 +123,7 @@ ErrNoSuchEntity is just an easily identifiable way of determining that we didn't
 type ErrNoSuchEntity struct {
 	Type  string
 	Cause error
-	Id    *key.Key
+	Id    key.Key
 }
 
 func (self ErrNoSuchEntity) Error() string {
@@ -138,7 +138,7 @@ func (self ErrNoSuchEntity) Respond(c httpcontext.HTTPContextLogger) (err error)
 
 func newError(dst interface{}, cause error) (err error) {
 	var typ reflect.Type
-	var id *key.Key
+	var id key.Key
 	if typ, id, err = getTypeAndId(dst); err != nil {
 		return
 	}
@@ -154,7 +154,7 @@ Del will delete src from datastore and invalidate it from memcache.
 */
 func Del(c PersistenceContext, src interface{}) (err error) {
 	var typ reflect.Type
-	var id *key.Key
+	var id key.Key
 	if typ, id, err = getTypeAndId(src); err != nil {
 		return
 	}
@@ -194,7 +194,7 @@ the datastore before.
 It will also (after the BeforeUpdate/BeforeCreate functions) run BeforeSave.
 */
 func Put(c PersistenceContext, src interface{}) (err error) {
-	var id *key.Key
+	var id key.Key
 	if _, id, err = getTypeAndId(src); err != nil {
 		return
 	}
@@ -259,7 +259,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 
 // findById will find dst in the datastore and set its id.
 func findById(c PersistenceContext, dst interface{}) (err error) {
-	var id *key.Key
+	var id key.Key
 	if _, id, err = getTypeAndId(dst); err != nil {
 		return
 	}

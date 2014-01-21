@@ -53,12 +53,12 @@ It will also register the finder so that MemcacheKeys will return keys to invali
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
+func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) error {
 	return newFinder(model, true, fields...).getWithAncestor
 }
 
 // find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
-func (self finder) find(c PersistenceContext, dst interface{}, ancestor *key.Key, values []interface{}) (err error) {
+func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
 	if ancestor != nil {
 		q = q.Ancestor(ancestor.ToGAE(c))
@@ -84,14 +84,14 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor *key.Key
 }
 
 // keyForValues returns the memcache key to use for the given ancestor and values searched for
-func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string {
+func (self finder) keyForValues(ancestor key.Key, values []interface{}) string {
 	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Elem().Name(), ancestor, self.fields, values)
 }
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
 // the reason there may be multiple keys is that we don't know which ancestor will be used when finding the model.
 func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
-	var id *key.Key
+	var id key.Key
 	if _, id, err = getTypeAndId(model); err != nil {
 		return
 	}
@@ -117,7 +117,7 @@ func (self finder) get(c PersistenceContext, dst interface{}, values ...interfac
 }
 
 // see AncestorFinder
-func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) (err error) {
+func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) (err error) {
 	if len(values) != len(self.fields) {
 		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
 		return
