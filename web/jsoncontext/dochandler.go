@@ -360,7 +360,7 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 		if status := int(results[0].Int()); status != 0 {
 			response.Status = status
 		}
-		if len(results) == 3 {
+		if len(results) == 3 && !results[1].IsNil() {
 			response.Body = results[1].Interface()
 		}
 		return
