@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -97,7 +98,7 @@ func EncodeToken(token AccessToken, timeout time.Duration) (result string, err e
 	if err = b64Enc.Close(); err != nil {
 		return
 	}
-	result = string(b.Bytes())
+	result = strings.Replace(string(b.Bytes()), "=", ".", -1)
 	return
 }
 
@@ -126,7 +127,7 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 	}
 	result = dst
 	envelope := &tokenEnvelope{}
-	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(d)))
+	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(strings.Replace(d, ".", "=", -1))))
 	if err = dec.Decode(&envelope); err != nil {
 		err = fmt.Errorf("Invalid AccessToken: %v, %v", d, err)
 		return
