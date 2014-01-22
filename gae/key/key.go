@@ -12,52 +12,61 @@ import (
 	"strings"
 )
 
-type Key struct {
-	parent   *Key
-	intID    int64
-	stringID string
-	kind     string
+type KeyElement struct {
+	IntID    int64
+	StringID string
+	Kind     string
 }
+type Key []KeyElement
 
-func For(i interface{}, stringId string, intId int64, parent *Key) *Key {
+func For(i interface{}, StringId string, IntId int64, parent Key) Key {
 	val := reflect.ValueOf(i)
 	for val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
-	return New(val.Type().Name(), stringId, intId, parent)
+	return New(val.Type().Name(), StringId, IntId, parent)
 }
 
-func New(kind string, stringId string, intId int64, parent *Key) *Key {
-	return &Key{
-		parent:   parent,
-		intID:    intId,
-		stringID: stringId,
-		kind:     kind,
+func New(Kind string, StringId string, IntId int64, parent Key) (ret Key) {
+	ret = Key{
+		KeyElement{
+			IntID:    IntId,
+			StringID: StringId,
+			Kind:     Kind,
+		},
 	}
+	if len(parent) > 0 {
+		ret = append(ret, parent...)
+	}
+	return ret
 }
 
-func (self *Key) String() string {
+func (self Key) String() string {
+	if len(self) == 0 {
+		return ""
+	}
 	buf := &bytes.Buffer{}
 	self.describe(buf)
 	return string(buf.Bytes())
 }
 
-func (self *Key) describe(w io.Writer) {
-	if self == nil {
+func (self Key) describe(w io.Writer) {
+	if len(self) == 0 {
 		return
 	}
-	self.parent.describe(w)
-	fmt.Fprintf(w, "/%s,", self.kind)
-	if self.stringID != "" {
-		fmt.Fprintf(w, "%s", self.stringID)
+	self.Parent().describe(w)
+	child := self[0]
+	fmt.Fprintf(w, "/%s,", child.Kind)
+	if child.StringID != "" {
+		fmt.Fprintf(w, "%s", child.StringID)
 	}
-	if self.intID != 0 {
-		fmt.Fprintf(w, "%d", self.intID)
+	if child.IntID != 0 {
+		fmt.Fprintf(w, "%d", child.IntID)
 	}
 	return
 }
 
-func FromGAErr(k *datastore.Key, err error) (result *Key, err2 error) {
+func FromGAErr(k *datastore.Key, err error) (result Key, err2 error) {
 	err2 = err
 	if err2 == nil {
 		result = FromGAE(k)
@@ -65,23 +74,23 @@ func FromGAErr(k *datastore.Key, err error) (result *Key, err2 error) {
 	return
 }
 
-func FromGAE(k *datastore.Key) *Key {
+func FromGAE(k *datastore.Key) Key {
 	if k == nil {
 		return nil
 	}
-	return &Key{
-		kind:     k.Kind(),
-		stringID: k.StringID(),
-		intID:    k.IntID(),
-		parent:   FromGAE(k.Parent()),
-	}
+	return append(Key{KeyElement{
+		Kind:     k.Kind(),
+		StringID: k.StringID(),
+		IntID:    k.IntID(),
+	}}, FromGAE(k.Parent())...)
 }
 
-func (self *Key) GobDecode(b []byte) error {
-	return self.decode(bytes.NewBuffer(b))
+func (self *Key) GobDecode(b []byte) (err error) {
+	*self, err = decode(bytes.NewBuffer(b))
+	return
 }
 
-func (self *Key) GobEncode() ([]byte, error) {
+func (self Key) GobEncode() ([]byte, error) {
 	buf := &bytes.Buffer{}
 	err := self.encode(buf)
 	if err != nil {
@@ -90,7 +99,7 @@ func (self *Key) GobEncode() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func (self *Key) MarshalJSON() (b []byte, err error) {
+func (self Key) MarshalJSON() (b []byte, err error) {
 	return json.Marshal(self.Encode())
 }
 
@@ -99,30 +108,33 @@ func (self *Key) UnmarshalJSON(b []byte) (err error) {
 	if err = json.Unmarshal(b, &encoded); err != nil {
 		return
 	}
-	var unmarshalled *Key
+	var unmarshalled Key
 	if unmarshalled, err = Decode(encoded); err == nil {
-		*self = *unmarshalled
+		*self = unmarshalled
 	}
 	return
 }
 
-func (self *Key) Kind() string {
-	return self.kind
+func (self Key) Kind() string {
+	return self[0].Kind
 }
 
-func (self *Key) StringID() string {
-	return self.stringID
+func (self Key) StringID() string {
+	return self[0].StringID
 }
 
-func (self *Key) IntID() int64 {
-	return self.intID
+func (self Key) IntID() int64 {
+	return self[0].IntID
 }
 
-func (self *Key) Parent() *Key {
-	return self.parent
+func (self Key) Parent() Key {
+	if len(self) == 0 {
+		return nil
+	}
+	return self[1:]
 }
 
-func (self *Key) writeInt64(buf *bytes.Buffer, i int64) (err error) {
+func writeInt64(buf *bytes.Buffer, i int64) (err error) {
 	count := byte(0)
 	zeroes := byte(0)
 	nonZeroesSeen := false
@@ -150,15 +162,15 @@ func (self *Key) writeInt64(buf *bytes.Buffer, i int64) (err error) {
 	return
 }
 
-func (self *Key) writeString(buf *bytes.Buffer, s string) (err error) {
-	if err = self.writeInt64(buf, int64(len(s))); err != nil {
+func writeString(buf *bytes.Buffer, s string) (err error) {
+	if err = writeInt64(buf, int64(len(s))); err != nil {
 		return
 	}
 	_, err = fmt.Fprint(buf, s)
 	return
 }
 
-func (self *Key) readInt64(buf *bytes.Buffer) (i int64, err error) {
+func readInt64(buf *bytes.Buffer) (i int64, err error) {
 	var l byte
 	if l, err = buf.ReadByte(); err != nil {
 		return
@@ -180,9 +192,9 @@ func (self *Key) readInt64(buf *bytes.Buffer) (i int64, err error) {
 	return
 }
 
-func (self *Key) readString(buf *bytes.Buffer) (s string, err error) {
+func readString(buf *bytes.Buffer) (s string, err error) {
 	var l int64
-	l, err = self.readInt64(buf)
+	l, err = readInt64(buf)
 	if err != nil {
 		return
 	}
@@ -199,24 +211,23 @@ func (self *Key) readString(buf *bytes.Buffer) (s string, err error) {
 	return
 }
 
-func (self *Key) encode(buf *bytes.Buffer) (err error) {
-	if self == nil {
+func (self Key) encode(buf *bytes.Buffer) (err error) {
+	if len(self) < 1 {
 		return
 	}
-	if err = self.writeString(buf, self.kind); err != nil {
+	if err = writeString(buf, self[0].Kind); err != nil {
 		return
 	}
-	if err = self.writeString(buf, self.stringID); err != nil {
+	if err = writeString(buf, self[0].StringID); err != nil {
 		return
 	}
-	if err = self.writeInt64(buf, self.intID); err != nil {
+	if err = writeInt64(buf, self[0].IntID); err != nil {
 		return
 	}
-	err = self.parent.encode(buf)
-	return
+	return self.Parent().encode(buf)
 }
 
-func (self *Key) Encode() (result string) {
+func (self Key) Encode() (result string) {
 	if self == nil {
 		return
 	}
@@ -224,37 +235,42 @@ func (self *Key) Encode() (result string) {
 	if err := self.encode(buf); err != nil {
 		panic(err)
 	}
-	result = base64.URLEncoding.EncodeToString(buf.Bytes())
-	return
+	return base64.URLEncoding.EncodeToString(buf.Bytes())
 }
 
-func (self *Key) EncodeEmailId() (result string) {
+func (self Key) EncodeEmailId() (result string) {
 	return strings.Replace(self.Encode(), "=", "_", -1)
 }
 
-func (self *Key) decode(buf *bytes.Buffer) (err error) {
+func decode(buf *bytes.Buffer) (result Key, err error) {
+	el := KeyElement{}
 	s := ""
-	if s, err = self.readString(buf); err != nil {
+	if s, err = readString(buf); err != nil {
 		return
 	}
-	self.kind = s
-	if s, err = self.readString(buf); err != nil {
+	el.Kind = s
+	if s, err = readString(buf); err != nil {
 		return
 	}
-	self.stringID = s
+	el.StringID = s
 	var i int64
-	if i, err = self.readInt64(buf); err != nil {
+	if i, err = readInt64(buf); err != nil {
 		return
 	}
-	self.intID = i
+	el.IntID = i
+	result = Key{el}
 	if buf.Len() > 0 {
-		self.parent = &Key{}
-		err = self.parent.decode(buf)
+		var pres Key
+		pres, err = decode(buf)
+		if err != nil {
+			return
+		}
+		result = append(result, pres...)
 	}
 	return
 }
 
-func Decode(s string) (result *Key, err error) {
+func Decode(s string) (result Key, err error) {
 	if s == "" {
 		return
 	}
@@ -263,26 +279,25 @@ func Decode(s string) (result *Key, err error) {
 		return
 	}
 	buf := bytes.NewBuffer(b)
-	result = &Key{}
-	err = result.decode(buf)
-	return
+	return decode(buf)
 }
 
-func DecodeEmailId(emailId string) (result *Key, err error) {
+func DecodeEmailId(emailId string) (result Key, err error) {
 	return Decode(strings.Replace(emailId, "_", "=", -1))
 }
 
-func (self *Key) ToGAE(c appengine.Context) *datastore.Key {
-	if self == nil {
+func (self Key) ToGAE(c appengine.Context) *datastore.Key {
+	if len(self) < 1 {
 		return nil
 	}
 
-	return datastore.NewKey(c, self.kind, self.stringID, self.intID, self.parent.ToGAE(c))
+	return datastore.NewKey(c, self[0].Kind, self[0].StringID, self[0].IntID, self.Parent().ToGAE(c))
 }
 
-func (self *Key) Equal(k *Key) bool {
-	if self == nil {
-		return k == nil
-	}
-	return k != nil && self.kind == k.kind && self.intID == k.intID && self.stringID == k.stringID && self.parent.Equal(k.parent)
+func (s KeyElement) Equal(k KeyElement) bool {
+	return s.Kind == k.Kind && s.IntID == k.IntID && s.StringID == k.StringID
+}
+
+func (s Key) Equal(k Key) bool {
+	return len(s) == len(k) && (len(s) == 0 || (s[0].Equal(k[0]) && s.Parent().Equal(k.Parent())))
 }
