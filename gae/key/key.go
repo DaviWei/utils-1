@@ -179,130 +179,8 @@ func (self Key) Parent() (result Key) {
 	return
 }
 
-func writeInt64(buf *bytes.Buffer, i int64) (err error) {
-	count := byte(0)
-	zeroes := byte(0)
-	nonZeroesSeen := false
-	tmpBuf := &bytes.Buffer{}
-	ui := uint64(i)
-	b := byte(0)
-	for ui != 0 {
-		b = byte(ui)
-		if !nonZeroesSeen && b == 0 {
-			zeroes++
-		} else {
-			nonZeroesSeen = true
-			if err = tmpBuf.WriteByte(byte(ui)); err != nil {
-				return
-			}
-		}
-		ui = ui >> 8
-		count++
-	}
-	count += 10 * zeroes
-	if err = buf.WriteByte(count); err != nil {
-		return
-	}
-	_, err = io.Copy(buf, tmpBuf)
-	return
-}
-
-func writeString(buf *bytes.Buffer, s string) (err error) {
-	if err = writeInt64(buf, int64(len(s))); err != nil {
-		return
-	}
-	_, err = fmt.Fprint(buf, s)
-	return
-}
-
-func readInt64(buf *bytes.Buffer) (i int64, err error) {
-	var l byte
-	if l, err = buf.ReadByte(); err != nil {
-		return
-	}
-	zeroes := byte(0)
-	for l > 9 {
-		l -= 10
-		zeroes++
-	}
-	var b byte
-	var ui uint64
-	for n := byte(0) + zeroes; n < l; n++ {
-		if b, err = buf.ReadByte(); err != nil {
-			return
-		}
-		ui += (uint64(b) << (8 * n))
-	}
-	i = int64(ui)
-	return
-}
-
-func readString(buf *bytes.Buffer) (s string, err error) {
-	var l int64
-	l, err = readInt64(buf)
-	if err != nil {
-		return
-	}
-	b := make([]byte, l)
-	var r int
-	r, err = buf.Read(b)
-	if int64(r) != l {
-		err = fmt.Errorf("Wanted to read %v, but got %v", l, r)
-	}
-	if err != nil {
-		return
-	}
-	s = string(b)
-	return
-}
-
-func (self Key) encode(buf *bytes.Buffer) (err error) {
-	if len(self) < 1 {
-		return
-	}
-	kind, stringId, intId, parent := self.split()
-	if err = writeString(buf, kind); err != nil {
-		return
-	}
-	if err = writeString(buf, stringId); err != nil {
-		return
-	}
-	if err = writeInt64(buf, intId); err != nil {
-		return
-	}
-	return Key(parent).encode(buf)
-}
-
 func (self Key) Encode() (result string) {
-	buf := &bytes.Buffer{}
-	if err := self.encode(buf); err != nil {
-		panic(err)
-	}
-	return strings.Replace(base64.URLEncoding.EncodeToString(buf.Bytes()), "=", ".", -1)
-}
-
-func decode(buf *bytes.Buffer) (result Key, err error) {
-	kind := ""
-	if kind, err = readString(buf); err != nil {
-		return
-	}
-	stringId := ""
-	if stringId, err = readString(buf); err != nil {
-		return
-	}
-	var intId int64
-	if intId, err = readInt64(buf); err != nil {
-		return
-	}
-	parent := Key("")
-	if buf.Len() > 0 {
-		parent, err = decode(buf)
-		if err != nil {
-			return
-		}
-	}
-	result = New(kind, stringId, intId, parent)
-	return
+	return strings.Replace(base64.URLEncoding.EncodeToString([]byte(self)), "=", ".", -1)
 }
 
 func Decode(s string) (result Key, err error) {
@@ -310,15 +188,12 @@ func Decode(s string) (result Key, err error) {
 		return
 	}
 	b := []byte{}
-	if b, err = base64.URLEncoding.DecodeString(strings.Replace(s, ".", "=", -1)); err != nil {
+	b, err = base64.URLEncoding.DecodeString(strings.Replace(s, ".", "=", -1))
+	if err != nil {
 		return
 	}
-	buf := bytes.NewBuffer(b)
-	return decode(buf)
-}
-
-func DecodeEmailId(emailId string) (result Key, err error) {
-	return Decode(strings.Replace(emailId, "_", "=", -1))
+	result = Key(string(b))
+	return
 }
 
 func (self Key) ToGAE(c appengine.Context) *datastore.Key {

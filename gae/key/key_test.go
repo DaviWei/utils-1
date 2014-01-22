@@ -1,7 +1,6 @@
 package key
 
 import (
-	"bytes"
 	"encoding/json"
 	"math/rand"
 	"reflect"
@@ -77,78 +76,6 @@ func TestEscapeUnescape(t *testing.T) {
 			t.Fatalf("%#v != %#v", s, s)
 		}
 	}
-}
-
-func TestEncodeString(t *testing.T) {
-	buf := &bytes.Buffer{}
-	x := "aslfdjasdfasdf"
-	writeString(buf, x)
-	y, err := readString(buf)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	if x != y {
-		t.Fatalf("Expected %v, got %v. Buf is %+v", x, y, buf.Bytes())
-	}
-
-	buf = &bytes.Buffer{}
-	x = ""
-	writeString(buf, x)
-	y, err = readString(buf)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	if x != y {
-		t.Fatalf("Expected %v, got %v. Buf is %+v", x, y, buf.Bytes())
-	}
-}
-
-func TestEncodeInt64(t *testing.T) {
-	var buf *bytes.Buffer
-	var x int64
-	var y int64
-	var err error
-
-	buf = &bytes.Buffer{}
-	x = int64(0)
-	writeInt64(buf, x)
-	y, err = readInt64(buf)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	if x != y {
-		t.Fatalf("Expected %v, got %v. Buf is %+v", x, y, buf.Bytes())
-	}
-
-	for i := 1; i < 8; i++ {
-		buf = &bytes.Buffer{}
-		x = int64(1 << uint((8*i)-1))
-		writeInt64(buf, x)
-		y, err = readInt64(buf)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-		if x != y {
-			t.Fatalf("Expected %v, got %v. Buf is %+v", x, y, buf.Bytes())
-		}
-	}
-
-	for i := 0; i < 10; i++ {
-		buf = &bytes.Buffer{}
-		x = rand.Int63()
-		if (rand.Int() % 2) == 0 {
-			x = -x
-		}
-		writeInt64(buf, x)
-		y, err = readInt64(buf)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-		if x != y {
-			t.Fatalf("Expected %v, got %v. Buf is %+v", x, y, buf.Bytes())
-		}
-	}
-
 }
 
 func TestEncodeDecode(t *testing.T) {
