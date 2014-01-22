@@ -9,19 +9,19 @@ import (
 	"strings"
 )
 
-func CopyJSON(in interface{}, out interface{}, accessScopes ...string) (err error) {
+func CopyJSON(in interface{}, out interface{}, context string, accessScopes ...string) (err error) {
 	buf := &bytes.Buffer{}
 	if err = json.NewEncoder(buf).Encode(in); err != nil {
 		return
 	}
-	err = LoadJSON(buf, out, accessScopes...)
+	err = LoadJSON(buf, out, context, accessScopes...)
 	return
 }
 
 /*
 LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes or '*'.
 */
-func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error) {
+func LoadJSON(in io.Reader, out interface{}, context string, accessScopes ...string) (err error) {
 
 	var decodedJSON map[string]*json.RawMessage
 	if err = json.NewDecoder(in).Decode(&decodedJSON); err != nil {
@@ -44,7 +44,7 @@ func LoadJSON(in io.Reader, out interface{}, accessScopes ...string) (err error)
 		valueField := structValue.Field(i)
 		typeField := structType.Field(i)
 
-		updateScopesTag := typeField.Tag.Get("update_scopes")
+		updateScopesTag := typeField.Tag.Get(context + "_scopes")
 		allowedScopes := strings.Split(updateScopesTag, ",")
 		jsonAttributeName := typeField.Name
 		if jsonTag := typeField.Tag.Get("json"); jsonTag != "" {

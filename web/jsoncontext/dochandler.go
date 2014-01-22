@@ -342,7 +342,7 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 		if fType.NumIn() == 2 {
 			if fType.In(1).Kind() == reflect.Ptr {
 				in := reflect.New(fType.In(1).Elem())
-				if err = c.DecodeJSON(in.Interface()); err != nil {
+				if err = c.LoadJSON(in.Interface()); err != nil {
 					return
 				}
 				args[1] = in

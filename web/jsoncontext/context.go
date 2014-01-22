@@ -3,13 +3,14 @@ package jsoncontext
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
+	"strconv"
+
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
-	"net/http"
-	"reflect"
-	"strconv"
 )
 
 const (
@@ -70,7 +71,7 @@ func (self *DefaultJSONContext) CopyJSON(in, out interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	return jsonUtils.CopyJSON(in, out, token.Scopes()...)
+	return jsonUtils.CopyJSON(in, out, self.Req().Method, token.Scopes()...)
 }
 
 func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
@@ -80,10 +81,10 @@ func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 func (self *DefaultJSONContext) LoadJSON(out interface{}) (err error) {
 	at, err := self.AccessToken(nil)
 	if err != nil {
-		return
+		return jsonUtils.LoadJSON(self.Req().Body, out, self.Req().Method)
 	}
 	scopes := at.Scopes()
-	return jsonUtils.LoadJSON(self.Req().Body, out, scopes...)
+	return jsonUtils.LoadJSON(self.Req().Body, out, self.Req().Method, scopes...)
 }
 
 func (self *DefaultJSONContext) APIVersion() int {
