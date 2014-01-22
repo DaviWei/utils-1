@@ -2,6 +2,13 @@ package web
 
 import (
 	"fmt"
+	"net/http"
+	"reflect"
+	"runtime"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
@@ -10,12 +17,6 @@ import (
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
-	"net/http"
-	"reflect"
-	"runtime"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 type Token struct {
@@ -456,19 +457,20 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	}
 }
 
-type FooKey struct {
-	key.Key
+type KeyTest struct {
+	Id   key.Key `datastore:"-"`
+	Sub  key.Key
+	Name string
 }
 
-type KeyTest struct {
-	Id  key.Key `datastore:"-"`
-	Sub FooKey
-}
+var findKeyTestBySub = gae.Finder(&KeyTest{}, "Sub")
 
 func testKey(c gaecontext.HTTPContext) {
+	subKey := key.New("--subkeykind--", "--subkeyname--", 0, key.New("--subkeyparentkind--", "--subkeyparentname--", 0, nil))
 	k := &KeyTest{
-		Id:  key.New("kind", "keyname", 0, nil),
-		Sub: FooKey{key.New("kind", "subname", 0, key.New("rkind", "subname", 0, nil))},
+		Id:   key.New("--keykind--", "--keyname--", 0, nil),
+		Sub:  subKey,
+		Name: "--namefield--",
 	}
 
 	if err := gae.Put(c, k); err != nil {
@@ -502,6 +504,7 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 
 func test(c gaecontext.HTTPContext) error {
 
+	run(c, testKey)
 	run(c, testMemcacheBasics)
 	run(c, testMutex)
 	run(c, testGet)
@@ -509,7 +512,6 @@ func test(c gaecontext.HTTPContext) error {
 	run(c, testAncestorFind)
 	run(c, testAccessTokens)
 	run(c, testMemcacheDeletion)
-	run(c, testKey)
 	return nil
 }
 

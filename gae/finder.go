@@ -1,17 +1,19 @@
 package gae
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"fmt"
+	"reflect"
+
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
-	"reflect"
+
+	"appengine"
+	"appengine/datastore"
 )
 
 // finder encapsulates the knowledge that a model type is findable by a given set of fields.
 type finder struct {
-	fields []string
+	fields []reflect.StructField
 	model  interface{}
 }
 
@@ -20,14 +22,17 @@ var registeredFinders = map[string][]finder{}
 
 // newFinder returns an optionally registered finder after having validated the correct type of input data.
 func newFinder(model interface{}, register bool, fields ...string) (result finder) {
-	val := reflect.ValueOf(model).Elem()
-	for _, field := range fields {
-		if f := val.FieldByName(field); !f.IsValid() {
+	typ := reflect.TypeOf(model).Elem()
+	structFields := make([]reflect.StructField, len(fields))
+	for index, field := range fields {
+		if f, found := typ.FieldByName(field); found {
+			structFields[index] = f
+		} else {
 			panic(fmt.Errorf("%+v doesn't have a field named %#v", model, field))
 		}
 	}
 	result = finder{
-		fields: fields,
+		fields: structFields,
 		model:  model,
 	}
 	if register {
@@ -64,7 +69,7 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key,
 		q = q.Ancestor(ancestor.ToGAE(c))
 	}
 	for index, value := range values {
-		q = q.Filter(fmt.Sprintf("%v=", self.fields[index]), value)
+		q = q.Filter(fmt.Sprintf("%v=", self.fields[index].Name), value)
 	}
 	var ids []*datastore.Key
 	ids, err = q.GetAll(c, dst)
@@ -98,7 +103,7 @@ func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[
 	values := make([]interface{}, len(self.fields))
 	val := reflect.ValueOf(model).Elem()
 	for index, field := range self.fields {
-		values[index] = val.FieldByName(field).Interface()
+		values[index] = val.FieldByName(field.Name).Interface()
 	}
 	if oldKeys == nil {
 		oldKeys = &[]string{}

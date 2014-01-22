@@ -1,8 +1,6 @@
 package key
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +8,9 @@ import (
 	"io"
 	"reflect"
 	"strings"
+
+	"appengine"
+	"appengine/datastore"
 )
 
 type KeyElement struct {
@@ -235,7 +236,7 @@ func (self Key) Encode() (result string) {
 	if err := self.encode(buf); err != nil {
 		panic(err)
 	}
-	return base64.URLEncoding.EncodeToString(buf.Bytes())
+	return strings.Replace(base64.URLEncoding.EncodeToString(buf.Bytes()), "=", ".", -1)
 }
 
 func (self Key) EncodeEmailId() (result string) {
@@ -275,7 +276,7 @@ func Decode(s string) (result Key, err error) {
 		return
 	}
 	b := []byte{}
-	if b, err = base64.URLEncoding.DecodeString(s); err != nil {
+	if b, err = base64.URLEncoding.DecodeString(strings.Replace(s, ".", "=", -1)); err != nil {
 		return
 	}
 	buf := bytes.NewBuffer(b)
