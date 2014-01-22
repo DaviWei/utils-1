@@ -12,7 +12,6 @@ import (
 	"math/rand"
 	"reflect"
 	"time"
-	"strings"
 )
 
 func init() {
@@ -98,7 +97,7 @@ func EncodeToken(token AccessToken, timeout time.Duration) (result string, err e
 	if err = b64Enc.Close(); err != nil {
 		return
 	}
-	result = strings.Replace(string(b.Bytes()), "=", "_", -1)
+	result = string(b.Bytes())
 	return
 }
 
@@ -127,7 +126,7 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 	}
 	result = dst
 	envelope := &tokenEnvelope{}
-	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(strings.Replace(d, "_", "=", -1))))
+	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(d)))
 	if err = dec.Decode(&envelope); err != nil {
 		err = fmt.Errorf("Invalid AccessToken: %v, %v", d, err)
 		return
