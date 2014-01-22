@@ -98,6 +98,7 @@ func testMutex(c gaecontext.HTTPContext) {
 type ts struct {
 	Id        key.Key `datastore:"-"`
 	Name      string
+	Foreign   key.Key
 	Age       int
 	Processes []string
 }
@@ -155,12 +156,14 @@ func (self *ts) BeforeUpdate(c gaecontext.HTTPContext) (err error) {
 }
 
 var findTsByName = gae.Finder(&ts{}, "Name")
+var findTsByForeign = gae.Finder(&ts{}, "Foreign")
 var findTsByAncestorAndName = gae.AncestorFinder(&ts{}, "Name")
+var findTsByAncestorAndForeign = gae.AncestorFinder(&ts{}, "Foreign")
 
 func testGet(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
 	t := &ts{
-		Id:   key.For(&ts{}, "", 0, nil),
+		Id:   key.For(&ts{}, "", 0, ""),
 		Name: "the t",
 		Age:  12,
 	}
@@ -202,9 +205,38 @@ func testGet(c gaecontext.HTTPContext) {
 	}
 }
 
+func testAncestorFindByKey(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
+	parentKey := key.New("Parent", "gnu", 0, "")
+	foreign := key.New("Secondary", "sec", 0, "")
+	t2 := &ts{
+		Id:      key.For(&ts{}, "", 0, parentKey),
+		Name:    "t again",
+		Age:     14,
+		Foreign: foreign,
+	}
+	if err := gae.Put(c, t2); err != nil {
+		panic(err)
+	}
+	res := []ts{}
+	if err := findTsByAncestorAndForeign(c, &res, parentKey, foreign); err != nil {
+		panic(err)
+	}
+	if len(res) != 1 {
+		panic(fmt.Errorf("wrong number found, wanted 1 but got %+v", res))
+	}
+	if !(&res[0]).Equal(t2) {
+		panic(fmt.Errorf("%+v and %+v should be equal", res[0], t2))
+	}
+	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterLoad"}
+	if !reflect.DeepEqual(wantedProcesses, res[0].Processes) {
+		panic("wrong processes")
+	}
+}
+
 func testAncestorFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
-	parentKey := key.New("Parent", "gnu", 0, nil)
+	parentKey := key.New("Parent", "gnu", 0, "")
 	t2 := &ts{
 		Id:   key.For(&ts{}, "", 0, parentKey),
 		Name: "t again",
@@ -229,10 +261,46 @@ func testAncestorFind(c gaecontext.HTTPContext) {
 	}
 }
 
+func testFindByKey(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
+	foreign := key.New("Foreign", "name", 0, key.New("ForeignParent", "anothername", 0, ""))
+	notForeign := key.New("Foreign", "name2", 0, "")
+	t2 := &ts{
+		Id:      key.For(&ts{}, "", 0, ""),
+		Name:    "another t",
+		Age:     14,
+		Foreign: foreign,
+	}
+	if err := gae.Put(c, t2); err != nil {
+		panic(err)
+	}
+	time.Sleep(time.Second)
+	res := []ts{}
+	if err := findTsByForeign(c, &res, notForeign); err != nil {
+		panic(err)
+	}
+	if len(res) != 0 {
+		panic("should be empty")
+	}
+	if err := findTsByForeign(c, &res, foreign); err != nil {
+		panic(err)
+	}
+	if len(res) != 1 {
+		panic(fmt.Errorf("wrong number found, wanted 1 but got %+v", res))
+	}
+	if !(&res[0]).Equal(t2) {
+		panic(fmt.Errorf("%+v and %+v should be equal", res[0], t2))
+	}
+	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterLoad"}
+	if !reflect.DeepEqual(wantedProcesses, res[0].Processes) {
+		panic("wrong processes")
+	}
+}
+
 func testFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
 	t2 := &ts{
-		Id:   key.For(&ts{}, "", 0, nil),
+		Id:   key.For(&ts{}, "", 0, ""),
 		Name: "another t",
 		Age:  14,
 	}
@@ -310,7 +378,7 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 
 func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	t1 := &ts{}
-	parentKey := key.For(t1, "parent", 0, nil)
+	parentKey := key.For(t1, "parent", 0, "")
 	t1.Id = key.For(t1, "", 0, parentKey)
 	t1.Name = "hej"
 	if err := gae.Put(c, t1); err != nil {
@@ -457,37 +525,6 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 	}
 }
 
-type KeyTest struct {
-	Id   key.Key `datastore:"-"`
-	Sub  key.Key
-	Name string
-}
-
-var findKeyTestBySub = gae.Finder(&KeyTest{}, "Sub")
-
-func testKey(c gaecontext.HTTPContext) {
-	subKey := key.New("--subkeykind--", "--subkeyname--", 0, key.New("--subkeyparentkind--", "--subkeyparentname--", 0, nil))
-	k := &KeyTest{
-		Id:   key.New("--keykind--", "--keyname--", 0, nil),
-		Sub:  subKey,
-		Name: "--namefield--",
-	}
-
-	if err := gae.Put(c, k); err != nil {
-		panic(err)
-	}
-
-	k2 := &KeyTest{
-		Id: k.Id,
-	}
-	if err := gae.GetById(c, k2); err != nil {
-		panic(err)
-	}
-	if !reflect.DeepEqual(k, k2) {
-		panic(fmt.Errorf("%+v and %+v should be same", k, k2))
-	}
-}
-
 func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -504,7 +541,8 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 
 func test(c gaecontext.HTTPContext) error {
 
-	run(c, testKey)
+	run(c, testAncestorFindByKey)
+	run(c, testFindByKey)
 	run(c, testMemcacheBasics)
 	run(c, testMutex)
 	run(c, testGet)

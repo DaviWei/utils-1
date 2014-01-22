@@ -65,7 +65,7 @@ func AncestorFinder(model interface{}, fields ...string) func(c PersistenceConte
 // find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
 func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
-	if ancestor != nil {
+	if ancestor != "" {
 		q = q.Ancestor(ancestor.ToGAE(c))
 	}
 	for index, value := range values {
@@ -108,7 +108,7 @@ func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[
 	if oldKeys == nil {
 		oldKeys = &[]string{}
 	}
-	for id != nil {
+	for id != "" {
 		*oldKeys = append(*oldKeys, self.keyForValues(id.Parent(), values))
 		id = id.Parent()
 	}
@@ -118,7 +118,7 @@ func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[
 
 // see Finder
 func (self finder) get(c PersistenceContext, dst interface{}, values ...interface{}) (err error) {
-	return self.getWithAncestor(c, dst, nil, values...)
+	return self.getWithAncestor(c, dst, "", values...)
 }
 
 // see AncestorFinder
@@ -128,8 +128,8 @@ func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancest
 		return
 	}
 	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data
-	if ancestor == nil {
-		if err = self.find(c, dst, nil, values); err != nil {
+	if ancestor == "" {
+		if err = self.find(c, dst, "", values); err != nil {
 			return
 		}
 	} else {

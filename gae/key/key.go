@@ -3,6 +3,7 @@ package key
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +14,69 @@ import (
 	"appengine/datastore"
 )
 
-type KeyElement struct {
-	IntID    int64
-	StringID string
-	Kind     string
+func split(s string, delim byte) (before, after string) {
+	buf := &bytes.Buffer{}
+	i := 0
+	for i = 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			buf.WriteByte(s[i])
+			i++
+			buf.WriteByte(s[i])
+		case delim:
+			before, after = buf.String(), s[i+1:]
+			return
+		default:
+			buf.WriteByte(s[i])
+		}
+	}
+	before = buf.String()
+	return
 }
-type Key []KeyElement
+
+func escape(s string) string {
+	buf := &bytes.Buffer{}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ',':
+			buf.WriteString("\\,")
+		case '/':
+			buf.WriteString("\\/")
+		case '\\':
+			buf.WriteString("\\\\")
+		default:
+			buf.WriteByte(s[i])
+		}
+	}
+	return buf.String()
+}
+
+func unescape(s string) string {
+	buf := &bytes.Buffer{}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			if i+1 < len(s) {
+				i++
+				switch s[i] {
+				case '\\':
+					buf.WriteByte('\\')
+				case ',':
+					buf.WriteByte(',')
+				case '/':
+					buf.WriteByte('/')
+				default:
+					buf.WriteByte('\\')
+				}
+			} else {
+				buf.WriteByte('\\')
+			}
+		default:
+			buf.WriteByte(s[i])
+		}
+	}
+	return buf.String()
+}
 
 func For(i interface{}, StringId string, IntId int64, parent Key) Key {
 	val := reflect.ValueOf(i)
@@ -28,18 +86,12 @@ func For(i interface{}, StringId string, IntId int64, parent Key) Key {
 	return New(val.Type().Name(), StringId, IntId, parent)
 }
 
-func New(Kind string, StringId string, IntId int64, parent Key) (ret Key) {
-	ret = Key{
-		KeyElement{
-			IntID:    IntId,
-			StringID: StringId,
-			Kind:     Kind,
-		},
-	}
-	if len(parent) > 0 {
-		ret = append(ret, parent...)
-	}
-	return ret
+type Key string
+
+func New(kind string, stringId string, intId int64, parent Key) (result Key) {
+	b := make([]byte, 16)
+	used := binary.PutVarint(b, intId)
+	return Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringId), escape(string(b[:used])), string(parent)))
 }
 
 func (self Key) String() string {
@@ -51,18 +103,27 @@ func (self Key) String() string {
 	return string(buf.Bytes())
 }
 
+func (self Key) split() (kind string, stringId string, intId int64, parent Key) {
+	rest, after := split(string(self), '/')
+	kind, rest = split(rest, ',')
+	stringId, rest = split(rest, ',')
+	intId, _ = binary.Varint([]byte(unescape(rest)))
+	kind, stringId, parent = unescape(kind), unescape(stringId), Key(after)
+	return
+}
+
 func (self Key) describe(w io.Writer) {
 	if len(self) == 0 {
 		return
 	}
-	self.Parent().describe(w)
-	child := self[0]
-	fmt.Fprintf(w, "/%s,", child.Kind)
-	if child.StringID != "" {
-		fmt.Fprintf(w, "%s", child.StringID)
+	kind, stringId, intId, parent := self.split()
+	parent.describe(w)
+	fmt.Fprintf(w, "/%s,", kind)
+	if stringId != "" {
+		fmt.Fprintf(w, "%s", stringId)
 	}
-	if child.IntID != 0 {
-		fmt.Fprintf(w, "%d", child.IntID)
+	if intId != 0 {
+		fmt.Fprintf(w, "%d", intId)
 	}
 	return
 }
@@ -77,27 +138,9 @@ func FromGAErr(k *datastore.Key, err error) (result Key, err2 error) {
 
 func FromGAE(k *datastore.Key) Key {
 	if k == nil {
-		return nil
+		return Key("")
 	}
-	return append(Key{KeyElement{
-		Kind:     k.Kind(),
-		StringID: k.StringID(),
-		IntID:    k.IntID(),
-	}}, FromGAE(k.Parent())...)
-}
-
-func (self *Key) GobDecode(b []byte) (err error) {
-	*self, err = decode(bytes.NewBuffer(b))
-	return
-}
-
-func (self Key) GobEncode() ([]byte, error) {
-	buf := &bytes.Buffer{}
-	err := self.encode(buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), err
+	return New(k.Kind(), k.StringID(), k.IntID(), FromGAE(k.Parent()))
 }
 
 func (self Key) MarshalJSON() (b []byte, err error) {
@@ -116,23 +159,24 @@ func (self *Key) UnmarshalJSON(b []byte) (err error) {
 	return
 }
 
-func (self Key) Kind() string {
-	return self[0].Kind
+func (self Key) Kind() (result string) {
+	result, _, _, _ = self.split()
+	return
 }
 
-func (self Key) StringID() string {
-	return self[0].StringID
+func (self Key) StringID() (result string) {
+	_, result, _, _ = self.split()
+	return
 }
 
-func (self Key) IntID() int64 {
-	return self[0].IntID
+func (self Key) IntID() (result int64) {
+	_, _, result, _ = self.split()
+	return
 }
 
-func (self Key) Parent() Key {
-	if len(self) == 0 {
-		return nil
-	}
-	return self[1:]
+func (self Key) Parent() (result Key) {
+	_, _, _, result = self.split()
+	return
 }
 
 func writeInt64(buf *bytes.Buffer, i int64) (err error) {
@@ -216,22 +260,20 @@ func (self Key) encode(buf *bytes.Buffer) (err error) {
 	if len(self) < 1 {
 		return
 	}
-	if err = writeString(buf, self[0].Kind); err != nil {
+	kind, stringId, intId, parent := self.split()
+	if err = writeString(buf, kind); err != nil {
 		return
 	}
-	if err = writeString(buf, self[0].StringID); err != nil {
+	if err = writeString(buf, stringId); err != nil {
 		return
 	}
-	if err = writeInt64(buf, self[0].IntID); err != nil {
+	if err = writeInt64(buf, intId); err != nil {
 		return
 	}
-	return self.Parent().encode(buf)
+	return Key(parent).encode(buf)
 }
 
 func (self Key) Encode() (result string) {
-	if self == nil {
-		return
-	}
 	buf := &bytes.Buffer{}
 	if err := self.encode(buf); err != nil {
 		panic(err)
@@ -239,35 +281,27 @@ func (self Key) Encode() (result string) {
 	return strings.Replace(base64.URLEncoding.EncodeToString(buf.Bytes()), "=", ".", -1)
 }
 
-func (self Key) EncodeEmailId() (result string) {
-	return strings.Replace(self.Encode(), "=", "_", -1)
-}
-
 func decode(buf *bytes.Buffer) (result Key, err error) {
-	el := KeyElement{}
-	s := ""
-	if s, err = readString(buf); err != nil {
+	kind := ""
+	if kind, err = readString(buf); err != nil {
 		return
 	}
-	el.Kind = s
-	if s, err = readString(buf); err != nil {
+	stringId := ""
+	if stringId, err = readString(buf); err != nil {
 		return
 	}
-	el.StringID = s
-	var i int64
-	if i, err = readInt64(buf); err != nil {
+	var intId int64
+	if intId, err = readInt64(buf); err != nil {
 		return
 	}
-	el.IntID = i
-	result = Key{el}
+	parent := Key("")
 	if buf.Len() > 0 {
-		var pres Key
-		pres, err = decode(buf)
+		parent, err = decode(buf)
 		if err != nil {
 			return
 		}
-		result = append(result, pres...)
 	}
+	result = New(kind, stringId, intId, parent)
 	return
 }
 
@@ -291,14 +325,10 @@ func (self Key) ToGAE(c appengine.Context) *datastore.Key {
 	if len(self) < 1 {
 		return nil
 	}
-
-	return datastore.NewKey(c, self[0].Kind, self[0].StringID, self[0].IntID, self.Parent().ToGAE(c))
-}
-
-func (s KeyElement) Equal(k KeyElement) bool {
-	return s.Kind == k.Kind && s.IntID == k.IntID && s.StringID == k.StringID
+	kind, stringId, intId, parent := self.split()
+	return datastore.NewKey(c, kind, stringId, intId, Key(parent).ToGAE(c))
 }
 
 func (s Key) Equal(k Key) bool {
-	return len(s) == len(k) && (len(s) == 0 || (s[0].Equal(k[0]) && s.Parent().Equal(k.Parent())))
+	return s == k
 }

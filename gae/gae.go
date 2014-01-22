@@ -1,13 +1,15 @@
 package gae
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"fmt"
+	"reflect"
+
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
-	"reflect"
+
+	"appengine"
+	"appengine/datastore"
 )
 
 const (
@@ -43,7 +45,7 @@ func getTypeAndId(model interface{}) (typ reflect.Type, id key.Key, err error) {
 		err = fmt.Errorf("%+v does not have a field named Id", model)
 		return
 	}
-	if !idField.Type().AssignableTo(reflect.TypeOf(key.Key{})) {
+	if !idField.Type().AssignableTo(reflect.TypeOf(key.Key(""))) {
 		err = fmt.Errorf("%+v does not have a field named Id that is a key.Key", model)
 		return
 	}
@@ -158,7 +160,7 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 	if typ, id, err = getTypeAndId(src); err != nil {
 		return
 	}
-	if id == nil {
+	if id == "" {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
@@ -198,7 +200,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 	if _, id, err = getTypeAndId(src); err != nil {
 		return
 	}
-	if id == nil {
+	if id == "" {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
