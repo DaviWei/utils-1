@@ -162,8 +162,12 @@ var findTsByAncestorAndForeign = gae.AncestorFinder(&ts{}, "Foreign")
 
 func testGet(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
+	k, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
 	t := &ts{
-		Id:   key.For(&ts{}, "", 0, ""),
+		Id:   k,
 		Name: "the t",
 		Age:  12,
 	}
@@ -207,10 +211,20 @@ func testGet(c gaecontext.HTTPContext) {
 
 func testAncestorFindByKey(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
-	parentKey := key.New("Parent", "gnu", 0, "")
-	foreign := key.New("Secondary", "sec", 0, "")
+	parentKey, err := key.New("Parent", "gnu", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	foreign, err := key.New("Secondary", "sec", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:      key.For(&ts{}, "", 0, parentKey),
+		Id:      k,
 		Name:    "t again",
 		Age:     14,
 		Foreign: foreign,
@@ -236,9 +250,16 @@ func testAncestorFindByKey(c gaecontext.HTTPContext) {
 
 func testAncestorFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
-	parentKey := key.New("Parent", "gnu", 0, "")
+	parentKey, err := key.New("Parent", "gnu", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:   key.For(&ts{}, "", 0, parentKey),
+		Id:   k,
 		Name: "t again",
 		Age:  14,
 	}
@@ -263,10 +284,24 @@ func testAncestorFind(c gaecontext.HTTPContext) {
 
 func testFindByKey(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
-	foreign := key.New("Foreign", "name", 0, key.New("ForeignParent", "anothername", 0, ""))
-	notForeign := key.New("Foreign", "name2", 0, "")
+	foreignParent, err := key.New("ForeignParent", "anothername", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	foreign, err := key.New("Foreign", "name", 0, foreignParent)
+	if err != nil {
+		panic(err)
+	}
+	notForeign, err := key.New("Foreign", "name2", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:      key.For(&ts{}, "", 0, ""),
+		Id:      k,
 		Name:    "another t",
 		Age:     14,
 		Foreign: foreign,
@@ -299,8 +334,12 @@ func testFindByKey(c gaecontext.HTTPContext) {
 
 func testFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
+	id, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:   key.For(&ts{}, "", 0, ""),
+		Id:   id,
 		Name: "another t",
 		Age:  14,
 	}
@@ -378,8 +417,14 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 
 func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	t1 := &ts{}
-	parentKey := key.For(t1, "parent", 0, "")
-	t1.Id = key.For(t1, "", 0, parentKey)
+	parentKey, err := key.For(t1, "parent", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	t1.Id, err = key.For(t1, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
 	t1.Name = "hej"
 	if err := gae.Put(c, t1); err != nil {
 		panic(err)

@@ -83,7 +83,11 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key,
 		if element.Kind() == reflect.Ptr {
 			element = element.Elem()
 		}
-		element.FieldByName(idFieldName).Set(reflect.ValueOf(key.FromGAE(id)))
+		var k key.Key
+		if k, err = key.FromGAE(id); err != nil {
+			return
+		}
+		element.FieldByName(idFieldName).Set(reflect.ValueOf(k))
 	}
 	return
 }

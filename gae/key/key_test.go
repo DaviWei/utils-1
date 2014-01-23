@@ -12,6 +12,8 @@ import (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	AssertGenealogy("Location").ParentKinds("Account")
+	AssertGenealogy("SpotifyAccount").StringIDKinds("Location")
 }
 
 type dummyContext struct {
@@ -39,9 +41,17 @@ func randomString() string {
 
 func randomKey(parents int) Key {
 	if parents == 0 {
-		return New(randomString(), randomString(), rand.Int63(), "")
+		key, err := New(randomString(), randomString(), rand.Int63(), "")
+		if err != nil {
+			panic(err)
+		}
+		return key
 	}
-	return New(randomString(), randomString(), rand.Int63(), randomKey(parents-1))
+	key, err := New(randomString(), randomString(), rand.Int63(), randomKey(parents-1))
+	if err != nil {
+		panic(err)
+	}
+	return key
 }
 
 func assertSplit(t *testing.T, source, before, after string) {
@@ -96,7 +106,10 @@ func TestFromAndToGAE(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		k := randomKey(3)
 		k2 := k.ToGAE(dummyContext{"myapp"})
-		k3 := FromGAE(k2)
+		k3, err := FromGAE(k2)
+		if err != nil {
+			panic(err)
+		}
 		k4 := k3.ToGAE(dummyContext{"myapp"})
 		if !reflect.DeepEqual(k, k3) {
 			t.Fatalf("%+v != %+v", k, k3)
@@ -155,6 +168,26 @@ func TestToAndFromJSONInsideWrapper(t *testing.T) {
 
 }
 
+func TestValidations(t *testing.T) {
+	if _, err := New("Location", "ff", 0, ""); err == nil {
+		t.Fatalf("should not work")
+	}
+	acc, err := New("Account", "fg", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	loc, err := New("Location", "ff", 0, acc)
+	if err != nil {
+		t.Fatalf("should work")
+	}
+	if _, err := New("SpotifyAccount", "11212", 0, ""); err == nil {
+		t.Fatalf("should not work")
+	}
+	if _, err := New("SpotifyAccount", loc.Encode(), 0, ""); err != nil {
+		t.Fatalf("should work")
+	}
+}
+
 func TestToAndFromJSON(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		k := randomKey(5)
@@ -180,7 +213,10 @@ func TestToAndFromJSON(t *testing.T) {
 func TestEqual(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		k := randomKey(6)
-		k2 := New(k.Kind(), k.StringID(), k.IntID(), k.Parent())
+		k2, err := New(k.Kind(), k.StringID(), k.IntID(), k.Parent())
+		if err != nil {
+			panic(err)
+		}
 		if !k.Equal(k2) {
 			t.Fatalf("Keys not equal")
 		}

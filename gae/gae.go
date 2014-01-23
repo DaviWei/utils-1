@@ -313,7 +313,11 @@ func DelAll(c PersistenceContext, src interface{}) (err error) {
 	resultsSlice := results.Elem()
 	for index, dataId := range dataIds {
 		el = resultsSlice.Index(index)
-		el.FieldByName("Id").Set(reflect.ValueOf(key.FromGAE(dataId)))
+		var k key.Key
+		if k, err = key.FromGAE(dataId); err != nil {
+			return
+		}
+		el.FieldByName("Id").Set(reflect.ValueOf(k))
 		if _, err = MemcacheKeys(c, el.Addr().Interface(), &memcacheKeys); err != nil {
 			return
 		}

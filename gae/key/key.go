@@ -14,6 +14,39 @@ import (
 	"appengine/datastore"
 )
 
+type genealogyAssertion struct {
+	kind          string
+	parentKinds   []string
+	stringIDKinds []string
+}
+
+func (self *genealogyAssertion) StringIDKinds(allowed ...string) *genealogyAssertion {
+	for _, kind := range allowed {
+		self.stringIDKinds = append(self.stringIDKinds, kind)
+	}
+	return self
+}
+
+func (self *genealogyAssertion) ParentKinds(allowed ...string) *genealogyAssertion {
+	for _, kind := range allowed {
+		self.parentKinds = append(self.parentKinds, kind)
+	}
+	return self
+}
+
+var genealogyAssertions = map[string]*genealogyAssertion{}
+
+func AssertGenealogy(kind string) (result *genealogyAssertion) {
+	result, found := genealogyAssertions[kind]
+	if !found {
+		result = &genealogyAssertion{
+			kind: kind,
+		}
+		genealogyAssertions[kind] = result
+	}
+	return
+}
+
 func split(s string, delim byte) (before, after string) {
 	buf := &bytes.Buffer{}
 	i := 0
@@ -78,7 +111,7 @@ func unescape(s string) string {
 	return buf.String()
 }
 
-func For(i interface{}, StringId string, IntId int64, parent Key) Key {
+func For(i interface{}, StringId string, IntId int64, parent Key) (result Key, err error) {
 	val := reflect.ValueOf(i)
 	for val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -88,10 +121,51 @@ func For(i interface{}, StringId string, IntId int64, parent Key) Key {
 
 type Key string
 
-func New(kind string, stringId string, intId int64, parent Key) (result Key) {
+func New(kind string, stringID string, intID int64, parent Key) (result Key, err error) {
 	b := make([]byte, 16)
-	used := binary.PutVarint(b, intId)
-	return Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringId), escape(string(b[:used])), string(parent)))
+	used := binary.PutVarint(b, intID)
+	result = Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringID), escape(string(b[:used])), string(parent)))
+	err = result.validate()
+	return
+}
+
+func (self Key) validate() (err error) {
+	kind, stringID, _, parent := self.split()
+	if assertion, found := genealogyAssertions[kind]; found {
+		if len(assertion.parentKinds) > 0 {
+			parentKind := parent.Kind()
+			ok := false
+			for _, okKind := range assertion.parentKinds {
+				if okKind == parentKind {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				err = fmt.Errorf("%v doesn't have a valid parent", self)
+				return
+			}
+		}
+		if len(assertion.stringIDKinds) > 0 {
+			var stringIDKey = Key("")
+			if stringIDKey, err = Decode(stringID); err != nil {
+				return
+			}
+			stringIDKind := stringIDKey.Kind()
+			ok := false
+			for _, okKind := range assertion.stringIDKinds {
+				if okKind == stringIDKind {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				err = fmt.Errorf("%v doesn't have a valid StringID", self)
+				return
+			}
+		}
+	}
+	return
 }
 
 func (self Key) String() string {
@@ -103,12 +177,12 @@ func (self Key) String() string {
 	return string(buf.Bytes())
 }
 
-func (self Key) split() (kind string, stringId string, intId int64, parent Key) {
+func (self Key) split() (kind string, stringID string, intID int64, parent Key) {
 	rest, after := split(string(self), '/')
 	kind, rest = split(rest, ',')
-	stringId, rest = split(rest, ',')
-	intId, _ = binary.Varint([]byte(unescape(rest)))
-	kind, stringId, parent = unescape(kind), unescape(stringId), Key(after)
+	stringID, rest = split(rest, ',')
+	intID, _ = binary.Varint([]byte(unescape(rest)))
+	kind, stringID, parent = unescape(kind), unescape(stringID), Key(after)
 	return
 }
 
@@ -116,14 +190,14 @@ func (self Key) describe(w io.Writer) {
 	if len(self) == 0 {
 		return
 	}
-	kind, stringId, intId, parent := self.split()
+	kind, stringID, intID, parent := self.split()
 	parent.describe(w)
 	fmt.Fprintf(w, "/%s,", kind)
-	if stringId != "" {
-		fmt.Fprintf(w, "%s", stringId)
+	if stringID != "" {
+		fmt.Fprintf(w, "%s", stringID)
 	}
-	if intId != 0 {
-		fmt.Fprintf(w, "%d", intId)
+	if intID != 0 {
+		fmt.Fprintf(w, "%d", intID)
 	}
 	return
 }
@@ -131,16 +205,20 @@ func (self Key) describe(w io.Writer) {
 func FromGAErr(k *datastore.Key, err error) (result Key, err2 error) {
 	err2 = err
 	if err2 == nil {
-		result = FromGAE(k)
+		return FromGAE(k)
 	}
 	return
 }
 
-func FromGAE(k *datastore.Key) Key {
+func FromGAE(k *datastore.Key) (result Key, err error) {
 	if k == nil {
-		return Key("")
+		return Key(""), nil
 	}
-	return New(k.Kind(), k.StringID(), k.IntID(), FromGAE(k.Parent()))
+	parent, err := FromGAE(k.Parent())
+	if err != nil {
+		return
+	}
+	return New(k.Kind(), k.StringID(), k.IntID(), parent)
 }
 
 func (self Key) MarshalJSON() (b []byte, err error) {
@@ -200,8 +278,8 @@ func (self Key) ToGAE(c appengine.Context) *datastore.Key {
 	if len(self) < 1 {
 		return nil
 	}
-	kind, stringId, intId, parent := self.split()
-	return datastore.NewKey(c, kind, stringId, intId, Key(parent).ToGAE(c))
+	kind, stringID, intID, parent := self.split()
+	return datastore.NewKey(c, kind, stringID, intID, Key(parent).ToGAE(c))
 }
 
 func (s Key) Equal(k Key) bool {
