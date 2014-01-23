@@ -2,6 +2,13 @@ package web
 
 import (
 	"fmt"
+	"net/http"
+	"reflect"
+	"runtime"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
@@ -10,12 +17,6 @@ import (
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
-	"net/http"
-	"reflect"
-	"runtime"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 type Token struct {
@@ -95,17 +96,18 @@ func testMutex(c gaecontext.HTTPContext) {
 }
 
 type ts struct {
-	Id        *key.Key `datastore:"-"`
+	Id        key.Key `datastore:"-"`
 	Name      string
+	Foreign   key.Key
 	Age       int
 	Processes []string
 }
 
-func (self *ts) GetId() *key.Key {
+func (self *ts) GetId() key.Key {
 	return self.Id
 }
 
-func (self *ts) SetId(id *key.Key) {
+func (self *ts) SetId(id key.Key) {
 	self.Id = id
 }
 
@@ -154,12 +156,18 @@ func (self *ts) BeforeUpdate(c gaecontext.HTTPContext) (err error) {
 }
 
 var findTsByName = gae.Finder(&ts{}, "Name")
+var findTsByForeign = gae.Finder(&ts{}, "Foreign")
 var findTsByAncestorAndName = gae.AncestorFinder(&ts{}, "Name")
+var findTsByAncestorAndForeign = gae.AncestorFinder(&ts{}, "Foreign")
 
 func testGet(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
+	k, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
 	t := &ts{
-		Id:   key.For(&ts{}, "", 0, nil),
+		Id:   k,
 		Name: "the t",
 		Age:  12,
 	}
@@ -201,11 +209,57 @@ func testGet(c gaecontext.HTTPContext) {
 	}
 }
 
+func testAncestorFindByKey(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
+	parentKey, err := key.New("Parent", "gnu", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	foreign, err := key.New("Secondary", "sec", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
+	t2 := &ts{
+		Id:      k,
+		Name:    "t again",
+		Age:     14,
+		Foreign: foreign,
+	}
+	if err := gae.Put(c, t2); err != nil {
+		panic(err)
+	}
+	res := []ts{}
+	if err := findTsByAncestorAndForeign(c, &res, parentKey, foreign); err != nil {
+		panic(err)
+	}
+	if len(res) != 1 {
+		panic(fmt.Errorf("wrong number found, wanted 1 but got %+v", res))
+	}
+	if !(&res[0]).Equal(t2) {
+		panic(fmt.Errorf("%+v and %+v should be equal", res[0], t2))
+	}
+	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterLoad"}
+	if !reflect.DeepEqual(wantedProcesses, res[0].Processes) {
+		panic("wrong processes")
+	}
+}
+
 func testAncestorFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
-	parentKey := key.New("Parent", "gnu", 0, nil)
+	parentKey, err := key.New("Parent", "gnu", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:   key.For(&ts{}, "", 0, parentKey),
+		Id:   k,
 		Name: "t again",
 		Age:  14,
 	}
@@ -228,10 +282,64 @@ func testAncestorFind(c gaecontext.HTTPContext) {
 	}
 }
 
+func testFindByKey(c gaecontext.HTTPContext) {
+	gae.DelAll(c, &ts{})
+	foreignParent, err := key.New("ForeignParent", "anothername", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	foreign, err := key.New("Foreign", "name", 0, foreignParent)
+	if err != nil {
+		panic(err)
+	}
+	notForeign, err := key.New("Foreign", "name2", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	k, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	t2 := &ts{
+		Id:      k,
+		Name:    "another t",
+		Age:     14,
+		Foreign: foreign,
+	}
+	if err := gae.Put(c, t2); err != nil {
+		panic(err)
+	}
+	time.Sleep(time.Second)
+	res := []ts{}
+	if err := findTsByForeign(c, &res, notForeign); err != nil {
+		panic(err)
+	}
+	if len(res) != 0 {
+		panic("should be empty")
+	}
+	if err := findTsByForeign(c, &res, foreign); err != nil {
+		panic(err)
+	}
+	if len(res) != 1 {
+		panic(fmt.Errorf("wrong number found, wanted 1 but got %+v", res))
+	}
+	if !(&res[0]).Equal(t2) {
+		panic(fmt.Errorf("%+v and %+v should be equal", res[0], t2))
+	}
+	wantedProcesses := []string{"BeforeCreate", "BeforeSave", "AfterLoad"}
+	if !reflect.DeepEqual(wantedProcesses, res[0].Processes) {
+		panic("wrong processes")
+	}
+}
+
 func testFind(c gaecontext.HTTPContext) {
 	gae.DelAll(c, &ts{})
+	id, err := key.For(&ts{}, "", 0, "")
+	if err != nil {
+		panic(err)
+	}
 	t2 := &ts{
-		Id:   key.For(&ts{}, "", 0, nil),
+		Id:   id,
 		Name: "another t",
 		Age:  14,
 	}
@@ -309,8 +417,14 @@ func testMemcacheBasics(c gaecontext.HTTPContext) {
 
 func testMemcacheDeletion(c gaecontext.HTTPContext) {
 	t1 := &ts{}
-	parentKey := key.For(t1, "parent", 0, nil)
-	t1.Id = key.For(t1, "", 0, parentKey)
+	parentKey, err := key.For(t1, "parent", 0, "")
+	if err != nil {
+		panic(err)
+	}
+	t1.Id, err = key.For(t1, "", 0, parentKey)
+	if err != nil {
+		panic(err)
+	}
 	t1.Name = "hej"
 	if err := gae.Put(c, t1); err != nil {
 		panic(err)
@@ -471,6 +585,9 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 }
 
 func test(c gaecontext.HTTPContext) error {
+
+	run(c, testAncestorFindByKey)
+	run(c, testFindByKey)
 	run(c, testMemcacheBasics)
 	run(c, testMutex)
 	run(c, testGet)

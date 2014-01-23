@@ -1,17 +1,19 @@
 package gae
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"fmt"
+	"reflect"
+
 	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
-	"reflect"
+
+	"appengine"
+	"appengine/datastore"
 )
 
 // finder encapsulates the knowledge that a model type is findable by a given set of fields.
 type finder struct {
-	fields []string
+	fields []reflect.StructField
 	model  interface{}
 }
 
@@ -20,14 +22,17 @@ var registeredFinders = map[string][]finder{}
 
 // newFinder returns an optionally registered finder after having validated the correct type of input data.
 func newFinder(model interface{}, register bool, fields ...string) (result finder) {
-	val := reflect.ValueOf(model).Elem()
-	for _, field := range fields {
-		if f := val.FieldByName(field); !f.IsValid() {
+	typ := reflect.TypeOf(model).Elem()
+	structFields := make([]reflect.StructField, len(fields))
+	for index, field := range fields {
+		if f, found := typ.FieldByName(field); found {
+			structFields[index] = f
+		} else {
 			panic(fmt.Errorf("%+v doesn't have a field named %#v", model, field))
 		}
 	}
 	result = finder{
-		fields: fields,
+		fields: structFields,
 		model:  model,
 	}
 	if register {
@@ -53,18 +58,18 @@ It will also register the finder so that MemcacheKeys will return keys to invali
 
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
-func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) error {
+func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) error {
 	return newFinder(model, true, fields...).getWithAncestor
 }
 
 // find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
-func (self finder) find(c PersistenceContext, dst interface{}, ancestor *key.Key, values []interface{}) (err error) {
+func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
-	if ancestor != nil {
+	if ancestor != "" {
 		q = q.Ancestor(ancestor.ToGAE(c))
 	}
 	for index, value := range values {
-		q = q.Filter(fmt.Sprintf("%v=", self.fields[index]), value)
+		q = q.Filter(fmt.Sprintf("%v=", self.fields[index].Name), value)
 	}
 	var ids []*datastore.Key
 	ids, err = q.GetAll(c, dst)
@@ -78,32 +83,36 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor *key.Key
 		if element.Kind() == reflect.Ptr {
 			element = element.Elem()
 		}
-		element.FieldByName(idFieldName).Set(reflect.ValueOf(key.FromGAE(id)))
+		var k key.Key
+		if k, err = key.FromGAE(id); err != nil {
+			return
+		}
+		element.FieldByName(idFieldName).Set(reflect.ValueOf(k))
 	}
 	return
 }
 
 // keyForValues returns the memcache key to use for the given ancestor and values searched for
-func (self finder) keyForValues(ancestor *key.Key, values []interface{}) string {
+func (self finder) keyForValues(ancestor key.Key, values []interface{}) string {
 	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Elem().Name(), ancestor, self.fields, values)
 }
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
 // the reason there may be multiple keys is that we don't know which ancestor will be used when finding the model.
 func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[]string) (newKeys []string, err error) {
-	var id *key.Key
+	var id key.Key
 	if _, id, err = getTypeAndId(model); err != nil {
 		return
 	}
 	values := make([]interface{}, len(self.fields))
 	val := reflect.ValueOf(model).Elem()
 	for index, field := range self.fields {
-		values[index] = val.FieldByName(field).Interface()
+		values[index] = val.FieldByName(field.Name).Interface()
 	}
 	if oldKeys == nil {
 		oldKeys = &[]string{}
 	}
-	for id != nil {
+	for id != "" {
 		*oldKeys = append(*oldKeys, self.keyForValues(id.Parent(), values))
 		id = id.Parent()
 	}
@@ -113,18 +122,18 @@ func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[
 
 // see Finder
 func (self finder) get(c PersistenceContext, dst interface{}, values ...interface{}) (err error) {
-	return self.getWithAncestor(c, dst, nil, values...)
+	return self.getWithAncestor(c, dst, "", values...)
 }
 
 // see AncestorFinder
-func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancestor *key.Key, values ...interface{}) (err error) {
+func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) (err error) {
 	if len(values) != len(self.fields) {
 		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
 		return
 	}
 	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data
-	if ancestor == nil {
-		if err = self.find(c, dst, nil, values); err != nil {
+	if ancestor == "" {
+		if err = self.find(c, dst, "", values); err != nil {
 			return
 		}
 	} else {

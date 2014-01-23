@@ -28,7 +28,7 @@ func (self *Bench) Measure(factor int, name string, f func()) {
 }
 
 type str struct {
-	Id  *key.Key `datastore:"-"`
+	Id  key.Key `datastore:"-"`
 	Age int
 }
 
