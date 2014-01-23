@@ -241,15 +241,15 @@ func example(t reflect.Type, seen map[string]int) (result interface{}) {
 	case reflect.Interface:
 		result = struct{}{}
 	case reflect.String:
-		result = "[...]"
+		result = reflect.ValueOf("[...]").Convert(t).Interface()
 	case reflect.Int:
-		result = 1
+		result = reflect.ValueOf(1).Convert(t).Interface()
 	case reflect.Int64:
-		result = int64(1)
+		result = reflect.ValueOf(int64(1)).Convert(t).Interface()
 	case reflect.Float64:
-		result = float64(1)
+		result = reflect.ValueOf(float64(1)).Convert(t).Interface()
 	case reflect.Bool:
-		result = true
+		result = reflect.ValueOf(true).Convert(t).Interface()
 	default:
 		val := reflect.New(t)
 		result = val.Elem().Interface()

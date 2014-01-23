@@ -205,20 +205,21 @@ type JSONType struct {
 	Comment     string
 }
 
-func newJSONType(in bool, t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
-	return newJSONTypeLoopProtector(map[reflect.Type]*JSONType{}, in, t, filterOnScopes, relevantScopes...)
+func newJSONType(in bool, t reflect.Type, filterOnScopes bool, scopeContexts []string, relevantScopes ...string) (result *JSONType) {
+	return newJSONTypeLoopProtector(nil, in, t, filterOnScopes, scopeContexts, relevantScopes...)
 }
 
-func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflect.Type, filterOnScopes bool, relevantScopes ...string) (result *JSONType) {
-	if old, found := seen[t]; found {
-		result = old
-		return
-	}
+func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filterOnScopes bool, scopeContexts []string, relevantScopes ...string) (result *JSONType) {
 	result = &JSONType{
 		In:          in,
 		ReflectType: t,
 	}
-	seen[t] = result
+	for _, seenType := range seen {
+		if t == seenType {
+			result.Type = "[loop protector enabled]"
+			return
+		}
+	}
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -233,7 +234,7 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 			}
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
-					anonType := newJSONTypeLoopProtector(seen, in, field.Type, filterOnScopes, relevantScopes...)
+					anonType := newJSONTypeLoopProtector(append(seen, t), in, field.Type, filterOnScopes, scopeContexts, relevantScopes...)
 					for name, typ := range anonType.Fields {
 						result.Fields[name] = typ
 					}
@@ -248,7 +249,6 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 				jsonToTag := field.Tag.Get("jsonTo")
 				jsonTag := field.Tag.Get("json")
 				docTag := field.Tag.Get("jsonDoc")
-				updateScopesTag := field.Tag.Get("update_scopes")
 				name := field.Name
 				updateScopes := []string{}
 				if jsonTag != "-" {
@@ -256,11 +256,14 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 						parts := strings.Split(jsonTag, ",")
 						name = parts[0]
 					}
-					if updateScopesTag != "" {
-						for _, updateScope := range strings.Split(updateScopesTag, ",") {
-							for _, relevantScope := range relevantScopes {
-								if updateScope == relevantScope {
-									updateScopes = append(updateScopes, updateScope)
+					for _, context := range scopeContexts {
+						updateScopesTag := field.Tag.Get(context + "_scopes")
+						if updateScopesTag != "" {
+							for _, updateScope := range strings.Split(updateScopesTag, ",") {
+								for _, relevantScope := range relevantScopes {
+									if updateScope == relevantScope {
+										updateScopes = append(updateScopes, updateScope)
+									}
 								}
 							}
 						}
@@ -280,7 +283,7 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 								Comment:     docTag,
 							}
 						} else {
-							result.Fields[name] = newJSONTypeLoopProtector(seen, in, field.Type, filterOnScopes, relevantScopes...)
+							result.Fields[name] = newJSONTypeLoopProtector(append(seen, t), in, field.Type, filterOnScopes, scopeContexts, relevantScopes...)
 							result.Fields[name].Comment = docTag
 						}
 						result.Fields[name].Scopes = updateScopes
@@ -290,7 +293,7 @@ func newJSONTypeLoopProtector(seen map[reflect.Type]*JSONType, in bool, t reflec
 		}
 	case reflect.Slice:
 		result.Type = "Array"
-		result.Elem = newJSONTypeLoopProtector(seen, in, t.Elem(), filterOnScopes, relevantScopes...)
+		result.Elem = newJSONTypeLoopProtector(append(seen, t), in, t.Elem(), filterOnScopes, scopeContexts, relevantScopes...)
 	default:
 		result.Type = t.Name()
 	}
@@ -398,19 +401,20 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion int, s
 		panic(fmt.Errorf("%v does not conform. Fix one of %+v", runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name(), errs))
 	}
 
+	methodNames := strings.Split(methods, "|")
 	docRoute = &DefaultDocumentedRoute{
 		Path:          path,
-		Methods:       strings.Split(methods, "|"),
+		Methods:       methodNames,
 		MinAPIVersion: minAPIVersion,
 		Scopes:        scopes,
 	}
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
 	if fType.NumIn() == 2 {
-		docRoute.In = newJSONType(true, fType.In(1), true, scopes...)
+		docRoute.In = newJSONType(true, fType.In(1), true, methodNames, scopes...)
 	}
 	if fType.NumOut() == 3 {
-		docRoute.Out = newJSONType(false, fType.Out(1), false)
+		docRoute.Out = newJSONType(false, fType.Out(1), false, methodNames)
 	}
 
 	fOut = CreateResponseFunc(fType, fVal)
