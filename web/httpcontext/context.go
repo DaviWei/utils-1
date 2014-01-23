@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"runtime"
+	"strconv"
 	"strings"
+
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 )
@@ -21,7 +22,9 @@ var authPattern = regexp.MustCompile("^Bearer (.*)$")
 
 var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
-type Error struct {
+var ErrorStackTraces = false
+
+type HTTPError struct {
 	Status int
 	Body   interface{}
 	Cause  error
@@ -29,24 +32,26 @@ type Error struct {
 	Stack  []byte
 }
 
-func (self Error) String() string {
+func (self HTTPError) String() string {
 	return fmt.Sprintf("Status: %v\nBody: %v\nCause: %v\nInfo: %v\nStack: %s", self.Status, self.Body, self.Cause, self.Info, self.Stack)
 }
 
-func NewError(status int, body interface{}, info string, cause error) Error {
-	err := Error{
+func NewError(status int, body interface{}, info string, cause error) (result HTTPError) {
+	result = HTTPError{
 		Status: status,
 		Body:   body,
 		Cause:  cause,
 		Info:   info,
 	}
 
-	err.Stack = make([]byte, 1024*1024)
-	runtime.Stack(err.Stack, true)
-	return err
+	if ErrorStackTraces {
+		result.Stack = make([]byte, 1024*1024)
+		runtime.Stack(result.Stack, true)
+	}
+	return
 }
 
-func (self Error) Respond(c HTTPContextLogger) (err error) {
+func (self HTTPError) Respond(c HTTPContextLogger) (err error) {
 	if self.Status != 0 {
 		c.Resp().WriteHeader(self.Status)
 	}
@@ -56,7 +61,7 @@ func (self Error) Respond(c HTTPContextLogger) (err error) {
 	return
 }
 
-func (self Error) Error() string {
+func (self HTTPError) Error() string {
 	return fmt.Sprintf("%v, %+v, %v, %#v", self.Status, self.Body, self.Cause, self.Info)
 }
 
@@ -272,11 +277,7 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 			c.Resp().WriteHeader(500)
 			fmt.Fprintf(c.Resp(), "%v", err)
 		}
-		if er, ok := err.(Error); ok {
-			c.Errorf("%v\n%s\n\n", c.Req().URL, er.String())
-		} else {
-			c.Errorf("%v\n\t%+v\n\n", c.Req().URL, err)
-		}
+		c.Errorf("%v\n%v\n\n", c.Req().URL, err)
 
 	}
 }

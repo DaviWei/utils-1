@@ -100,7 +100,7 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
+func runBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
 	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
@@ -163,53 +163,48 @@ func (self Resp) RunBodyBeforeMarshal(c interface{}) (err error) {
 
 	// Run recursive reflection on self.Body that executes BeforeMarshal on every object possible.
 	stack := []interface{}{}
-	return runRecursive(reflect.ValueOf(self.Body), reflect.ValueOf(stack))
+	return runRecursive(reflect.ValueOf(body), reflect.ValueOf(stack))
 }
 
-func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
-	if self.Body != nil {
+func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err error) {
+	if body != nil {
 		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
-	if self.Status != 0 {
-		c.Resp().WriteHeader(self.Status)
+	if status != 0 {
+		c.Resp().WriteHeader(status)
 	}
-	if self.Body != nil {
-		if err = self.RunBodyBeforeMarshal(c); err != nil {
+	if body != nil {
+		if err = runBodyBeforeMarshal(c, body); err != nil {
 			return
 		}
 
 		// This makes sure that replies that returns a slice that is empty returns a '[]' instad of 'null'
-		if self.Body == nil {
-			t := reflect.ValueOf(&self.Body).Elem()
+		if body == nil {
+			t := reflect.ValueOf(&body).Elem()
 			if t.Kind() == reflect.Slice {
 				t.Set(reflect.MakeSlice(t.Type(), 0, 0))
 			}
 		}
 
-		return json.NewEncoder(c.Resp()).Encode(self.Body)
+		return json.NewEncoder(c.Resp()).Encode(body)
 	}
 	return nil
 }
 
-type Error struct {
-	Resp
-	Cause error
-	Info  string
+func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
+	return respond(c, self.Status, self.Body)
 }
 
-func (self Error) Error() string {
-	return fmt.Sprintf("%+v, %v, %#v", self.Resp, self.Cause, self.Info)
+type JSONError struct {
+	httpcontext.HTTPError
 }
 
-func NewError(status int, body interface{}, info string, cause error) Error {
-	return Error{
-		Resp: Resp{
-			Status: status,
-			Body:   body,
-		},
-		Cause: cause,
-		Info:  info,
-	}
+func (self JSONError) Respond(c httpcontext.HTTPContextLogger) (err error) {
+	return respond(c, self.Status, self.Body)
+}
+
+func NewError(status int, body interface{}, info string, cause error) (result JSONError) {
+	return JSONError{httpcontext.NewError(status, body, info, cause)}
 }
 
 type field struct {
