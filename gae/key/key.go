@@ -3,11 +3,11 @@ package key
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"appengine"
@@ -122,9 +122,7 @@ func For(i interface{}, StringId string, IntId int64, parent Key) (result Key, e
 type Key string
 
 func New(kind string, stringID string, intID int64, parent Key) (result Key, err error) {
-	b := make([]byte, 16)
-	used := binary.PutVarint(b, intID)
-	result = Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringID), escape(string(b[:used])), string(parent)))
+	result = Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringID), escape(strconv.FormatInt(intID, 36)), string(parent)))
 	err = result.validate()
 	return
 }
@@ -181,7 +179,7 @@ func (self Key) split() (kind string, stringID string, intID int64, parent Key) 
 	rest, after := split(string(self), '/')
 	kind, rest = split(rest, ',')
 	stringID, rest = split(rest, ',')
-	intID, _ = binary.Varint([]byte(unescape(rest)))
+	intID, _ = strconv.ParseInt(unescape(rest), 36, 64)
 	kind, stringID, parent = unescape(kind), unescape(stringID), Key(after)
 	return
 }
