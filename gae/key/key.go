@@ -179,7 +179,14 @@ func (self Key) split() (kind string, stringID string, intID int64, parent Key) 
 	rest, after := split(string(self), '/')
 	kind, rest = split(rest, ',')
 	stringID, rest = split(rest, ',')
-	intID, _ = strconv.ParseInt(unescape(rest), 36, 64)
+	intID, err := strconv.ParseInt(unescape(rest), 36, 64)
+	if err != nil {
+		kind = ""
+		stringID = ""
+		intID = 0
+		parent = Key("")
+		return
+	}
 	kind, stringID, parent = unescape(kind), unescape(stringID), Key(after)
 	return
 }
@@ -269,6 +276,7 @@ func Decode(s string) (result Key, err error) {
 		return
 	}
 	result = Key(string(b))
+	err = result.validate()
 	return
 }
 
