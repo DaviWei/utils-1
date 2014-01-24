@@ -235,6 +235,7 @@ func init() {
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
+			dst.Del(k)
 			dst.Add(k, v)
 		}
 	}
