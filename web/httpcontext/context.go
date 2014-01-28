@@ -16,6 +16,10 @@ import (
 	"github.com/soundtrackyourbrand/utils"
 )
 
+const (
+	AuthorizationHeader = "Authorization"
+)
+
 var ErrMissingToken = fmt.Errorf("No authorization header or token query parameter found")
 
 var authPattern = regexp.MustCompile("^Bearer (.*)$")
@@ -208,7 +212,7 @@ func (self *DefaultHTTPContext) AccessToken(dst utils.AccessToken) (result utils
 		err = ErrMissingToken
 		return
 	}
-	for _, authHead := range self.Req().Header["Authorization"] {
+	for _, authHead := range self.Req().Header[AuthorizationHeader] {
 		match := authPattern.FindStringSubmatch(authHead)
 		if match != nil {
 			result, err = utils.ParseAccessToken(match[1], dst)
