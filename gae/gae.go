@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
+	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/key/gaekey"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 
 	"appengine"
@@ -164,7 +165,7 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
-	gaeKey := id.ToGAE(c)
+	gaeKey := gaekey.ToGAE(c, id)
 	if !gaeKey.Incomplete() {
 		old := reflect.New(typ)
 		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
@@ -205,7 +206,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		return
 	}
 	isNew := false
-	gaeKey := id.ToGAE(c)
+	gaeKey := gaekey.ToGAE(c, id)
 	memcacheKeys := []string{}
 	if gaeKey.Incomplete() {
 		isNew = true
@@ -237,7 +238,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 	if err = runProcess(c, src, BeforeSaveName); err != nil {
 		return
 	}
-	if id, err = key.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
+	if id, err = gaekey.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
 		return
 	}
 	reflect.ValueOf(src).Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
@@ -265,7 +266,7 @@ func findById(c PersistenceContext, dst interface{}) (err error) {
 	if _, id, err = getTypeAndId(dst); err != nil {
 		return
 	}
-	if err = datastore.Get(c, id.ToGAE(c), dst); err == datastore.ErrNoSuchEntity {
+	if err = datastore.Get(c, gaekey.ToGAE(c, id), dst); err == datastore.ErrNoSuchEntity {
 		err = newError(dst, err)
 		return
 	}
@@ -314,7 +315,7 @@ func DelAll(c PersistenceContext, src interface{}) (err error) {
 	for index, dataId := range dataIds {
 		el = resultsSlice.Index(index)
 		var k key.Key
-		if k, err = key.FromGAE(dataId); err != nil {
+		if k, err = gaekey.FromGAE(dataId); err != nil {
 			return
 		}
 		el.FieldByName("Id").Set(reflect.ValueOf(k))

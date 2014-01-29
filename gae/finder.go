@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
+	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/key/gaekey"
 
 	"appengine"
 	"appengine/datastore"
@@ -66,7 +67,7 @@ func AncestorFinder(model interface{}, fields ...string) func(c PersistenceConte
 func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key, values []interface{}) (err error) {
 	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
 	if ancestor != "" {
-		q = q.Ancestor(ancestor.ToGAE(c))
+		q = q.Ancestor(gaekey.ToGAE(c, ancestor))
 	}
 	for index, value := range values {
 		q = q.Filter(fmt.Sprintf("%v=", self.fields[index].Name), value)
@@ -84,7 +85,7 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key,
 			element = element.Elem()
 		}
 		var k key.Key
-		if k, err = key.FromGAE(id); err != nil {
+		if k, err = gaekey.FromGAE(id); err != nil {
 			return
 		}
 		element.FieldByName(idFieldName).Set(reflect.ValueOf(k))

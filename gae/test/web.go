@@ -13,9 +13,9 @@ import (
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
-	"github.com/soundtrackyourbrand/utils/gae/key"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
+	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
 
