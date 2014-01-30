@@ -1,19 +1,21 @@
 package gaecontext
 
 import (
-	"appengine"
-	"appengine/datastore"
-	"appengine/urlfetch"
 	"fmt"
+	"net/http"
+	"reflect"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/mjibson/appstats"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
-	"net/http"
-	"reflect"
-	"time"
+
+	"appengine"
+	"appengine/datastore"
+	"appengine/urlfetch"
 )
 
 type GAEContext interface {
@@ -130,7 +132,7 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode >= 500 {
 		t.t.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
 	} else if time.Since(start) > (time.Second * 2) {
 		t.t.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
