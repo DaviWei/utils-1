@@ -10,8 +10,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -265,6 +268,39 @@ func example(t reflect.Type, seen map[string]int) (result interface{}) {
 			}
 		}
 		result = val.Elem().Interface()
+	}
+	return
+}
+
+var revisionTemplate = template.Must(template.New("").Parse(`package common
+
+const (
+	GitRevision = "{{.Revision}}"
+	GitBranch = "{{.Branch}}"
+)`))
+
+func UpdateGitRevision(dir, destination string) (err error) {
+	if err := os.Chdir(os.ExpandEnv(dir)); err != nil {
+		panic(err)
+	}
+	revisionResult, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return
+	}
+	branchResult, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return
+	}
+	outfile, err := os.Create(destination)
+	if err != nil {
+		return
+	}
+	defer outfile.Close()
+	if err = revisionTemplate.Execute(outfile, map[string]interface{}{
+		"Revision": strings.TrimSpace(string(revisionResult)),
+		"Branch":   strings.TrimSpace(string(branchResult)),
+	}); err != nil {
+		return
 	}
 	return
 }
