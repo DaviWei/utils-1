@@ -304,3 +304,38 @@ func UpdateGitRevision(dir, destination string) (err error) {
 	}
 	return
 }
+
+type JSONTime time.Time
+
+const (
+	ISO8601DayTimeFormat  = "150405"
+	ISO8601DateTimeFormat = "20060102150405"
+	ISO8601DateFormat     = "20060102"
+)
+
+func (self JSONTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Time(self).Format(ISO8601DateTimeFormat))
+}
+
+func (self *JSONTime) UnmarshalJSONo(b []byte) (err error) {
+	var s string
+	if err = json.Unmarshal(b, &s); err == nil {
+		if s != "null" {
+			var t time.Time
+			if t, err = time.Parse(ISO8601DateTimeFormat, s); err == nil {
+				*self = JSONTime(t)
+			}
+		}
+	}
+	return
+}
+
+type Attachment struct {
+	ContentID string
+	Name      string
+	Data      []byte
+}
+
+type EmailTemplateSender interface {
+	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment) (err error)
+}
