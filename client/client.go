@@ -76,30 +76,19 @@ func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mail
 
 type RemoteAccount struct {
 	DefaultMeta
-	Address         string      `json:"address,omitempty"`
-	BusinessName    string      `json:"business_name,omitempty"`
-	BusinessType    string      `json:"business_type,omitempty"`
-	City            string      `json:"city,omitempty"`
-	Comment         string      `json:"comment,omitempty"`
-	ISOCountry      string      `json:"iso_country,omitempty"`
-	VATCode         string      `json:"vat_code,omitempty"`
-	Locale          string      `json:"locale,omitempty"`
-	Phone           string      `json:"phone,omitempty"`
-	AdminUser       key.Key     `json:"admin_user,omitempty"`
-	PostalCode      string      `json:"postal_code,omitempty"`
-	MaxSoundZones   int         `json:"max_sound_zones,omitempty"`
-	Deactivated     bool        `json:"deactivated,omitempty"`
-	AdminUserDenorm *RemoteUser `json:"admin_user_denorm,omitempty"`
-}
-
-func (self *RemoteAccount) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName string, attachments []utils.Attachment) error {
-	addr := ""
-	locale := ""
-	if self.AdminUserDenorm != nil {
-		addr = self.AdminUserDenorm.Email
-		locale = self.AdminUserDenorm.Locale
-	}
-	return sender.SendEmailTemplate(addr, mailContext, templateName, locale, attachments)
+	Address       string  `json:"address,omitempty"`
+	BusinessName  string  `json:"business_name,omitempty"`
+	BusinessType  string  `json:"business_type,omitempty"`
+	City          string  `json:"city,omitempty"`
+	Comment       string  `json:"comment,omitempty"`
+	ISOCountry    string  `json:"iso_country,omitempty"`
+	VATCode       string  `json:"vat_code,omitempty"`
+	Locale        string  `json:"locale,omitempty"`
+	Phone         string  `json:"phone,omitempty"`
+	AdminUser     key.Key `json:"admin_user,omitempty"`
+	PostalCode    string  `json:"postal_code,omitempty"`
+	MaxSoundZones int     `json:"max_sound_zones,omitempty"`
+	Deactivated   bool    `json:"deactivated,omitempty"`
 }
 
 type RemoteSoundZone struct {
@@ -310,10 +299,6 @@ func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result 
 	result = &RemoteAccount{}
 	err = json.NewDecoder(response.Body).Decode(result)
 
-	if result.AdminUser != "" {
-		result.AdminUserDenorm, _ = GetUser(c, result.AdminUser, token)
-	}
-
 	return
 }
 
@@ -419,12 +404,6 @@ func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount)
 
 	result = &RemoteAccount{}
 	err = json.NewDecoder(response.Body).Decode(result)
-
-	if result.AdminUser != "" {
-		if result.AdminUserDenorm, err = GetUser(c, result.AdminUser, token); err != nil {
-			return
-		}
-	}
 
 	return
 }
