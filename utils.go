@@ -338,4 +338,5 @@ type Attachment struct {
 
 type EmailTemplateSender interface {
 	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment) (err error)
+	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment, senderAddress string) (err error)
 }
