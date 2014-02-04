@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"strings"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -268,8 +269,7 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 
 	result = &DefaultAccessToken{}
 	err = json.NewDecoder(response.Body).Decode(result)
-	result.Encoded = response.Header.Get("X-Access-Token-Issued")
-
+	result.Encoded = strings.Join(response.Header["X-Access-Token-Issued"], "")
 	return
 }
 
