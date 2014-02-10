@@ -270,6 +270,8 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 	result = &DefaultAccessToken{}
 	err = json.NewDecoder(response.Body).Decode(result)
 	result.Encoded = strings.Join(response.Header["X-Access-Token-Issued"], "")
+	result.Encoded = strings.Replace(result.Encoded, ",", "", -1)
+	result.Encoded = strings.Replace(result.Encoded, " ", "", -1)
 	return
 }
 
