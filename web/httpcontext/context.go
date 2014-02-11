@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
@@ -81,10 +82,49 @@ type Logger interface {
 	Criticalf(format string, args ...interface{})
 }
 
+type MemorableResponseWriter interface {
+	http.ResponseWriter
+	Status() int
+	StartedAt() time.Time
+}
+
+type DefaultMemorableResponseWriter struct {
+	http.ResponseWriter
+	status    int
+	startedAt time.Time
+}
+
+func (self *DefaultMemorableResponseWriter) StartedAt() time.Time {
+	return self.startedAt
+}
+
+func (self *DefaultMemorableResponseWriter) Status() int {
+	if self.status == 0 {
+		return http.StatusOK
+	}
+	return self.status
+}
+
+func (self *DefaultMemorableResponseWriter) Header() http.Header {
+	return self.ResponseWriter.Header()
+}
+
+func (self *DefaultMemorableResponseWriter) Write(b []byte) (int, error) {
+	if self.status == 0 {
+		self.status = http.StatusOK
+	}
+	return self.ResponseWriter.Write(b)
+}
+
+func (self *DefaultMemorableResponseWriter) WriteHeader(status int) {
+	self.status = status
+	self.ResponseWriter.WriteHeader(status)
+}
+
 type HTTPContext interface {
 	Vars() map[string]string
 	Req() *http.Request
-	Resp() http.ResponseWriter
+	Resp() MemorableResponseWriter
 	MostAccepted(name, def string) string
 	SetLogger(Logger)
 	AccessToken(dst utils.AccessToken) (utils.AccessToken, error)
@@ -106,7 +146,7 @@ type DefaultLogger struct {
 
 type DefaultHTTPContext struct {
 	Logger
-	response http.ResponseWriter
+	response MemorableResponseWriter
 	request  *http.Request
 	vars     map[string]string
 }
@@ -180,10 +220,13 @@ func (self *DefaultLogger) Criticalf(format string, i ...interface{}) {
 
 func NewHTTPContext(w http.ResponseWriter, r *http.Request) (result *DefaultHTTPContext) {
 	result = &DefaultHTTPContext{
-		Logger:   defaultLogger,
-		response: w,
-		request:  r,
-		vars:     mux.Vars(r),
+		Logger: defaultLogger,
+		response: &DefaultMemorableResponseWriter{
+			ResponseWriter: w,
+			startedAt:      time.Now(),
+		},
+		request: r,
+		vars:    mux.Vars(r),
 	}
 	return
 }
@@ -239,7 +282,7 @@ func (self *DefaultHTTPContext) Req() *http.Request {
 	return self.request
 }
 
-func (self *DefaultHTTPContext) Resp() http.ResponseWriter {
+func (self *DefaultHTTPContext) Resp() MemorableResponseWriter {
 	return self.response
 }
 
