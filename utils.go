@@ -291,15 +291,21 @@ func UpdateGitRevision(dir, destination string) (err error) {
 	if err != nil {
 		return
 	}
-	outfile, err := os.Create(destination)
+	tmpDest := fmt.Sprintf("%v_%v", destination, rand.Int63())
+	outfile, err := os.Create(tmpDest)
 	if err != nil {
 		return
 	}
-	defer outfile.Close()
 	if err = revisionTemplate.Execute(outfile, map[string]interface{}{
 		"Revision": strings.TrimSpace(string(revisionResult)),
 		"Branch":   strings.TrimSpace(string(branchResult)),
 	}); err != nil {
+		return
+	}
+	if err = outfile.Close(); err != nil {
+		return
+	}
+	if err = os.Rename(tmpDest, destination); err != nil {
 		return
 	}
 	return
