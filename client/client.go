@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -64,6 +64,7 @@ type DefaultMeta struct {
 
 type RemoteUser struct {
 	DefaultMeta
+	Name            string `json:"name,omitempty"`
 	Email           string `json:"email,omitempty"`
 	Locale          string `json:"locale,omitempty"`
 	Password        string `json:"password,omitempty"`
