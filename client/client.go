@@ -95,19 +95,20 @@ type RemoteAccount struct {
 
 type RemoteSoundZone struct {
 	DefaultMeta
-	Account         key.Key `json:"account,omitempty"`
-	Address         string  `json:"address,omitempty"`
-	City            string  `json:"city,omitempty"`
-	Comment         string  `json:"comment,omitempty"`
-	Email           string  `json:"email,omitempty"`
-	ISOCountry      string  `json:"iso_country,omitempty"`
-	Name            string  `json:"name,omitempty,omitempty"`
-	PostalCode      string  `json:"postal_code,omitempty"`
-	Serial          string  `json:"serial,omitempty"`
-	SpotifyUsername string  `json:"spotify_username,omitempty"`
-	SpotifyPassword string  `json:"spotify_password,omitempty"`
-	Locale          string  `json:"locale,omitempty"`
-	Schedule        key.Key `json:"schedule"`
+	Account         key.Key        `json:"account,omitempty"`
+	Address         string         `json:"address,omitempty"`
+	City            string         `json:"city,omitempty"`
+	Comment         string         `json:"comment,omitempty"`
+	Email           string         `json:"email,omitempty"`
+	ISOCountry      string         `json:"iso_country,omitempty"`
+	Name            string         `json:"name,omitempty,omitempty"`
+	PostalCode      string         `json:"postal_code,omitempty"`
+	Serial          string         `json:"serial,omitempty"`
+	SpotifyUsername string         `json:"spotify_username,omitempty"`
+	SpotifyPassword string         `json:"spotify_password,omitempty"`
+	PaidUntil       utils.JSONTime `json:"iso8601_paid_until"`
+	Locale          string         `json:"locale,omitempty"`
+	Schedule        key.Key        `json:"schedule"`
 }
 
 type RemoteSlot struct {
