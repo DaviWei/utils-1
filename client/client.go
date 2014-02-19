@@ -373,6 +373,42 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 	return
 }
 
+func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
+	// Read body
+	buf := new(bytes.Buffer)
+	err = json.NewEncoder(buf).Encode(updatedSoundZone)
+	if err != nil {
+		return
+	}
+
+	// Create request
+	var request *http.Request
+	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/soundzones/%v", c.AuthService(), updatedSoundZone.Id), buf)
+	if err != nil {
+		return
+	}
+
+	encoded, err := token.EncodeSelf()
+	if err != nil {
+		return
+	}
+	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
+	request.Header.Add("Content-Type", "application/json")
+	request.Header.Add("X-API-Version", "1")
+
+	var response *http.Response
+	response, err = c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 201 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
 func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount) (result *RemoteAccount, err error) {
 	// Read body
 	buf := new(bytes.Buffer)
