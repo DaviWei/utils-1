@@ -383,7 +383,7 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 
 	// Create request
 	var request *http.Request
-	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/soundzones/%v", c.AuthService(), updatedSoundZone.Id), buf)
+	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/soundzones/%v", c.AuthService(), updatedSoundZone.Id.Encode()), buf)
 	if err != nil {
 		return
 	}
@@ -401,7 +401,7 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 	if err != nil {
 		return
 	}
-	if response.StatusCode != 201 {
+	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
 	}
