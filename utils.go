@@ -320,17 +320,22 @@ const (
 )
 
 func (self JSONTime) MarshalJSON() ([]byte, error) {
+	if time.Time(self).IsZero() {
+		return json.Marshal(nil)
+	}
 	return json.Marshal(time.Time(self).Format(ISO8601DateTimeFormat))
 }
 
-func (self *JSONTime) UnmarshalJSONo(b []byte) (err error) {
+func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
 	var s string
 	if err = json.Unmarshal(b, &s); err == nil {
-		if s != "null" {
+		if s != "" {
 			var t time.Time
 			if t, err = time.Parse(ISO8601DateTimeFormat, s); err == nil {
 				*self = JSONTime(t)
 			}
+		} else {
+			*self = JSONTime(time.Time{})
 		}
 	}
 	return
