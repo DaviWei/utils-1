@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
@@ -280,14 +281,11 @@ const (
 )`))
 
 func UpdateGitRevision(dir, destination string) (err error) {
-	if err := os.Chdir(os.ExpandEnv(dir)); err != nil {
-		panic(err)
-	}
-	revisionResult, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	revisionResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD").Output()
 	if err != nil {
 		return
 	}
-	branchResult, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branchResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
 	if err != nil {
 		return
 	}
