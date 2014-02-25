@@ -531,3 +531,46 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 	err = json.NewDecoder(response.Body).Decode(result)
 	return
 }
+
+func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
+
+	body := new(bytes.Buffer)
+	err = json.NewEncoder(body).Encode(map[string]string{
+		"password":  password,
+	})
+	if err != nil {
+		return
+	}
+
+	// Create request
+	var request *http.Request
+	request, err = http.NewRequest("PUT", fmt.Sprintf("%s/users/%s/password", c.AuthService(), user.Encode()), body)
+	if err != nil {
+		return
+	}
+
+	encoded, err := token.EncodeSelf()
+	if err != nil {
+		return
+	}
+	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
+	request.Header.Add("Content-Type", "application/json")
+	request.Header.Add("X-API-Version", "1")
+
+	var response *http.Response
+	response, err = c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteUser{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
+
