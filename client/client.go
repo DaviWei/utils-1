@@ -243,6 +243,42 @@ func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err er
 
 	return
 }
+func UpdateUser(c ServiceConnector, user RemoteUser, token AccessToken) (result *RemoteUser, err error) {
+	var request *http.Request
+	buf := new(bytes.Buffer)
+	err = json.NewEncoder(buf).Encode(user)
+	if err != nil {
+		return
+	}
+	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/users/%v", c.AuthService(), user.Id.Encode()), buf)
+	if err != nil {
+		return
+	}
+
+	encoded, err := token.EncodeSelf()
+	if err != nil {
+		return
+	}
+	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
+	request.Header.Add("X-API-Version", "1")
+	request.Header.Add("Content-Type", "application/json")
+
+	var response *http.Response
+
+	response, err = c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteUser{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
 
 func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessToken, encoded string, err error) {
 	var request *http.Request
