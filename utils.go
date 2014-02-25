@@ -11,12 +11,13 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils/run"
 )
 
 func init() {
@@ -281,20 +282,20 @@ const (
 )`))
 
 func GitRevision(dir string) (rev string, err error) {
-	revisionResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD").Output()
+	revisionResult, _, err := run.RunAndReturn("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD")
 	if err != nil {
 		return
 	}
-	rev = strings.TrimSpace(string(revisionResult))
+	rev = strings.TrimSpace(revisionResult)
 	return
 }
 
 func GitBranch(dir string) (branch string, err error) {
-	branchResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branchResult, _, err := run.RunAndReturn("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return
 	}
-	branch = strings.TrimSpace(string(branchResult))
+	branch = strings.TrimSpace(branchResult)
 	return
 }
 
