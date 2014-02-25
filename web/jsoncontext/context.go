@@ -186,7 +186,12 @@ func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err
 			}
 		}
 
-		return json.NewEncoder(c.Resp()).Encode(body)
+		var marshalled []byte
+		if marshalled, err = json.MarshalIndent(body, "", "  "); err != nil {
+			return
+		}
+		_, err = c.Resp().Write(marshalled)
+		return
 	}
 	return nil
 }
