@@ -351,3 +351,24 @@ type EmailTemplateSender interface {
 	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment) (err error)
 	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment, senderAddress string) (err error)
 }
+
+type ByteString struct {
+	Bytes []byte
+}
+
+func (self ByteString) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(self.Bytes))
+}
+
+func (self ByteString) String() string {
+	return string(self.Bytes)
+}
+
+func (self *ByteString) UnmarshalJSON(b []byte) error {
+	s := ""
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	self.Bytes = []byte(s)
+	return nil
+}
