@@ -280,12 +280,30 @@ const (
 	GitBranch = "{{.Branch}}"
 )`))
 
-func UpdateGitRevision(dir, destination string) (err error) {
+func GitRevision(dir string) (rev string, err error) {
 	revisionResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD").Output()
 	if err != nil {
 		return
 	}
+	rev = strings.TrimSpace(string(revisionResult))
+	return
+}
+
+func GitBranch(dir string) (branch string, err error) {
 	branchResult, err := exec.Command("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return
+	}
+	branch = strings.TrimSpace(string(branchResult))
+	return
+}
+
+func UpdateGitRevision(dir, destination string) (err error) {
+	rev, err := GitRevision(dir)
+	if err != nil {
+		return
+	}
+	branch, err := GitBranch(dir)
 	if err != nil {
 		return
 	}
@@ -295,8 +313,8 @@ func UpdateGitRevision(dir, destination string) (err error) {
 		return
 	}
 	if err = revisionTemplate.Execute(outfile, map[string]interface{}{
-		"Revision": strings.TrimSpace(string(revisionResult)),
-		"Branch":   strings.TrimSpace(string(branchResult)),
+		"Revision": rev,
+		"Branch":   branch,
 	}); err != nil {
 		return
 	}
