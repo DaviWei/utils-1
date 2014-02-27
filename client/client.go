@@ -91,6 +91,7 @@ type RemoteAccount struct {
 	PostalCode    string  `json:"postal_code,omitempty"`
 	MaxSoundZones int     `json:"max_sound_zones,omitempty"`
 	Deactivated   bool    `json:"deactivated,omitempty"`
+	OrgNumber     string  `json:"org_number,omitempty"`
 }
 
 type RemoteSoundZone struct {
