@@ -148,22 +148,37 @@ func errorFor(request *http.Request, response *http.Response) (err error) {
 	return
 }
 
-func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *RemoteUser, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/users/%v", c.AuthService(), user.Encode()), nil)
+func doRequest(c ServiceConnector, method, service, path string, token AccessToken, body interface{}) (request *http.Request, response *http.Response, err error) {
+	buf := new(bytes.Buffer)
+	err = json.NewEncoder(buf).Encode(body)
+	if err != nil {
+		return
+	}
+	request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
 	if err != nil {
 		return
 	}
 
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
+	if token != nil {
+		var encoded string
+		encoded, err = token.EncodeSelf()
+		if err != nil {
+			return
+		}
+		request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
 	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
+
+	if method == "POST" || method == "PUT" {
+		request.Header.Add("Content-Type", "application/json")
+	}
+
 	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
 	response, err = c.Client().Do(request)
+	return
+}
+
+func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *RemoteUser, err error) {
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v", user.Encode()), token, nil)
 	if err != nil {
 		return
 	}
@@ -179,30 +194,7 @@ func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *Remot
 }
 
 func CreateSlot(c ServiceConnector, token AccessToken, slot RemoteSlot) (result *RemoteSlot, err error) {
-	var request *http.Request
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(slot)
-	if err != nil {
-		return
-	}
-	request, err = http.NewRequest("POST", fmt.Sprintf("%v/schedules/%v/slots", c.RadioService(), slot.Schedule.Encode()), buf)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-	request.Header.Add("Content-Type", "application/json")
-
-	var response *http.Response
-
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "POST", c.RadioService(), fmt.Sprintf("schedules/%v/slots", slot.Schedule.Encode()), token, slot)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -215,25 +207,7 @@ func CreateSlot(c ServiceConnector, token AccessToken, slot RemoteSlot) (result 
 }
 
 func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err error) {
-	var request *http.Request
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(user)
-	if err != nil {
-		return
-	}
-	request, err = http.NewRequest("POST", fmt.Sprintf("%v/users", c.AuthService()), buf)
-	if err != nil {
-		return
-	}
-	request.Header.Add("X-API-Version", "1")
-	request.Header.Add("Content-Type", "application/json")
-
-	var response *http.Response
-
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "POST", c.AuthService(), "users", nil, user)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -245,31 +219,7 @@ func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err er
 	return
 }
 func UpdateUser(c ServiceConnector, user RemoteUser, token AccessToken) (result *RemoteUser, err error) {
-	var request *http.Request
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(user)
-	if err != nil {
-		return
-	}
-	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/users/%v", c.AuthService(), user.Id.Encode()), buf)
-	if err != nil {
-		return
-	}
-
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-	request.Header.Add("Content-Type", "application/json")
-
-	var response *http.Response
-
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%v", user.Id.Encode()), token, user)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -282,25 +232,7 @@ func UpdateUser(c ServiceConnector, user RemoteUser, token AccessToken) (result 
 }
 
 func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessToken, encoded string, err error) {
-	var request *http.Request
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(auth_request)
-	if err != nil {
-		return
-	}
-	request, err = http.NewRequest("POST", fmt.Sprintf("%v/auth", c.AuthService()), buf)
-	if err != nil {
-		return
-	}
-	request.Header.Add("X-API-Version", "1")
-	request.Header.Add("Content-Type", "application/json")
-
-	var response *http.Response
-
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "POST", c.AuthService(), "auth", nil, auth_request)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -315,23 +247,7 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 }
 
 func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteAccount, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/accounts/%v", c.AuthService(), account.Encode()), nil)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("accounts/%v", account.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -344,23 +260,7 @@ func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result 
 }
 
 func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result *[]RemoteAccount, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/users/%v/accounts", c.AuthService(), user.Encode()), nil)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v/accounts", user.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -372,33 +272,7 @@ func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result *[
 }
 
 func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone RemoteSoundZone) (result *RemoteSoundZone, err error) {
-	// Read body
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(remoteSoundZone)
-	if err != nil {
-		return
-	}
-
-	// Create request
-	var request *http.Request
-	request, err = http.NewRequest("POST", fmt.Sprintf("%v/accounts/%v/soundzones", c.AuthService(), remoteSoundZone.Account.Encode()), buf)
-	if err != nil {
-		return
-	}
-
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "POST", c.AuthService(), fmt.Sprintf("accounts/%v/soundzones", remoteSoundZone.Account.Encode()), token, remoteSoundZone)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -411,33 +285,7 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 }
 
 func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
-	// Read body
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(updatedSoundZone)
-	if err != nil {
-		return
-	}
-
-	// Create request
-	var request *http.Request
-	request, err = http.NewRequest("PUT", fmt.Sprintf("%v/soundzones/%v", c.AuthService(), updatedSoundZone.Id.Encode()), buf)
-	if err != nil {
-		return
-	}
-
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "PUT", c.AuthService(), fmt.Sprintf("soundzones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -447,33 +295,7 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 }
 
 func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount) (result *RemoteAccount, err error) {
-	// Read body
-	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(account)
-	if err != nil {
-		return
-	}
-
-	// Create request
-	var request *http.Request
-	request, err = http.NewRequest("POST", fmt.Sprintf("%v/users/%v/accounts", c.AuthService(), account.AdminUser.Encode()), buf)
-	if err != nil {
-		return
-	}
-
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "POST", c.AuthService(), fmt.Sprintf("users/%v/accounts", account.AdminUser.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -486,23 +308,7 @@ func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount)
 }
 
 func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSoundZone, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/soundzones/%v", c.AuthService(), soundZone.Encode()), nil)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("soundzones/%v", soundZone.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -514,23 +320,7 @@ func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (res
 }
 
 func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result *[]RemoteSoundZone, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/accounts/%v/soundzones", c.AuthService(), account_id.Encode()), nil)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("accounts/%v/soundzones", account_id.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -542,23 +332,7 @@ func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (r
 }
 
 func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSpotifyAccount, err error) {
-	var request *http.Request
-	request, err = http.NewRequest("GET", fmt.Sprintf("%v/soundzones/%v/spotify_account", c.PaymentService(), soundZone.Encode()), nil)
-	if err != nil {
-		return
-	}
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
+	request, response, err := doRequest(c, "GET", c.PaymentService(), fmt.Sprintf("soundzones/%v/spotify_account", soundZone.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -570,35 +344,9 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 }
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
-
-	body := new(bytes.Buffer)
-	err = json.NewEncoder(body).Encode(map[string]string{
+	request, response, err := doRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
 		"password":  password,
 	})
-	if err != nil {
-		return
-	}
-
-	// Create request
-	var request *http.Request
-	request, err = http.NewRequest("PUT", fmt.Sprintf("%s/users/%s/password", c.AuthService(), user.Encode()), body)
-	if err != nil {
-		return
-	}
-
-	encoded, err := token.EncodeSelf()
-	if err != nil {
-		return
-	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-API-Version", "1")
-
-	var response *http.Response
-	response, err = c.Client().Do(request)
-	if err != nil {
-		return
-	}
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -609,5 +357,3 @@ func SetPassword(c ServiceConnector, user key.Key, password string, token Access
 
 	return
 }
-
-
