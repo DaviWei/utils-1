@@ -259,15 +259,15 @@ func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result 
 	return
 }
 
-func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result *[]RemoteAccount, err error) {
+func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result []RemoteAccount, err error) {
 	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v/accounts", user.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
 	}
 
-	result = &[]RemoteAccount{}
-	err = json.NewDecoder(response.Body).Decode(result)
+	result = []RemoteAccount{}
+	err = json.NewDecoder(response.Body).Decode(&result)
 	return
 }
 
@@ -319,15 +319,15 @@ func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (res
 	return
 }
 
-func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result *[]RemoteSoundZone, err error) {
+func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result []RemoteSoundZone, err error) {
 	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("accounts/%v/soundzones", account_id.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
 	}
 
-	result = &[]RemoteSoundZone{}
-	err = json.NewDecoder(response.Body).Decode(result)
+	result = []RemoteSoundZone{}
+	err = json.NewDecoder(response.Body).Decode(&result)
 	return
 }
 
