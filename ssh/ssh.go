@@ -1,7 +1,9 @@
 package ssh
 
 import (
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/soundtrackyourbrand/ssh"
 )
@@ -32,6 +34,31 @@ func (self Creds) Key(i int) (key ssh.PublicKey, err error) {
 
 func (self Creds) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
 	return self.keys[i].Sign(rand, data)
+}
+
+func Run(creds Creds, addr, cmd string) (err error) {
+	sess, err := New(creds, addr)
+	if err != nil {
+		return
+	}
+
+	in, out := io.Pipe()
+	sess.Stdin, sess.Stdout, sess.Stderr = in, os.Stdout, os.Stderr
+
+	remoteDone := make(chan struct{})
+
+	go func() {
+		fmt.Printf(" *** ( %v ) %#v\n", addr, cmd)
+		if err = sess.Run(cmd); err != nil {
+			return
+		}
+		close(remoteDone)
+	}()
+	if err = out.Close(); err != nil {
+		return
+	}
+	<-remoteDone
+	return
 }
 
 func New(creds Creds, addr string) (result *ssh.Session, err error) {
