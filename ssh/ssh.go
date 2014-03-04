@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/soundtrackyourbrand/ssh"
+	utilsRun "github.com/soundtrackyourbrand/utils/run"
 )
 
 func ParseCreds(user string, b []byte) (result Creds, err error) {
@@ -58,12 +59,19 @@ func TarCopy(creds Creds, addr, src, dst string, excludes ...string) (err error)
 	remoteDone := make(chan struct{})
 
 	go func() {
-		if err := sess.Run(fmt.Sprintf("mkdir -p %#v && tar -x -v -z -C %#v", dst, dst)); err != nil {
+		cmd := fmt.Sprintf("mkdir -p %#v && tar -x -v -z -C %#v", dst, dst)
+		fmt.Printf(" *** ( %v ) %#v\n", addr, cmd)
+		if err := sess.Run(cmd); err != nil {
 			panic(err)
 		}
 		close(remoteDone)
 	}()
 
+	fmt.Printf(" ( *** %v ) %v", utilsRun.Host, "tar")
+	for _, bit := range params {
+		fmt.Printf(" %#v", bit)
+	}
+	fmt.Println("")
 	if err = tar.Run(); err != nil {
 		return
 	}
