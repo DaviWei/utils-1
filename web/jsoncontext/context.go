@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
-
+	"io"
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
+	"bytes"
 )
 
 const (
@@ -38,6 +39,7 @@ type JSONContext interface {
 	httpcontext.HTTPContext
 	APIVersion() int
 	DecodeJSON(i interface{}) error
+	DecodedBody() []byte
 	LoadJSON(i interface{}) error
 	CopyJSON(in, out interface{}) error
 }
@@ -50,6 +52,7 @@ type JSONContextLogger interface {
 type DefaultJSONContext struct {
 	httpcontext.HTTPContextLogger
 	apiVersion int
+	decodedBody []byte
 }
 
 func NewJSONContext(c httpcontext.HTTPContextLogger) (result *DefaultJSONContext) {
@@ -74,8 +77,16 @@ func (self *DefaultJSONContext) CopyJSON(in, out interface{}) (err error) {
 	return jsonUtils.CopyJSON(in, out, self.Req().Method, token.Scopes()...)
 }
 
-func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
-	return json.NewDecoder(self.Req().Body).Decode(i)
+func (self *DefaultJSONContext) DecodedBody() []byte {
+	return self.decodedBody
+}
+
+func (self *DefaultJSONContext) DecodeJSON(i interface{}) (err error) {
+	buf := &bytes.Buffer{}
+	bodyReader := io.TeeReader(self.Req().Body, buf)
+	err = json.NewDecoder(bodyReader).Decode(i)
+	self.decodedBody = buf.Bytes()
+	return
 }
 
 func (self *DefaultJSONContext) LoadJSON(out interface{}) (err error) {
