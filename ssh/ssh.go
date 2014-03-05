@@ -3,6 +3,7 @@ package ssh
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +38,63 @@ func (self Creds) Key(i int) (key ssh.PublicKey, err error) {
 
 func (self Creds) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
 	return self.keys[i].Sign(rand, data)
+}
+
+func Rsync(user string, key []byte, addr, src, dst string, excludes ...string) (err error) {
+	tmpdir, err := ioutil.TempDir("", "utilsSshRsync")
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			os.RemoveAll(tmpdir)
+		}
+	}()
+	outfilename := filepath.Join(tmpdir, "ssh.go")
+	outfile, err := os.Create(outfilename)
+	if err != nil {
+		return
+	}
+	if _, err = outfile.WriteString(fmt.Sprintf(`package main
+
+import (
+	utilsSsh "github.com/soundtrackyourbrand/utils/ssh"
+	"os"
+	"strings"
+)
+
+func main() {
+	creds, err := utilsSsh.ParseCreds(%#v, []byte(%#v))
+	if err != nil {
+		panic(err)
+	}
+	sess, err := utilsSsh.New(creds, "%v:22")
+	if err != nil {
+		panic(err)
+  }
+	sess.Stdin, sess.Stdout, sess.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err = sess.Run(strings.Join(os.Args[4:], " ")); err != nil {
+		panic(err)
+	}
+	sess.Close()
+}
+	`, user, string(key), addr)); err != nil {
+		return
+	}
+	if err = utilsRun.Run("go", "build", "-o", filepath.Join(tmpdir, "ssh"), outfilename); err != nil {
+		return
+	}
+	params := []string{"-v", fmt.Sprintf("--rsh=%v", filepath.Join(tmpdir, "ssh")), "-avc", "-C", "--delete"}
+	for _, excl := range excludes {
+		params = append(params, "--exclude", excl)
+	}
+	params = append(params, fmt.Sprintf("%v", src), fmt.Sprintf("%v@%v:%v", user, addr, dst))
+	cmd := exec.Command("rsync", params...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err = cmd.Run(); err != nil {
+		return
+	}
+	return
 }
 
 func TarCopy(creds Creds, addr, src, dst string, excludes ...string) (err error) {
