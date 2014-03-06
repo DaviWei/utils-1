@@ -72,7 +72,7 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName string, attachments []utils.Attachment) error {
+func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName utils.MailType, attachments []utils.Attachment) error {
 	return sender.SendEmailTemplate(self.Email, mailContext, templateName, self.Locale, attachments)
 }
 
@@ -135,7 +135,7 @@ type RemoteSpotifyAccount struct {
 	Account            key.Key        `json:"account" datastore:"-"`
 }
 
-func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName string, attachments []utils.Attachment) error {
+func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName utils.MailType, attachments []utils.Attachment) error {
 	return sender.SendEmailTemplate(self.Email, mailContext, templateName, self.Locale, attachments)
 }
 

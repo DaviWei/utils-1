@@ -364,9 +364,11 @@ type Attachment struct {
 	Data      []byte
 }
 
+type MailType string
+
 type EmailTemplateSender interface {
-	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment) (err error)
-	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName string, locale string, attachments []Attachment, senderAddress string) (err error)
+	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment) (err error)
+	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string) (err error)
 }
 
 type ByteString struct {
