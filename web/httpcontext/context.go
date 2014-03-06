@@ -325,7 +325,6 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 			fmt.Fprintf(c.Resp(), "%v", err)
 		}
 		c.Errorf("%v\n%v\n\n", c.Req().URL, err)
-
 	}
 }
 

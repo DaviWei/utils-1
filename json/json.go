@@ -22,7 +22,6 @@ func CopyJSON(in interface{}, out interface{}, context string, accessScopes ...s
 LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes or '*'.
 */
 func LoadJSON(in io.Reader, out interface{}, context string, accessScopes ...string) (err error) {
-
 	var decodedJSON map[string]*json.RawMessage
 	if err = json.NewDecoder(in).Decode(&decodedJSON); err != nil {
 		return
@@ -58,7 +57,7 @@ func LoadJSON(in io.Reader, out interface{}, context string, accessScopes ...str
 
 		// Check if a update for this field exist in the source json data.
 		data, found := decodedJSON[jsonAttributeName]
-		if !found {
+		if !found || data == nil {
 			continue
 		}
 
