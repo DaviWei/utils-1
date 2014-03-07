@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/soundtrackyourbrand/ssh"
 	utilsRun "github.com/soundtrackyourbrand/utils/run"
@@ -41,6 +42,13 @@ func (self Creds) Sign(i int, rand io.Reader, data []byte) (sig []byte, err erro
 }
 
 func Rsync(user string, key []byte, addr, src, dst string, excludes ...string) (err error) {
+	creds, err := ParseCreds(user, key)
+	if err != nil {
+		return
+	}
+	if err = Run(creds, fmt.Sprintf("%v:22", addr), fmt.Sprintf("mkdir -p %#v", dst)); err != nil {
+		return
+	}
 	tmpdir, err := ioutil.TempDir("", "utilsSshRsync")
 	if err != nil {
 		return
@@ -50,48 +58,26 @@ func Rsync(user string, key []byte, addr, src, dst string, excludes ...string) (
 			os.RemoveAll(tmpdir)
 		}
 	}()
-	outfilename := filepath.Join(tmpdir, "ssh.go")
+	outfilename := filepath.Join(tmpdir, "identity")
 	outfile, err := os.Create(outfilename)
 	if err != nil {
 		return
 	}
-	if _, err = outfile.WriteString(fmt.Sprintf(`package main
-
-import (
-	utilsSsh "github.com/soundtrackyourbrand/utils/ssh"
-	"os"
-	"strings"
-)
-
-func main() {
-	creds, err := utilsSsh.ParseCreds(%#v, []byte(%#v))
-	if err != nil {
-		panic(err)
-	}
-	sess, err := utilsSsh.New(creds, "%v:22")
-	if err != nil {
-		panic(err)
-  }
-	sess.Stdin, sess.Stdout, sess.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err = sess.Run(strings.Join(os.Args[4:], " ")); err != nil {
-		panic(err)
-	}
-	sess.Close()
-}
-	`, user, string(key), addr)); err != nil {
+	if _, err = outfile.Write(key); err != nil {
 		return
 	}
-	if err = utilsRun.Run("go", "build", "-o", filepath.Join(tmpdir, "ssh"), outfilename); err != nil {
+	if err = outfile.Close(); err != nil {
 		return
 	}
-	params := []string{"-v", fmt.Sprintf("--rsh=%v", filepath.Join(tmpdir, "ssh")), "-avc", "-C", "--delete"}
+	if err = os.Chmod(outfilename, 0400); err != nil {
+		return
+	}
+	params := []string{"rsync", fmt.Sprintf("%#v", fmt.Sprintf("--rsh=ssh -i %#v -o \"StrictHostKeyChecking no\"", outfilename)), "-avc", "-C", "--delete"}
 	for _, excl := range excludes {
 		params = append(params, "--exclude", excl)
 	}
 	params = append(params, fmt.Sprintf("%v", src), fmt.Sprintf("%v@%v:%v", user, addr, dst))
-	cmd := exec.Command("rsync", params...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err = cmd.Run(); err != nil {
+	if err = utilsRun.Run("sh", "-c", strings.Join(params, " ")+" 2>&1"); err != nil {
 		return
 	}
 	return
