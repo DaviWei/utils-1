@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/soundtrackyourbrand/utils/run"
+	"github.com/soundtrackyourbrand/utils/key"
 )
 
 func init() {
@@ -367,8 +368,8 @@ type Attachment struct {
 type MailType string
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment) (err error)
-	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string) (err error)
+	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
+	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
 }
 
 type ByteString struct {
