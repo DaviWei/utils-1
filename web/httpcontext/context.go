@@ -324,7 +324,11 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 			c.Resp().WriteHeader(500)
 			fmt.Fprintf(c.Resp(), "%v", err)
 		}
-		c.Errorf("%v\n%v\n\n", c.Req().URL, err)
+		if c.Resp().Status() >= 500 {
+			c.Errorf("%v\n%v\n\n", c.Req().URL, err)
+		} else {
+			c.Warningf("%v\n%v\n\n", c.Req().URL, err)
+		}
 	}
 }
 
