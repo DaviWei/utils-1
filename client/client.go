@@ -109,7 +109,7 @@ type RemoteSoundZone struct {
 	SpotifyPassword string         `json:"spotify_password,omitempty"`
 	PaidUntil       utils.JSONTime `json:"iso8601_paid_until"`
 	Locale          string         `json:"locale,omitempty"`
-	Schedule        key.Key        `json:"schedule"`
+	Schedule        key.Key        `json:"schedule,omitempty"`
 }
 
 type RemoteSlot struct {
