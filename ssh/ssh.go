@@ -72,7 +72,7 @@ func Rsync(user string, key []byte, addr, src, dst string, excludes ...string) (
 	if err = os.Chmod(outfilename, 0400); err != nil {
 		return
 	}
-	params := []string{"rsync", fmt.Sprintf("%#v", fmt.Sprintf("--rsh=ssh -i %#v -o \"StrictHostKeyChecking no\"", outfilename)), "-avc", "-C", "--delete"}
+	params := []string{"rsync", fmt.Sprintf("%#v", fmt.Sprintf("--rsh=ssh -i %#v -o \"StrictHostKeyChecking no\"", outfilename)), "-avzc", "-C", "--delete"}
 	for _, excl := range excludes {
 		params = append(params, "--exclude", excl)
 	}
