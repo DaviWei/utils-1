@@ -62,6 +62,15 @@ func InSlice(slice interface{}, needle interface{}) (result bool, err error) {
 	return
 }
 
+func ReflectCopy(source, destinationPointer interface{}) {
+	srcValue := reflect.ValueOf(source)
+	if reflect.PtrTo(reflect.TypeOf(source)) == reflect.TypeOf(destinationPointer) {
+		reflect.ValueOf(destinationPointer).Elem().Set(srcValue)
+	} else {
+		reflect.ValueOf(destinationPointer).Elem().Set(reflect.Indirect(srcValue))
+	}
+}
+
 type AccessToken interface {
 	Encode() ([]byte, error)
 	Scopes() []string
