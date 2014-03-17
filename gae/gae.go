@@ -1,8 +1,10 @@
 package gae
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -11,6 +13,7 @@ import (
 
 	"appengine"
 	"appengine/datastore"
+	"appengine/log"
 )
 
 const (
@@ -27,6 +30,54 @@ type PersistenceContext interface {
 	BeforeUpdate(interface{}) error
 	AfterLoad(interface{}) error
 	AfterDelete(interface{}) error
+}
+
+type statusMap map[int32]int
+
+func (self statusMap) MarshalJSON() (b []byte, err error) {
+	tmpMap := map[string]interface{}{}
+	for status, num := range self {
+		tmpMap[fmt.Sprint(status)] = num
+	}
+	return json.Marshal(tmpMap)
+}
+
+type LogStats struct {
+	Records      int
+	Statuses     statusMap
+	TotalLatency time.Duration
+	MaxLatency   time.Duration
+	MinLatency   time.Duration
+	TotalCost    float64
+	MaxCost      float64
+	MinCost      float64
+}
+
+func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
+	result = &LogStats{
+		Statuses: statusMap{},
+	}
+	query := &log.Query{StartTime: from, EndTime: to}
+	res := query.Run(c)
+	for rec, err := res.Next(); err == nil; rec, err = res.Next() {
+		result.Records++
+		result.Statuses[rec.Status]++
+		result.TotalLatency += rec.Latency
+		if result.MaxLatency == 0 || rec.Latency > result.MaxLatency {
+			result.MaxLatency = rec.Latency
+		}
+		if result.MinLatency == 0 || rec.Latency < result.MinLatency {
+			result.MinLatency = rec.Latency
+		}
+		result.TotalCost += rec.Cost
+		if result.MaxCost == 0 || rec.Cost > result.MaxCost {
+			result.MaxCost = rec.Cost
+		}
+		if result.MinCost == 0 || rec.Cost < result.MinCost {
+			result.MinCost = rec.Cost
+		}
+	}
+	return
 }
 
 // getTypeAndId will validate that the model is a pointer to a struct, and that it has a key.Key field name Id.
