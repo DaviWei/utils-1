@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"time"
-
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -32,9 +31,9 @@ type PersistenceContext interface {
 	AfterDelete(interface{}) error
 }
 
-type statusMap map[int32]int
+type StatusMap map[int32]int
 
-func (self statusMap) MarshalJSON() (b []byte, err error) {
+func (self StatusMap) MarshalJSON() (b []byte, err error) {
 	tmpMap := map[string]interface{}{}
 	for status, num := range self {
 		tmpMap[fmt.Sprint(status)] = num
@@ -44,7 +43,7 @@ func (self statusMap) MarshalJSON() (b []byte, err error) {
 
 type LogStats struct {
 	Records      int
-	Statuses     statusMap
+	Statuses     StatusMap
 	TotalLatency time.Duration
 	MaxLatency   time.Duration
 	MinLatency   time.Duration
@@ -55,7 +54,7 @@ type LogStats struct {
 
 func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
 	result = &LogStats{
-		Statuses: statusMap{},
+		Statuses: StatusMap{},
 	}
 	query := &log.Query{StartTime: from, EndTime: to}
 	res := query.Run(c)

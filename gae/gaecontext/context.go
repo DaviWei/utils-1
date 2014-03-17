@@ -18,6 +18,52 @@ import (
 	"appengine/urlfetch"
 )
 
+type ServiceStatus struct {
+	Status    string        `json:"status"`
+	Status5xx string        `json:"status_5xx"`
+	Status4xx string        `json:"status_4xx"`
+	LogStats  *gae.LogStats `json:"log_stats"`
+	Desc      string        `json:"desc"`
+}
+
+func ServiceStatusRenderer(ok4xxRatio, ok5xxRatio float64) func(c JSONContext) (status int, result *ServiceStatus, err error) {
+	return func(c JSONContext) (status int, result *ServiceStatus, err error) {
+		result = &ServiceStatus{
+			Desc: "It's Log, Log, it's better than bad, it's good!",
+		}
+		stats := gae.GetLogStats(c, time.Now().Add(-time.Hour), time.Now())
+		result.Status = "status_ok"
+		var num4xx float64
+		var num5xx float64
+		var ratio4xx float64
+		var ratio5xx float64
+		if stats.Records > 0 {
+			for status, num := range stats.Statuses {
+				if status >= 400 && status < 500 {
+					num4xx += float64(num)
+				}
+				if status >= 500 && status < 600 {
+					num5xx += float64(num)
+				}
+			}
+			ratio4xx = num4xx / float64(stats.Records)
+			ratio5xx = num5xx / float64(stats.Records)
+		}
+		if ratio4xx < ok4xxRatio {
+			result.Status4xx = "status_4xx_ok"
+		} else {
+			result.Status4xx = "status_4xx_bad"
+		}
+		if ratio5xx < ok5xxRatio {
+			result.Status5xx = "status_5xx_ok"
+		} else {
+			result.Status5xx = "status_5xx_bad"
+		}
+		result.LogStats = stats
+		return
+	}
+}
+
 type GAEContext interface {
 	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
