@@ -111,7 +111,7 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func runBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
+func RunBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
 	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
@@ -185,7 +185,7 @@ func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err
 		c.Resp().WriteHeader(status)
 	}
 	if body != nil {
-		if err = runBodyBeforeMarshal(c, body); err != nil {
+		if err = RunBodyBeforeMarshal(c, body); err != nil {
 			return
 		}
 
