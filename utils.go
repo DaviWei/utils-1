@@ -17,8 +17,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/soundtrackyourbrand/utils/run"
 	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/run"
 )
 
 func init() {
@@ -284,12 +284,15 @@ func example(t reflect.Type, seen map[string]int) (result interface{}) {
 	return
 }
 
-var revisionTemplate = template.Must(template.New("").Parse(`package common
+var revisionTemplate = template.Must(template.New("").Parse(`package {{.Package}}
+import "time"
 
 const (
 	GitRevision = "{{.Revision}}"
 	GitBranch = "{{.Branch}}"
-)`))
+)
+var GitRevisionAt = time.Unix(0, {{.Time}})
+`))
 
 func GitRevision(dir string) (rev string, err error) {
 	revisionResult, _, err := run.RunAndReturn("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD")
@@ -324,8 +327,10 @@ func UpdateGitRevision(dir, destination string) (err error) {
 		return
 	}
 	if err = revisionTemplate.Execute(outfile, map[string]interface{}{
+		"Package":  filepath.Base(filepath.Dir(destination)),
 		"Revision": rev,
 		"Branch":   branch,
+		"Time":     time.Now().UnixNano(),
 	}); err != nil {
 		return
 	}
