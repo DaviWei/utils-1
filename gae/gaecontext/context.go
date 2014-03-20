@@ -166,30 +166,30 @@ func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 }
 
 type Transport struct {
-	t urlfetch.Transport
+	T urlfetch.Transport
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	if t.t.Context.(GAEContext).InTransaction() {
+	if t.T.Context.(GAEContext).InTransaction() {
 		return nil, fmt.Errorf("Avoid using Client() when in an transaction. %s %s", req.Method, req.URL.String())
 	}
 	start := time.Now()
-	resp, err := t.t.RoundTrip(req)
+	resp, err := t.T.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode >= 500 {
-		t.t.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
 	} else if time.Since(start) > (time.Second * 2) {
-		t.t.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
 	}
 	return resp, err
 }
 
 func (self *DefaultContext) Client() *http.Client {
 	trans := &Transport{}
-	trans.t.Context = self
-	trans.t.Deadline = time.Second * 30
+	trans.T.Context = self
+	trans.T.Deadline = time.Second * 30
 
 	return &http.Client{
 		Transport: trans,
