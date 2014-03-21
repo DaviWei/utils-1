@@ -33,6 +33,13 @@ func (self *genealogyAssertion) ParentKinds(allowed ...string) *genealogyAsserti
 
 var genealogyAssertions = map[string]*genealogyAssertion{}
 
+func AssertedKinds() (result []string) {
+	for kind, _ := range genealogyAssertions {
+		result = append(result, kind)
+	}
+	return
+}
+
 func AssertGenealogy(kind string) (result *genealogyAssertion) {
 	result, found := genealogyAssertions[kind]
 	if !found {

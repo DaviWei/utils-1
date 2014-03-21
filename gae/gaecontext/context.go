@@ -18,6 +18,17 @@ import (
 	"appengine/urlfetch"
 )
 
+func KindsRenderer(c JSONContext) (status int, result []string, err error) {
+	ids, err := datastore.NewQuery("__Stat_Kind__").KeysOnly().GetAll(c, nil)
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		result = append(result, id.StringID())
+	}
+	return
+}
+
 type ServiceStatus struct {
 	Status    string        `json:"status"`
 	Status5xx string        `json:"status_5xx"`
