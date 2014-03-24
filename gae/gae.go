@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -18,6 +19,17 @@ import (
 const (
 	idFieldName = "Id"
 )
+
+func GetKinds(c appengine.Context) (result []string, err error) {
+	ids, err := datastore.NewQuery("__Stat_Kind__").KeysOnly().GetAll(c, nil)
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		result = append(result, id.StringID())
+	}
+	return
+}
 
 type PersistenceContext interface {
 	memcache.TransactionContext
