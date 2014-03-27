@@ -73,6 +73,7 @@ type GAEContext interface {
 	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
 	Client() *http.Client
+	ClientTimeout(time.Duration)
 }
 
 type HTTPContext interface {
@@ -107,6 +108,11 @@ type DefaultContext struct {
 	appengine.Context
 	inTransaction    bool
 	afterTransaction []func(GAEContext) error
+	clientTimeout    time.Duration
+}
+
+func (self *DefaultContext) ClientTimeout(d time.Duration) {
+	self.clientTimeout = d
 }
 
 func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
@@ -194,7 +200,11 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 func (self *DefaultContext) Client() *http.Client {
 	trans := &Transport{}
 	trans.T.Context = self
-	trans.T.Deadline = time.Second * 30
+	if self.clientTimeout == 0 {
+		trans.T.Deadline = time.Second * 30
+	} else {
+		trans.T.Deadline = self.clientTimeout
+	}
 
 	return &http.Client{
 		Transport: trans,
