@@ -59,7 +59,9 @@ type ServiceConnector interface {
 type DefaultMeta struct {
 	Id        key.Key        `json:"id,omitempty"`
 	CreatedAt utils.JSONTime `json:"iso8601_created_at,omitempty"`
-	UpdatedAt utils.JSONTime `json:"iso8601_created_at,omitempty"`
+	UpdatedAt utils.JSONTime `json:"iso8601_updated_at,omitempty"`
+  CreatedBy key.Key        `json:"created_by,omitempty"`
+	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
 type RemoteUser struct {
@@ -262,6 +264,18 @@ func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result 
 
 func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result []RemoteAccount, err error) {
 	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v/accounts", user.Encode()), token, nil)
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = []RemoteAccount{}
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
+func GetTelemarketingDropoutAccounts(c ServiceConnector, token AccessToken) (result []RemoteAccount, err error) {
+	request, response, err := doRequest(c, "GET", c.AuthService(), "telemarketing_dropout_accounts", token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
