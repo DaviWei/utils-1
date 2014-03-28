@@ -261,10 +261,14 @@ func (self *DefaultHTTPContext) AccessToken(dst utils.AccessToken) (result utils
 			result, err = utils.ParseAccessToken(match[1], dst)
 			return
 		}
-		if authToken := self.Req().URL.Query().Get("token"); authToken != "" {
-			result, err = utils.ParseAccessToken(authToken, dst)
-			return
-		}
+	}
+	if authToken := self.Req().URL.Query().Get("token"); authToken != "" {
+		result, err = utils.ParseAccessToken(authToken, dst)
+		return
+	}
+	if cookie, _ := self.Req().Cookie("token"); cookie != nil {
+		result, err = utils.ParseAccessToken(cookie.Value, dst)
+		return
 	}
 	err = ErrMissingToken
 	return
