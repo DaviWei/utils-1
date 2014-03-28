@@ -44,9 +44,9 @@ func NewSingleHostReverseProxy(target *url.URL, proxyRootPath string) *ReversePr
 		req.URL.Host = target.Host
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
 		if targetQuery == "" || req.URL.RawQuery == "" {
-			req.URL.RawQuery = targetQuery+req.URL.RawQuery
+			req.URL.RawQuery = targetQuery + req.URL.RawQuery
 		} else {
-			req.URL.RawQuery = targetQuery+"&"+req.URL.RawQuery
+			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
 		}
 	}
 	return &ReverseProxy{Director: director}
@@ -76,9 +76,9 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	for k, vals := range req.Header {
 		for _, val := range vals {
 			freq.Header = append(freq.Header, &pb.URLFetchRequest_Header{
-					Key:   proto.String(k),
-					Value: proto.String(val),
-				})
+				Key:   proto.String(k),
+				Value: proto.String(val),
+			})
 		}
 	}
 	if methodAcceptsRequestBody[req.Method] && req.Body != nil {
@@ -128,7 +128,6 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	res.Body = &bodyReader{content: fres.Content, truncated: truncated}
 	return
 }
-
 
 // Copyright 2011 Google Inc. All rights reserved.
 // Use of this source code is governed by the Apache 2.0
@@ -222,7 +221,7 @@ func urlString(u *url.URL) string {
 		return u.String()
 	}
 	aux := *u
-	aux.Opaque = "//"+aux.Host+aux.Opaque
+	aux.Opaque = "//" + aux.Host + aux.Opaque
 	return aux.String()
 }
 
@@ -230,7 +229,6 @@ func init() {
 	appengine_internal.RegisterErrorCodeMap("urlfetch", pb.URLFetchServiceError_ErrorCode_name)
 	appengine_internal.RegisterTimeoutErrorCode("urlfetch", int32(pb.URLFetchServiceError_DEADLINE_EXCEEDED))
 }
-
 
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
@@ -290,7 +288,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		// X-Forwarded-For information as a comma+space
 		// separated list and fold multiple headers into one.
 		if prior, ok := outreq.Header["X-Forwarded-For"]; ok {
-			clientIP = strings.Join(prior, ", ")+", "+clientIP
+			clientIP = strings.Join(prior, ", ") + ", " + clientIP
 		}
 		outreq.Header.Set("X-Forwarded-For", clientIP)
 	}
@@ -335,8 +333,8 @@ func (p *ReverseProxy) copyResponse(dst io.Writer, src io.Reader) {
 }
 
 type writeFlusher interface {
-io.Writer
-http.Flusher
+	io.Writer
+	http.Flusher
 }
 
 type maxLatencyWriter struct {
@@ -397,4 +395,3 @@ type ReverseProxy struct {
 	// If zero, no periodic flushing is done.
 	FlushInterval time.Duration
 }
-

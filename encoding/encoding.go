@@ -1,6 +1,6 @@
 package encoding
 
-import(
+import (
 	"encoding/base64"
 	"strings"
 )

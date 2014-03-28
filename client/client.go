@@ -60,7 +60,7 @@ type DefaultMeta struct {
 	Id        key.Key        `json:"id,omitempty"`
 	CreatedAt utils.JSONTime `json:"iso8601_created_at,omitempty"`
 	UpdatedAt utils.JSONTime `json:"iso8601_updated_at,omitempty"`
-  CreatedBy key.Key        `json:"created_by,omitempty"`
+	CreatedBy key.Key        `json:"created_by,omitempty"`
 	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
@@ -360,7 +360,7 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := doRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
-		"password":  password,
+		"password": password,
 	})
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)

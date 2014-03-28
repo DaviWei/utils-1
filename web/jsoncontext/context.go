@@ -1,17 +1,17 @@
 package jsoncontext
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"reflect"
-	"strconv"
-	"io"
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
-	"bytes"
+	"io"
+	"net/http"
+	"reflect"
+	"strconv"
 )
 
 const (
@@ -51,7 +51,7 @@ type JSONContextLogger interface {
 
 type DefaultJSONContext struct {
 	httpcontext.HTTPContextLogger
-	apiVersion int
+	apiVersion  int
 	decodedBody []byte
 }
 
