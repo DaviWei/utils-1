@@ -64,6 +64,20 @@ type DefaultMeta struct {
 	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
+type RemoteLocation struct {
+	DefaultMeta
+
+	Account key.Key `json:"account"`
+
+	PostalCode string `json:"postal_code"`
+	Address    string `json:"address"`
+	City       string `json:"city"`
+	ISOCountry string `json:"iso_country"`
+	Locale     string `json:"locale"`
+
+	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
+}
+
 type RemoteUser struct {
 	DefaultMeta
 	Name            string `json:"name,omitempty"`
@@ -112,6 +126,7 @@ type RemoteSoundZone struct {
 	PaidUntil       utils.JSONTime `json:"iso8601_paid_until"`
 	Locale          string         `json:"locale,omitempty"`
 	Schedule        key.Key        `json:"schedule,omitempty"`
+	Deactivated     bool           `json:"deactivated"`
 }
 
 type RemoteSlot struct {
@@ -177,6 +192,22 @@ func doRequest(c ServiceConnector, method, service, path string, token AccessTok
 
 	request.Header.Add("X-API-Version", "1")
 	response, err = c.Client().Do(request)
+	return
+}
+
+func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (result *RemoteLocation, err error) {
+	request, response, err := doRequest(c, "GET", c.AuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteLocation{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
 	return
 }
 
