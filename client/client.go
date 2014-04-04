@@ -103,7 +103,7 @@ type RemoteAccount struct {
 	VATCode       string  `json:"vat_code,omitempty"`
 	Locale        string  `json:"locale,omitempty"`
 	Phone         string  `json:"phone,omitempty"`
-	AdminUser     key.Key `json:"admin_user,omitempty"`
+	Owner         key.Key `json:"admin_user,omitempty"`
 	PostalCode    string  `json:"postal_code,omitempty"`
 	MaxSoundZones int     `json:"max_sound_zones,omitempty"`
 	Deactivated   bool    `json:"deactivated,omitempty"`
@@ -341,7 +341,7 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 }
 
 func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount) (result *RemoteAccount, err error) {
-	request, response, err := doRequest(c, "POST", c.AuthService(), fmt.Sprintf("users/%v/accounts", account.AdminUser.Encode()), token, account)
+	request, response, err := doRequest(c, "POST", c.AuthService(), fmt.Sprintf("users/%v/accounts", account.Owner.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
