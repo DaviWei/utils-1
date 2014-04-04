@@ -365,9 +365,15 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 }
 
 func DelAll(c PersistenceContext, src interface{}) (err error) {
+	return DelQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Name()))
+}
+
+// DelQuery will delete (from datastore and memcache) all entities of type src that matches q.
+// src must be a pointer to a struct type.
+func DelQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err error) {
 	var dataIds []*datastore.Key
 	results := reflect.New(reflect.SliceOf(reflect.TypeOf(src).Elem()))
-	dataIds, err = datastore.NewQuery(reflect.TypeOf(src).Elem().Name()).GetAll(c, results.Interface())
+	dataIds, err = q.GetAll(c, results.Interface())
 	if err = FilterOkErrors(err); err != nil {
 		return
 	}
