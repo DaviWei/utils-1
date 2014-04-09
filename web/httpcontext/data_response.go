@@ -21,6 +21,8 @@ type DataResp struct {
 	Status      int
 	ContentType string
 	Filename    string
+	ReportName  string
+	Filters     map[string][]string
 }
 
 func (self DataResp) Render(c HTTPContextLogger) error {
@@ -39,6 +41,11 @@ func (self DataResp) Render(c HTTPContextLogger) error {
 		fmt.Fprintf(c.Resp(), "sep=\t\n")
 		writer := csv.NewWriter(c.Resp())
 		writer.Comma = '\t'
+		titleRow := []string{self.ReportName}
+		for k, v := range self.Filters {
+			titleRow = append(titleRow, fmt.Sprintf("%s=%s", k, v[0]))
+		}
+		writer.Write(titleRow)
 		err := writer.Write(self.Headers)
 		if err != nil {
 			return err
@@ -47,6 +54,12 @@ func (self DataResp) Render(c HTTPContextLogger) error {
 			vals := make([]string, 0, len(self.Headers))
 			for index := range self.Headers {
 				vals = append(vals, fmt.Sprintf("%v", row[index]))
+				switch row[index].(type) {
+				default:
+					vals = append(vals, fmt.Sprintf("%v", row[index]))
+				case float64:
+					vals = append(vals, fmt.Sprintf("%.2f", row[index]))
+				}
 			}
 			err := writer.Write(vals)
 			if err != nil {
