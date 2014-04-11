@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -192,6 +193,17 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 
 	request.Header.Add("X-API-Version", "1")
 	response, err = c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	newBody := &bytes.Buffer{}
+	if _, err = io.Copy(newBody, response.Body); err != nil {
+		return
+	}
+	if err = response.Body.Close(); err != nil {
+		return
+	}
+	response.Body = ioutil.NopCloser(newBody)
 	return
 }
 
