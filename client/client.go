@@ -104,7 +104,7 @@ type RemoteAccount struct {
 	VATCode       string  `json:"vat_code,omitempty"`
 	Locale        string  `json:"locale,omitempty"`
 	Phone         string  `json:"phone,omitempty"`
-	Owner         key.Key `json:"admin_user,omitempty"`
+	Owner         key.Key `json:"owner,omitempty"`
 	PostalCode    string  `json:"postal_code,omitempty"`
 	MaxSoundZones int     `json:"max_sound_zones,omitempty"`
 	Deactivated   bool    `json:"deactivated,omitempty"`
