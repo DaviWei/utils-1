@@ -192,6 +192,10 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 
 	request.Header.Add("X-API-Version", "1")
 	response, err = c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	response.Body.Close()
 	return
 }
 
