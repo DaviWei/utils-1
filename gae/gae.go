@@ -41,6 +41,7 @@ type PersistenceContext interface {
 	BeforeUpdate(interface{}) error
 	AfterLoad(interface{}) error
 	AfterDelete(interface{}) error
+	BeforeDelete(interface{}) error
 }
 
 type StatusMap map[int32]int
@@ -235,6 +236,9 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 		} else if err == nil {
+			if err = runProcess(c, old, BeforeDeleteName, nil); err != nil {
+				return
+			}
 			if err = datastore.Delete(c, gaeKey); err != nil {
 				return
 			}
@@ -246,8 +250,11 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 				return
 			}
 		}
+		if err = runProcess(c, old, AfterDeleteName, nil); err != nil {
+			return
+		}
 	}
-	return runProcess(c, src, AfterDeleteName)
+	return
 }
 
 /*
@@ -270,6 +277,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 	isNew := false
 	gaeKey := gaekey.ToGAE(c, id)
 	memcacheKeys := []string{}
+	var oldIf interface{}
 	if gaeKey.Incomplete() {
 		isNew = true
 	} else {
@@ -281,7 +289,8 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 			isNew = true
 		} else if err == nil {
 			isNew = false
-			if _, err = MemcacheKeys(c, old.Interface(), &memcacheKeys); err != nil {
+			oldIf = old.Interface()
+			if _, err = MemcacheKeys(c, oldIf, &memcacheKeys); err != nil {
 				return
 			}
 		} else {
@@ -289,15 +298,15 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		}
 	}
 	if isNew {
-		if err = runProcess(c, src, BeforeCreateName); err != nil {
+		if err = runProcess(c, src, BeforeCreateName, nil); err != nil {
 			return
 		}
 	} else {
-		if err = runProcess(c, src, BeforeUpdateName); err != nil {
+		if err = runProcess(c, src, BeforeUpdateName, oldIf); err != nil {
 			return
 		}
 	}
-	if err = runProcess(c, src, BeforeSaveName); err != nil {
+	if err = runProcess(c, src, BeforeSaveName, oldIf); err != nil {
 		return
 	}
 	if id, err = gaekey.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
@@ -311,15 +320,15 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		return
 	}
 	if isNew {
-		if err = runProcess(c, src, AfterCreateName); err != nil {
+		if err = runProcess(c, src, AfterCreateName, nil); err != nil {
 			return
 		}
 	} else {
-		if err = runProcess(c, src, AfterUpdateName); err != nil {
+		if err = runProcess(c, src, AfterUpdateName, oldIf); err != nil {
 			return
 		}
 	}
-	return runProcess(c, src, AfterSaveName)
+	return runProcess(c, src, AfterSaveName, oldIf)
 }
 
 // findById will find dst in the datastore and set its id.
@@ -357,7 +366,7 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 		result = dst
 		return
 	}); err == nil {
-		err = runProcess(c, dst, AfterLoadName)
+		err = runProcess(c, dst, AfterLoadName, nil)
 	} else if err == memcache.ErrCacheMiss {
 		err = newError(dst, datastore.ErrNoSuchEntity)
 	}
@@ -390,9 +399,18 @@ func DelQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err er
 		if _, err = MemcacheKeys(c, el.Addr().Interface(), &memcacheKeys); err != nil {
 			return
 		}
+		if err = runProcess(c, el.Addr().Interface(), BeforeDeleteName, nil); err != nil {
+			return
+		}
 	}
 	if err = datastore.DeleteMulti(c, dataIds); err != nil {
 		return
+	}
+	for index, _ := range dataIds {
+		el = resultsSlice.Index(index)
+		if err = runProcess(c, el.Addr().Interface(), AfterDeleteName, nil); err != nil {
+			return
+		}
 	}
 	return memcache.Del(c, memcacheKeys...)
 }

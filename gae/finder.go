@@ -151,7 +151,7 @@ func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancest
 	errors := appengine.MultiError{}
 	for i := 0; i < val.Len(); i++ {
 		el := val.Index(i)
-		if err = runProcess(c, el.Addr().Interface(), AfterLoadName); err != nil {
+		if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
 			errors = append(errors, err)
 		}
 	}
