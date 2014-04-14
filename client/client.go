@@ -252,7 +252,7 @@ func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err er
 
 	return
 }
-func UpdateUser(c ServiceConnector, user RemoteUser, token AccessToken) (result *RemoteUser, err error) {
+func UpdateUser(c ServiceConnector, user *RemoteUser, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%v", user.Id.Encode()), token, user)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
