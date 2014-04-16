@@ -53,7 +53,6 @@ func (self DataResp) Render(c HTTPContextLogger) error {
 		for row := range self.Data {
 			vals := make([]string, 0, len(self.Headers))
 			for index := range self.Headers {
-				vals = append(vals, fmt.Sprintf("%v", row[index]))
 				switch row[index].(type) {
 				default:
 					vals = append(vals, fmt.Sprintf("%v", row[index]))
