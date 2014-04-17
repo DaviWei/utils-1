@@ -258,12 +258,142 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 }
 
 /*
-Put will save src in datastore after having cache invalidated anything that was there before. Then it will invalidate src as well.
+PutMulti will save src in datastore, invalidating cache and running hooks.
+This requires the loading of any old versions currently in the datastore, which will
+cause some extra work.
+*/
+func PutMulti(c PersistenceContext, src interface{}) (err error) {
+	// validate
+	srcVal := reflect.ValueOf(src)
+	if srcVal.Kind() != reflect.Slice {
+		err = fmt.Errorf("%+v is not a slice", src)
+		return
+	}
+	if srcVal.Type().Elem().Kind() != reflect.Ptr {
+		err = fmt.Errorf("%+v is not a slice of pointers", src)
+		return
+	}
+	if srcVal.Type().Elem().Elem().Kind() != reflect.Struct {
+		err = fmt.Errorf("%+v is not a slice of struct pointers", src)
+		return
+	}
+	// build required data for loading old entities
+	gaeKeys := make([]*datastore.Key, srcVal.Len())
+	ids := make([]key.Key, srcVal.Len())
+	keysToLoad := []*datastore.Key{}
+	indexMapping := []int{}
+	for i := 0; i < srcVal.Len(); i++ {
+		var id key.Key
+		if _, id, err = getTypeAndId(srcVal.Index(i).Interface()); err != nil {
+			return
+		}
+		if id == "" {
+			err = fmt.Errorf("%+v doesn't have an id")
+			return
+		}
+		ids[i] = id
+		gaeKey := gaekey.ToGAE(c, id)
+		gaeKeys[i] = gaeKey
+		if !gaeKey.Incomplete() {
+			keysToLoad = append(keysToLoad, gaeKey)
+			indexMapping = append(indexMapping, i)
+		}
+	}
+	// load old entities
+	memcacheKeys := []string{}
+	oldIfs := make([]interface{}, srcVal.Len())
+	if len(keysToLoad) > 0 {
+		oldEntities := reflect.MakeSlice(reflect.SliceOf(srcVal.Type().Elem().Elem()), len(keysToLoad), len(keysToLoad))
+		getErr := datastore.GetMulti(c, keysToLoad, oldEntities.Interface())
+		// check which entities weren't in the database
+		notFound := make([]bool, len(keysToLoad))
+		if getErr != nil {
+			if multiErr, ok := getErr.(appengine.MultiError); ok {
+				for index, e := range multiErr {
+					if e == datastore.ErrNoSuchEntity {
+						notFound[index] = true
+					} else {
+						err = e
+						return
+					}
+				}
+			} else {
+				err = getErr
+				return
+			}
+		}
+		// put entities inside oldIfs, run AfterLoad, add memcache keys from the old entities
+		for index, _ := range keysToLoad {
+			if !notFound[index] {
+				if idField := oldEntities.Index(index).FieldByName(idFieldName); idField.IsValid() {
+					idField.Set(reflect.ValueOf(ids[indexMapping[index]]))
+				}
+				oldIf := oldEntities.Index(index).Addr().Interface()
+				oldIfs[indexMapping[index]] = oldIf
+				if err = runProcess(c, oldIf, AfterLoadName, nil); err != nil {
+					return
+				}
+				if _, err = MemcacheKeys(c, oldIf, &memcacheKeys); err != nil {
+					return
+				}
+			}
+		}
+	}
+	// run the before hooks
+	for i := 0; i < srcVal.Len(); i++ {
+		if oldIfs[i] == nil {
+			if err = runProcess(c, srcVal.Index(i).Interface(), BeforeCreateName, nil); err != nil {
+				return
+			}
+		} else {
+			if err = runProcess(c, srcVal.Index(i).Interface(), BeforeUpdateName, oldIfs[i]); err != nil {
+				return
+			}
+		}
+		if err = runProcess(c, src, BeforeSaveName, oldIfs[i]); err != nil {
+			return
+		}
+	}
+	// actually save
+	if gaeKeys, err = datastore.PutMulti(c, gaeKeys, src); err != nil {
+		return
+	}
+	// set ids and add memcache keys from the new entities
+	for i := 0; i < srcVal.Len(); i++ {
+		if ids[i], err = gaekey.FromGAE(gaeKeys[i]); err != nil {
+			return
+		}
+		srcVal.Index(i).Elem().FieldByName(idFieldName).Set(reflect.ValueOf(ids[i]))
+		if _, err = MemcacheKeys(c, srcVal.Index(i).Interface(), &memcacheKeys); err != nil {
+			return
+		}
+	}
+	// clear memcache
+	if err = memcache.Del(c, memcacheKeys...); err != nil {
+		return
+	}
+	// run the after hooks
+	for i := 0; i < srcVal.Len(); i++ {
+		if oldIfs[i] == nil {
+			if err = runProcess(c, srcVal.Index(i).Interface(), AfterCreateName, nil); err != nil {
+				return
+			}
+		} else {
+			if err = runProcess(c, srcVal.Index(i).Interface(), AfterUpdateName, oldIfs[i]); err != nil {
+				return
+			}
+		}
+		if err = runProcess(c, srcVal.Index(i).Interface(), AfterSaveName, oldIfs[i]); err != nil {
+			return
+		}
+	}
+	return
+}
 
-Before saving src, it will run its BeforeCreate or BeforeUpdate func, if any, depending on whether there was a matching model in
-the datastore before.
-
-It will also (after the BeforeUpdate/BeforeCreate functions) run BeforeSave.
+/*
+Put will save src in datastore, invalidating cache and running hooks.
+This requires the loading of any old versions currently in the datastore, which will
+cause some extra work.
 */
 func Put(c PersistenceContext, src interface{}) (err error) {
 	var id key.Key
@@ -274,21 +404,16 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		err = fmt.Errorf("%+v doesn't have an Id", src)
 		return
 	}
-	isNew := false
 	gaeKey := gaekey.ToGAE(c, id)
 	memcacheKeys := []string{}
 	var oldIf interface{}
-	if gaeKey.Incomplete() {
-		isNew = true
-	} else {
+	if !gaeKey.Incomplete() {
 		old := reflect.New(reflect.TypeOf(src).Elem())
 		old.Elem().FieldByName(idFieldName).Set(reflect.ValueOf(id))
 		err = GetById(c, old.Interface())
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
-			isNew = true
 		} else if err == nil {
-			isNew = false
 			oldIf = old.Interface()
 			if _, err = MemcacheKeys(c, oldIf, &memcacheKeys); err != nil {
 				return
@@ -297,7 +422,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 			return
 		}
 	}
-	if isNew {
+	if oldIf == nil {
 		if err = runProcess(c, src, BeforeCreateName, nil); err != nil {
 			return
 		}
@@ -319,7 +444,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 	if err = memcache.Del(c, memcacheKeys...); err != nil {
 		return
 	}
-	if isNew {
+	if oldIf == nil {
 		if err = runProcess(c, src, AfterCreateName, nil); err != nil {
 			return
 		}
@@ -374,7 +499,58 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 }
 
 func DelAll(c PersistenceContext, src interface{}) (err error) {
+	srcTyp := reflect.TypeOf(src)
+	if srcTyp.Kind() != reflect.Ptr {
+		err = fmt.Errorf("%+v is not a pointer", src)
+		return
+	}
+	if srcTyp.Elem().Kind() != reflect.Struct {
+		err = fmt.Errorf("%+v is not a pointer to a struct", src)
+		return
+	}
 	return DelQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Name()))
+}
+
+func GetAll(c PersistenceContext, src interface{}) (err error) {
+	srcTyp := reflect.TypeOf(src)
+	if srcTyp.Kind() != reflect.Ptr {
+		err = fmt.Errorf("%+v is not a pointer", src)
+		return
+	}
+	if srcTyp.Elem().Kind() != reflect.Slice {
+		err = fmt.Errorf("%+v is not a pointer to a slice", src)
+		return
+	}
+	if srcTyp.Elem().Elem().Kind() != reflect.Ptr {
+		err = fmt.Errorf("%+v is not a pointer to a slice of pointers", src)
+		return
+	}
+	if srcTyp.Elem().Elem().Elem().Kind() != reflect.Struct {
+		err = fmt.Errorf("%+v is not a pointer to a slice of struct pointers", src)
+		return
+	}
+	return GetQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Elem().Elem().Name()))
+}
+
+func GetQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err error) {
+	var dataIds []*datastore.Key
+	dataIds, err = q.GetAll(c, src)
+	if err = FilterOkErrors(err); err != nil {
+		return
+	}
+	srcVal := reflect.ValueOf(src)
+	for index, dataId := range dataIds {
+		el := srcVal.Elem().Index(index)
+		var k key.Key
+		if k, err = gaekey.FromGAE(dataId); err != nil {
+			return
+		}
+		el.Elem().FieldByName("Id").Set(reflect.ValueOf(k))
+		if err = runProcess(c, el.Interface(), AfterLoadName, nil); err != nil {
+			return
+		}
+	}
+	return
 }
 
 // DelQuery will delete (from datastore and memcache) all entities of type src that matches q.
