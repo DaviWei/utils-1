@@ -85,7 +85,7 @@ type RemoteUser struct {
 	Email           string `json:"email,omitempty"`
 	Locale          string `json:"locale,omitempty"`
 	Password        string `json:"password,omitempty"`
-	Admin           bool   `json:"admin,omitempty"`
+	Backoffice      bool   `json:"backoffice,omitempty"`
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
