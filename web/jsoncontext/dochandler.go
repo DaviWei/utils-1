@@ -119,6 +119,12 @@ var DefaultEndpointTemplateContent = `
           <td>{{.MinAPIVersion}}</td>
         </tr>
       {{end}}
+      {{if .MaxAPIVersion}}
+        <tr>
+          <td>Maximum API version</td>
+          <td>{{.MaxAPIVersion}}</td>
+        </tr>
+      {{end}}
       {{if .Scopes}}
         <tr>
           <td>Scopes</td>
@@ -305,6 +311,7 @@ type DefaultDocumentedRoute struct {
 	Path          string
 	Scopes        []string
 	MinAPIVersion int
+	MaxAPIVersion int
 	In            *JSONType
 	Out           *JSONType
 }
@@ -381,7 +388,7 @@ One extra input argument after context is allowed, and will be JSON decoded from
 
 One extra return value between status and error is allowed, and will be JSON encoded to the response body, and used in the documentation struct.
 */
-func Document(fIn interface{}, path string, methods string, minAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
+func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
 	if errs := utils.ValidateFuncInputs(fIn, []reflect.Type{
 		reflect.TypeOf((*JSONContextLogger)(nil)).Elem(),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -406,6 +413,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion int, s
 		Path:          path,
 		Methods:       methodNames,
 		MinAPIVersion: minAPIVersion,
+		MaxAPIVersion: maxAPIVersion,
 		Scopes:        scopes,
 	}
 	fVal := reflect.ValueOf(fIn)
@@ -493,9 +501,9 @@ func DocHandler(templ *template.Template) http.Handler {
 	})
 }
 
-func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion int, scopes ...string) {
-	doc, fu := Document(f, path, method, minAPIVersion, scopes...)
+func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
+	doc, fu := Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	Remember(doc)
 	methods := strings.Split(method, "|")
-	router.Path(path).Methods(methods...).MatcherFunc(MinAPIVersionMatcher(minAPIVersion)).Handler(HandlerFunc(fu, minAPIVersion, scopes...))
+	router.Path(path).Methods(methods...).MatcherFunc(APIVersionMatcher(minAPIVersion, maxAPIVersion)).Handler(HandlerFunc(fu, minAPIVersion, maxAPIVersion, scopes...))
 }

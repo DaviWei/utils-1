@@ -4,21 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/soundtrackyourbrand/utils"
-	jsonUtils "github.com/soundtrackyourbrand/utils/json"
-	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"io"
 	"net/http"
 	"reflect"
 	"strconv"
+
+	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
+	jsonUtils "github.com/soundtrackyourbrand/utils/json"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 )
 
 const (
 	APIVersionHeader = "X-API-Version"
 )
 
-func MinAPIVersionMatcher(minApiVersion int) mux.MatcherFunc {
+func APIVersionMatcher(minAPIVersion, maxAPIVersion int) mux.MatcherFunc {
 	return func(req *http.Request, match *mux.RouteMatch) bool {
 		header := req.Header.Get(APIVersionHeader)
 		if header == "" {
@@ -28,7 +29,7 @@ func MinAPIVersionMatcher(minApiVersion int) mux.MatcherFunc {
 		if err != nil {
 			return false
 		}
-		if apiVersion < minApiVersion {
+		if apiVersion < minAPIVersion || apiVersion > maxAPIVersion {
 			return false
 		}
 		return true
@@ -286,10 +287,14 @@ func (self ValidationError) Respond(c httpcontext.HTTPContextLogger) error {
 	return nil
 }
 
-func Handle(c JSONContextLogger, f func() (Resp, error), minAPIVersion int, scopes ...string) {
+func Handle(c JSONContextLogger, f func() (Resp, error), minAPIVersion, maxAPIVersion int, scopes ...string) {
 	httpcontext.Handle(c, func() (err error) {
-		if c.APIVersion() < minAPIVersion {
-			err = NewError(417, fmt.Sprintf("X-API-Version header has to request API version greater than 0"), fmt.Sprintf("Headers: %+v", c.Req().Header), nil)
+		if minAPIVersion != 0 && c.APIVersion() < minAPIVersion {
+			err = NewError(417, fmt.Sprintf("X-API-Version header has to request API version greater than %v", minAPIVersion), fmt.Sprintf("Headers: %+v", c.Req().Header), nil)
+			return
+		}
+		if maxAPIVersion != 0 && c.APIVersion() > maxAPIVersion {
+			err = NewError(417, fmt.Sprintf("X-API-Version header has to request API version less than %v", maxAPIVersion), fmt.Sprintf("Headers: %+v", c.Req().Header), nil)
 			return
 		}
 		resp, err := f()
@@ -300,11 +305,11 @@ func Handle(c JSONContextLogger, f func() (Resp, error), minAPIVersion int, scop
 	}, scopes...)
 }
 
-func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion int, scopes ...string) http.Handler {
+func HandlerFunc(f func(c JSONContextLogger) (Resp, error), minAPIVersion, maxAPIVersion int, scopes ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := NewJSONContext(httpcontext.NewHTTPContext(w, r))
 		Handle(c, func() (Resp, error) {
 			return f(c)
-		}, minAPIVersion, scopes...)
+		}, minAPIVersion, maxAPIVersion, scopes...)
 	})
 }
