@@ -215,6 +215,10 @@ type JSONError struct {
 	httpcontext.HTTPError
 }
 
+func (self JSONError) GetStatus() int {
+	return self.Status
+}
+
 func (self JSONError) Respond(c httpcontext.HTTPContextLogger) (err error) {
 	return respond(c, self.Status, self.Body)
 }
@@ -234,6 +238,10 @@ type ValidationError struct {
 	Cause  error
 	Info   string
 	Fields map[string]field `json:"fields,omitempty"`
+}
+
+func (self ValidationError) GetStatus() int {
+	return self.Status
 }
 
 func (self *ValidationError) AddField(fieldName, message string, code int, cause error, status int) *ValidationError {

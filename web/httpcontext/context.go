@@ -29,12 +29,21 @@ var prefPattern = regexp.MustCompile("^([^\\s;]+)(;q=([\\d.]+))?$")
 
 var ErrorStackTraces = false
 
+type Statuserr interface {
+	error
+	GetStatus() int
+}
+
 type HTTPError struct {
 	Status int
 	Body   interface{}
 	Cause  error
 	Info   string
 	Stack  []byte
+}
+
+func (self HTTPError) GetStatus() int {
+	return self.Status
 }
 
 func (self HTTPError) String() string {
