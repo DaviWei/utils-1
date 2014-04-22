@@ -39,7 +39,11 @@ func runProcess(c PersistenceContext, model interface{}, name string, arg interf
 	} else if found {
 		var results []reflect.Value
 		if process.Type().NumIn() == 2 {
-			results = process.Call([]reflect.Value{reflect.ValueOf(c), reflect.ValueOf(arg)})
+			if arg == nil {
+				results = process.Call([]reflect.Value{reflect.ValueOf(c), reflect.Zero(process.Type().In(1))})
+			} else {
+				results = process.Call([]reflect.Value{reflect.ValueOf(c), reflect.ValueOf(arg)})
+			}
 		} else {
 			results = process.Call([]reflect.Value{reflect.ValueOf(c)})
 		}
@@ -57,23 +61,24 @@ func getProcess(model interface{}, name string, arg interface{}) (process reflec
 	if process = val.MethodByName(name); process.IsValid() {
 		processType := process.Type()
 		if processType.NumIn() == 2 {
-			if arg == nil {
-				err = fmt.Errorf("%+v#%v takes two arguments, but we don't have a second argument!", model, name)
-			}
 			if !processType.In(0).Implements(reflect.TypeOf((*PersistenceContext)(nil)).Elem()) {
 				err = fmt.Errorf("%+v#%v takes a %v, not a PersistenceContext as first argument", model, name, processType.In(0))
 				return
 			}
-			if !reflect.TypeOf(arg).AssignableTo(processType.In(1)) {
-				err = fmt.Errorf("%+v#%v takes a %v, not a %v as second argument", model, name, processType.In(0), reflect.TypeOf(arg))
-				return
+			if arg != nil {
+				if !reflect.TypeOf(arg).AssignableTo(processType.In(1)) {
+					err = fmt.Errorf("%+v#%v takes a %v, not a %v as second argument", model, name, processType.In(0), reflect.TypeOf(arg))
+					return
+				}
 			}
 		} else if processType.NumIn() == 1 {
 			if !processType.In(0).Implements(reflect.TypeOf((*PersistenceContext)(nil)).Elem()) {
 				err = fmt.Errorf("%+v#%v takes a %v, not a %v as argument", model, name, processType.In(0))
 				return
 			}
-
+		} else {
+			err = fmt.Errorf("%+v#%v doesn't take exactly one or two arguments", model, name)
+			return
 		}
 		if processType.NumOut() != 1 {
 			err = fmt.Errorf("%+v#%v doesn't produce exactly one return value", model, name)
