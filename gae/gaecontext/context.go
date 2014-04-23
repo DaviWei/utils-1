@@ -72,6 +72,8 @@ func ServiceStatusRenderer(ok4xxRatio, ok5xxRatio float64) func(c JSONContext) (
 type GAEContext interface {
 	gae.PersistenceContext
 	Transaction(trans interface{}, crossGroup bool) error
+	GetAllowHTTPDuringTransactions() bool
+	SetAllowHTTPDuringTransactions(b bool)
 	Client() *http.Client
 	ClientTimeout(time.Duration)
 }
@@ -106,9 +108,18 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 
 type DefaultContext struct {
 	appengine.Context
+	allowHTTPDuringTransactions bool
 	inTransaction    bool
 	afterTransaction []func(GAEContext) error
 	clientTimeout    time.Duration
+}
+
+func (self *DefaultContext) GetAllowHTTPDuringTransactions() bool {
+	return self.allowHTTPDuringTransactions
+}
+
+func (self *DefaultContext) SetAllowHTTPDuringTransactions(b bool) {
+	self.allowHTTPDuringTransactions = b
 }
 
 func (self *DefaultContext) ClientTimeout(d time.Duration) {
@@ -182,7 +193,8 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	if t.T.Context.(GAEContext).InTransaction() {
+	cont := t.T.Context.(GAEContext)
+	if cont.InTransaction() && !cont.GetAllowHTTPDuringTransactions() {
 		return nil, fmt.Errorf("Avoid using Client() when in an transaction. %s %s", req.Method, req.URL.String())
 	}
 	start := time.Now()
