@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -28,6 +29,36 @@ func init() {
 const (
 	randomChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
+
+var camelRegUl = regexp.MustCompile("^([A-Z0-9][a-z0-9]*)(.*)$")
+var camelReglU = regexp.MustCompile("^([a-z0-9]*)(.*)$")
+var camelRegUUx = regexp.MustCompile("^([A-Z0-9][A-Z0-9]+)$")
+var camelRegUU = regexp.MustCompile("^([A-Z0-9][A-Z0-9]+)(.*)$")
+
+func CamelToSnake(s string) (string, error) {
+	resultSlice := []string{}
+	i := 0
+	for len(s) > 0 {
+		i++
+		if i > 50 {
+			return s, fmt.Errorf("%#v doesn't seem possible to convert to snake case?", s)
+		}
+		if match := camelRegUUx.FindStringSubmatch(s); match != nil {
+			resultSlice = append(resultSlice, strings.ToLower(match[1]))
+			s = ""
+		} else if match := camelRegUU.FindStringSubmatch(s); match != nil {
+			resultSlice = append(resultSlice, strings.ToLower(match[1][:len(match[1])-1]))
+			s = match[1][len(match[1])-1:] + match[2]
+		} else if match := camelRegUl.FindStringSubmatch(s); match != nil {
+			resultSlice = append(resultSlice, strings.ToLower(match[1]))
+			s = match[2]
+		} else if match := camelReglU.FindStringSubmatch(s); match != nil {
+			resultSlice = append(resultSlice, match[1])
+			s = match[2]
+		}
+	}
+	return strings.Join(resultSlice, "_"), nil
+}
 
 func RandomString(i int) string {
 	buf := new(bytes.Buffer)

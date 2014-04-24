@@ -17,6 +17,7 @@ import (
 
 const (
 	APIVersionHeader = "X-API-Version"
+	RespondMarshal   = "respond"
 )
 
 func APIVersionMatcher(minAPIVersion, maxAPIVersion int) mux.MatcherFunc {
@@ -112,7 +113,7 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func RunBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
+func RunBodyBeforeMarshal(c interface{}, body interface{}, arg interface{}) (err error) {
 	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
@@ -127,7 +128,9 @@ func RunBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
 		if fun.IsValid() {
 			// Validate BeforeMarshal takes something that implements JSONContextLogger
 			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
-				return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+				if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType, reflect.TypeOf(arg)}); err != nil {
+					return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+				}
 			}
 
 			// Validate BeforeMarshal returns an error
@@ -135,7 +138,11 @@ func RunBodyBeforeMarshal(c interface{}, body interface{}) (err error) {
 				return fmt.Errorf("BeforeMarshal needs to return an error")
 			}
 
-			res := fun.Call([]reflect.Value{cVal, stack})
+			args := []reflect.Value{cVal, stack}
+			if fun.Type().NumIn() == 3 {
+				args = append(args, reflect.ValueOf(arg))
+			}
+			res := fun.Call(args)
 			if res[0].IsNil() {
 				return nil
 			} else {
@@ -186,7 +193,7 @@ func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err
 		c.Resp().WriteHeader(status)
 	}
 	if body != nil {
-		if err = RunBodyBeforeMarshal(c, body); err != nil {
+		if err = RunBodyBeforeMarshal(c, body, RespondMarshal); err != nil {
 			return
 		}
 
