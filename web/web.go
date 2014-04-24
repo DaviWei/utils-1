@@ -8,7 +8,7 @@ import (
 
 func BasicAuth(r *http.Request, name, password string) (ok bool, err error) {
 	auth := r.Header.Get("Authorization")
-	if auth == "" {
+	if auth == "" || auth[:len("Basic")] != "Basic" {
 		return
 	}
 	decoded, err := base64.StdEncoding.DecodeString(strings.Replace(auth, "Basic ", "", -1))
