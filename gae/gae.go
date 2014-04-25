@@ -350,7 +350,7 @@ func PutMulti(c PersistenceContext, src interface{}) (err error) {
 				return
 			}
 		}
-		if err = runProcess(c, src, BeforeSaveName, oldIfs[i]); err != nil {
+		if err = runProcess(c, srcVal.Index(i).Interface(), BeforeSaveName, oldIfs[i]); err != nil {
 			return
 		}
 	}
