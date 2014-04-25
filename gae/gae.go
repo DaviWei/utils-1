@@ -236,7 +236,7 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 		} else if err == nil {
-			if err = runProcess(c, old, BeforeDeleteName, nil); err != nil {
+			if err = runProcess(c, old.Interface(), BeforeDeleteName, nil); err != nil {
 				return
 			}
 			if err = datastore.Delete(c, gaeKey); err != nil {
@@ -250,7 +250,7 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 				return
 			}
 		}
-		if err = runProcess(c, old, AfterDeleteName, nil); err != nil {
+		if err = runProcess(c, old.Interface(), AfterDeleteName, nil); err != nil {
 			return
 		}
 	}
