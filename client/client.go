@@ -46,14 +46,10 @@ type AccessToken interface {
 	EncodeSelf() (string, error)
 }
 
-type ServiceConfig interface {
-	AuthService() string
-	RadioService() string
-	PaymentService() string
-}
-
 type ServiceConnector interface {
-	ServiceConfig
+	GetAuthService() string
+	GetRadioService() string
+	GetPaymentService() string
 	Client() *http.Client
 }
 
@@ -208,7 +204,7 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 }
 
 func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (result *RemoteLocation, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
 	if err != nil {
 		return
 	}
@@ -224,7 +220,7 @@ func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (resul
 }
 
 func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *RemoteUser, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v", user.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("users/%v", user.Encode()), token, nil)
 	if err != nil {
 		return
 	}
@@ -240,7 +236,7 @@ func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *Remot
 }
 
 func CreateSlot(c ServiceConnector, token AccessToken, slot RemoteSlot) (result *RemoteSlot, err error) {
-	request, response, err := DoRequest(c, "POST", c.RadioService(), fmt.Sprintf("schedules/%v/slots", slot.Schedule.Encode()), token, slot)
+	request, response, err := DoRequest(c, "POST", c.GetRadioService(), fmt.Sprintf("schedules/%v/slots", slot.Schedule.Encode()), token, slot)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -253,7 +249,7 @@ func CreateSlot(c ServiceConnector, token AccessToken, slot RemoteSlot) (result 
 }
 
 func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err error) {
-	request, response, err := DoRequest(c, "POST", c.AuthService(), "users", nil, user)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), "users", nil, user)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -265,7 +261,7 @@ func CreateUser(c ServiceConnector, user RemoteUser) (result *RemoteUser, err er
 	return
 }
 func UpdateUser(c ServiceConnector, user *RemoteUser, token AccessToken) (result *RemoteUser, err error) {
-	request, response, err := DoRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%v", user.Id.Encode()), token, user)
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%v", user.Id.Encode()), token, user)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -278,7 +274,7 @@ func UpdateUser(c ServiceConnector, user *RemoteUser, token AccessToken) (result
 }
 
 func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessToken, encoded string, err error) {
-	request, response, err := DoRequest(c, "POST", c.AuthService(), "auth", nil, auth_request)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), "auth", nil, auth_request)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -293,7 +289,7 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 }
 
 func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("accounts/%v", account.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v", account.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -306,7 +302,7 @@ func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result 
 }
 
 func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result []RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("users/%v/accounts", user.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", user.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -318,7 +314,7 @@ func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result []
 }
 
 func GetTelemarketingDropoutAccounts(c ServiceConnector, token AccessToken) (result []RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), "telemarketing_dropout_accounts", token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), "telemarketing_dropout_accounts", token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -330,7 +326,7 @@ func GetTelemarketingDropoutAccounts(c ServiceConnector, token AccessToken) (res
 }
 
 func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone RemoteSoundZone) (result *RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "POST", c.AuthService(), fmt.Sprintf("accounts/%v/soundzones", remoteSoundZone.Account.Encode()), token, remoteSoundZone)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/soundzones", remoteSoundZone.Account.Encode()), token, remoteSoundZone)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -343,7 +339,7 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 }
 
 func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
-	request, response, err := DoRequest(c, "PUT", c.AuthService(), fmt.Sprintf("soundzones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("soundzones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -353,7 +349,7 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 }
 
 func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "POST", c.AuthService(), fmt.Sprintf("users/%v/accounts", account.Owner.Encode()), token, account)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", account.Owner.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
@@ -366,7 +362,7 @@ func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount)
 }
 
 func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("soundzones/%v", soundZone.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("soundzones/%v", soundZone.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -378,7 +374,7 @@ func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (res
 }
 
 func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result []RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "GET", c.AuthService(), fmt.Sprintf("accounts/%v/soundzones", account_id.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/soundzones", account_id.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -390,7 +386,7 @@ func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (r
 }
 
 func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSpotifyAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.PaymentService(), fmt.Sprintf("soundzones/%v/spotify_account", soundZone.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("soundzones/%v/spotify_account", soundZone.Encode()), token, nil)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
@@ -402,7 +398,7 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 }
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
-	request, response, err := DoRequest(c, "PUT", c.AuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
 		"password": password,
 	})
 	if response.StatusCode != 200 {
