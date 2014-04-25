@@ -19,10 +19,14 @@ type ElasticConnector interface {
 	GetElasticPassword() string
 }
 
+var IndexNameProcessor = func(s string) string {
+	return s
+}
+
 var legalizeRegexp = regexp.MustCompile("[^a-z0-9,]")
 
-func legalizeIndexName(s string) string {
-	return legalizeRegexp.ReplaceAllString(strings.ToLower(s), "")
+func processIndexName(s string) string {
+	return IndexNameProcessor(legalizeRegexp.ReplaceAllString(strings.ToLower(s), ""))
 }
 
 /*
@@ -37,9 +41,9 @@ func Clear(c ElasticConnector, toDelete ...string) (err error) {
 		err = fmt.Errorf("Can only give at most 2 string args to Clear")
 		return
 	} else if len(toDelete) == 2 {
-		url += fmt.Sprintf("/%v/%v", legalizeIndexName(toDelete[0]), toDelete[1])
+		url += fmt.Sprintf("/%v/%v", processIndexName(toDelete[0]), toDelete[1])
 	} else if len(toDelete) == 1 {
-		url += fmt.Sprintf("/%v", legalizeIndexName(toDelete[0]))
+		url += fmt.Sprintf("/%v", processIndexName(toDelete[0]))
 	} else {
 		url += "/_all"
 	}
@@ -65,7 +69,7 @@ func Clear(c ElasticConnector, toDelete ...string) (err error) {
 }
 
 func RemoveFromIndex(c ElasticConnector, index string, source interface{}) (err error) {
-	index = legalizeIndexName(index)
+	index = processIndexName(index)
 	value := reflect.ValueOf(source)
 	id := value.Elem().FieldByName("Id").Interface().(key.Key).Encode()
 
@@ -106,7 +110,7 @@ AddToIndex adds source to a search index.
 Source must have a field `Id *datastore.key`.
 */
 func AddToIndex(c ElasticConnector, index string, source interface{}) (err error) {
-	index = legalizeIndexName(index)
+	index = processIndexName(index)
 
 	value := reflect.ValueOf(source)
 	id := value.Elem().FieldByName("Id").Interface().(key.Key).Encode()
@@ -194,7 +198,7 @@ sorting it using the specified sort (a JSON string describing a sort according t
 and limiting/offsetting it using the provided limit and offset.
 */
 func Search(c ElasticConnector, query *ElasticSearchRequest, index string, result interface{}) (err error) {
-	index = legalizeIndexName(index)
+	index = processIndexName(index)
 
 	resultValue := reflect.ValueOf(result).Elem()
 	resultItems := resultValue.FieldByName("Items")
