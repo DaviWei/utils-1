@@ -49,11 +49,15 @@ type Mapping struct {
 
 type IndexDef struct {
 	Mappings map[string]Mapping `json:"mappings,omitempty"`
+	Template string `json:"template,omitempty"`
 }
 
 func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
-	url := c.GetElasticService()
-	url += "/" + processIndexName(name)
+	return createIndexDef(c, "/" + processIndexName(name), def)
+}
+
+func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
+	url := c.GetElasticService() + path
 	b, err := json.Marshal(def)
 	if err != nil {
 		return
@@ -71,10 +75,14 @@ func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to create index in elasticsearch %v: %v", url, response.Status)
+		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v", url, response.Status)
 		return
 	}
 	return
+}
+
+func CreateIndexTemplate(c ElasticConnector, name string, def IndexDef) (err error) {
+	return createIndexDef(c, "/_template/" + name, def)
 }
 
 /*

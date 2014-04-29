@@ -22,6 +22,9 @@ const (
 
 func APIVersionMatcher(minAPIVersion, maxAPIVersion int) mux.MatcherFunc {
 	return func(req *http.Request, match *mux.RouteMatch) bool {
+		if minAPIVersion == 0 && maxAPIVersion == 0 {
+			return true
+		}
 		header := req.Header.Get(APIVersionHeader)
 		if header == "" {
 			return false
