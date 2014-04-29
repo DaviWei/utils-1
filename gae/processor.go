@@ -47,10 +47,8 @@ func runProcess(c PersistenceContext, model interface{}, name string, arg interf
 		} else {
 			results = process.Call([]reflect.Value{reflect.ValueOf(c)})
 		}
-		if len(results) > 1 {
-			if !results[len(results)-1].IsNil() {
-				return results[len(results)-1].Interface().(error)
-			}
+		if !results[0].IsNil() {
+			return results[len(results)-1].Interface().(error)
 		}
 	}
 	return nil
