@@ -41,9 +41,17 @@ type Properties struct {
 	Type string `json:"type"`
 	Index IndexOption `json:"index,omitempty"`
 	Store bool `json:"store"`
+	Fields map[string]Properties `json:"fields,omitempty"`
+}
+
+type DynamicTemplate struct {
+	Match string `json:"match"`
+	MatchMappingType string `json:"match_mapping_type"`
+	Mapping *Properties `json:"mapping,omitempty"`
 }
 
 type Mapping struct {
+	DynamicTemplates []map[string]DynamicTemplate `json:"dynamic_templates,omitempty"`
 	Properties map[string]Properties `json:"properties,omitempty"`
 }
 
