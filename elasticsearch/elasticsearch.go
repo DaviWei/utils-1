@@ -132,6 +132,50 @@ func Clear(c ElasticConnector, toDelete ...string) (err error) {
 	return
 }
 
+/*
+CreateDynamicMapping will create a sane default dynamic mapping where all
+string type fields are indexed twice, once analyzed under their proper name,
+and once non-analyzed under [name].na
+ */
+func CreateDynamicMapping(c ElasticConnector) (err error) {
+	indexDef := IndexDef{
+		Template:
+		"*",
+		Mappings: map[string]Mapping{
+			"_default_": Mapping{
+				DynamicTemplates: []map[string]DynamicTemplate{
+					map[string]DynamicTemplate{
+						"default": DynamicTemplate{
+							Match: "*",
+							MatchMappingType: "string",
+							Mapping: &Properties{
+								Type: "multi_field",
+								Fields: map[string]Properties{
+									"{name}": Properties{
+										Index: AnalyzedIndex,
+										Type: "string",
+										Store: true,
+									},
+									"{name}.na": Properties{
+										Index: NotAnalyzedIndex,
+										Type: "string",
+										Store: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if err = CreateIndexTemplate(c, "default", indexDef); err != nil {
+		return
+	}
+	return
+}
+
+
 func RemoveFromIndex(c ElasticConnector, index string, source interface{}) (err error) {
 	index = processIndexName(index)
 	value := reflect.ValueOf(source)
