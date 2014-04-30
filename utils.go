@@ -28,7 +28,8 @@ func init() {
 }
 
 const (
-	randomChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	randomChars            = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	NonConfusingCharacters = "23456789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
 )
 
 var camelRegUl = regexp.MustCompile("^([A-Z0-9][a-z0-9]*)(.*)$")
