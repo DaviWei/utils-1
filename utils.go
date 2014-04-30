@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -436,4 +437,36 @@ func (self *ByteString) UnmarshalJSON(b []byte) error {
 	}
 	self.Bytes = []byte(s)
 	return nil
+}
+
+func EncodeBigInt(chars string, bigInt *big.Int) string {
+	if bigInt.Cmp(big.NewInt(int64(len(chars)))) < 0 {
+		return string(chars[bigInt.Int64()])
+	}
+	mod := big.NewInt(0)
+	rest := big.NewInt(0)
+	rest.DivMod(bigInt, big.NewInt(int64(len(chars))), mod)
+	return EncodeBigInt(chars, rest) + string(chars[mod.Int64()])
+}
+
+func EncodeBytes(chars string, b []byte) string {
+	bigInt := big.NewInt(int64(0))
+	bigInt.SetBytes(b)
+	return EncodeBigInt(chars, bigInt)
+}
+
+func DecodeBigInt(chars, encoded string) *big.Int {
+	if len(encoded) == 0 {
+		return big.NewInt(0)
+	}
+	least := big.NewInt(int64(strings.Index(chars, string(encoded[0]))))
+	base := big.NewInt(int64(len(chars)))
+	for i := 1; i < len(encoded); i++ {
+		least.Mul(least, base)
+	}
+	return least.Add(least, DecodeBigInt(chars, encoded[1:]))
+}
+
+func DecodeBytes(chars, encoded string) []byte {
+	return DecodeBigInt(chars, encoded).Bytes()
 }
