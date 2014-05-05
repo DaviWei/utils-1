@@ -437,3 +437,11 @@ func (self *ByteString) UnmarshalJSON(b []byte) error {
 	self.Bytes = []byte(s)
 	return nil
 }
+
+func ConstantTimeEqualString(s1, s2 string) bool {
+	return ConstantTimeEqualBytes([]byte(s1), []byte(s2))
+}
+
+func ConstantTimeEqualBytes(b1, b2 []byte) bool {
+	return len(b1) == len(b2) && subtle.ConstantTimeCompare(b1, b2) == 1
+}
