@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
+	"github.com/zond/docile"
 )
 
 var knownEncodings = map[reflect.Type]string{
@@ -106,6 +108,9 @@ var DefaultEndpointTemplateContent = `
   </div>
   <div id="collapse-{{UUID}}" class="panel-collapse collapse">
     <div class="panel-body">
+			{{if .Comment}}
+			<p style="font-size: large;">{{.Comment}}</p>
+			{{end}}
       <table class="table-bordered">
 			<tr>
   			<td valign="top">curl</td>
@@ -314,6 +319,7 @@ type DefaultDocumentedRoute struct {
 	MaxAPIVersion int
 	In            *JSONType
 	Out           *JSONType
+	Comment       string
 }
 
 func (self *DefaultDocumentedRoute) GetScopes() []string {
@@ -379,6 +385,8 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 	}
 }
 
+var fNameReg = regexp.MustCompile("^(.*)\\.([^.]+)$")
+
 /*
 Document will take a func, a path, a set of methods (separated by |) and a set of scopes that will be used when updating models in the func, and return a documented route and a function suitable for HandlerFunc.
 
@@ -415,6 +423,13 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 		MinAPIVersion: minAPIVersion,
 		MaxAPIVersion: maxAPIVersion,
 		Scopes:        scopes,
+	}
+	fName := runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name()
+	if match := fNameReg.FindStringSubmatch(fName); match != nil {
+		docRoute.Comment = fmt.Sprintf("%#v", match)
+		if comment, found := docile.Get(match[1], match[2]); found {
+			docRoute.Comment = comment
+		}
 	}
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
