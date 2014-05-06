@@ -9,7 +9,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils"
 )
 
 type ElasticConnector interface {
@@ -283,6 +285,16 @@ type SearchRequest struct {
 	From  int         `json:"from,omitempty"`
 	Size  int         `json:"size,omitempty"`
 	Sort  []map[string]Sort `json:"sort,omitempty"`
+	Facets map[string]FacetRequest `json:"facets,omitempty"`
+}
+
+type FacetRequest struct {
+	Terms *TermsFacetRequest `json:"terms,omitempty"`
+}
+
+type TermsFacetRequest struct {
+	Field string `json:"field"`
+	Size int `json:"size"`
 }
 
 type Sort struct {
@@ -310,6 +322,38 @@ type Hits struct {
 type SearchResponse struct {
 	Took float64 `json:"took"`
 	Hits Hits    `json:"hits"`
+	Facets map[string]FacetResponse `json:"facets,omitempty"`
+}
+
+func (self *SearchResponse) Copy(result interface{}) (err error) {
+	sources := make(Sources, len(self.Hits.Hits))
+	for index, hit := range self.Hits.Hits {
+		sources[index] = hit.Source
+	}
+	buf, err := json.Marshal(sources)
+	if err != nil {
+		return
+	}
+	resultValue := reflect.ValueOf(result).Elem()
+	if err = json.Unmarshal(buf, resultValue.FieldByName("Items").Addr().Interface()); err != nil {
+		return
+	}
+	resultValue.FieldByName("Total").Set(reflect.ValueOf(self.Hits.Total))
+
+	return
+}
+
+type FacetResponse struct {
+	Type string `json:"_type"`
+	Missing int `json:"missing"`
+	Total int `json:"total"`
+	Other int `json:"other"`
+	Terms []TermFacetResponse `json:"terms"`
+}
+
+type TermFacetResponse struct {
+	Term string `json:"term"`
+	Count int `json:"count"`
 }
 
 type FilteredQuery struct {
@@ -347,28 +391,35 @@ type RangeDef struct {
 	Boost string `json:"boost,omitempty"`
 }
 
+func SearchAndCopy(c ElasticConnector, query *SearchRequest, index string, result interface{}) (err error) {
+	name := reflect.ValueOf(result).Elem().FieldByName("Items").Type().Elem().Name()
+	response, err := Search(c, query, index, name)
+	if err != nil {
+		return
+	}
+	if err = response.Copy(result); err != nil {
+		return
+	}
+	return
+}
+
 /*
 Search will run the queryString (a query string parseable by http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html)
 (or elasticQuery if provided, a JSON string describing a request body according to http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-body.html)
 sorting it using the specified sort (a JSON string describing a sort according to http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-sort.html),
 and limiting/offsetting it using the provided limit and offset.
 */
-func Search(c ElasticConnector, query *SearchRequest, index string, result interface{}) (err error) {
+func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result *SearchResponse, err error) {
 	index = processIndexName(index)
-
-	resultValue := reflect.ValueOf(result).Elem()
-	resultItems := resultValue.FieldByName("Items")
-
-	name := resultItems.Type().Elem().Name()
 
 	url := c.GetElasticService()
 	if index == "" {
 		url += "/_all"
 	} else {
-		url += "/" + index
+		url += "/"+index
 	}
-	if name != "" {
-		url += "/" + name
+	if typ != "" {
+		url += "/"+typ
 	}
 	url += "/_search"
 
@@ -391,30 +442,19 @@ func Search(c ElasticConnector, query *SearchRequest, index string, result inter
 		return
 	}
 	defer response.Body.Close()
+	c.(gaecontext.JSONContext).Infof("### Sent\n%v", utils.Prettify(query))
 
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
 		return
 	}
 
-	elasticResult := &SearchResponse{}
-	err = json.NewDecoder(response.Body).Decode(&elasticResult)
+	result = &SearchResponse{}
+	err = json.NewDecoder(response.Body).Decode(&result)
 	if err != nil {
 		return
 	}
-
-	sources := make(Sources, len(elasticResult.Hits.Hits))
-	for index, hit := range elasticResult.Hits.Hits {
-		sources[index] = hit.Source
-	}
-	buf, err := json.Marshal(sources)
-	if err != nil {
-		return
-	}
-	if err = json.Unmarshal(buf, resultItems.Addr().Interface()); err != nil {
-		return
-	}
-	resultValue.FieldByName("Total").Set(reflect.ValueOf(elasticResult.Hits.Total))
-
+	c.(gaecontext.JSONContext).Infof("### Received\n%v", utils.Prettify(result))
 	return
 }
+
