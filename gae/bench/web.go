@@ -87,7 +87,6 @@ func test(c gaecontext.JSONContext) (result jsoncontext.Resp, err error) {
 	b.Measure(1, "DatastoreGet", func() {
 		t.Id = key.New("str", "", int64(i), nil)
 		if err = datastore.Get(c, t.Id.ToGAE(c), t); err != nil {
-			c.Infof("### trying to fetch %+v", t)
 			panic(err)
 		}
 		i++

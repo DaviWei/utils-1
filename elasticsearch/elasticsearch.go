@@ -393,8 +393,6 @@ func Search(c ElasticConnector, query *SearchRequest, index string, result inter
 	}
 	defer response.Body.Close()
 
-	c.(gaecontext.JSONContext).Infof("### POSTed to %#v:\n%v", url, string(b))
-
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
 		return
