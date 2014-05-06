@@ -32,36 +32,36 @@ func processIndexName(s string) string {
 type IndexOption string
 
 const (
-	AnalyzedIndex IndexOption = "analyzed"
+	AnalyzedIndex    IndexOption = "analyzed"
 	NotAnalyzedIndex IndexOption = "not_analyzed"
-	NoIndex IndexOption = "no"
+	NoIndex          IndexOption = "no"
 )
 
 type Properties struct {
-	Type string `json:"type"`
-	Index IndexOption `json:"index,omitempty"`
-	Store bool `json:"store"`
+	Type   string                `json:"type"`
+	Index  IndexOption           `json:"index,omitempty"`
+	Store  bool                  `json:"store"`
 	Fields map[string]Properties `json:"fields,omitempty"`
 }
 
 type DynamicTemplate struct {
-	Match string `json:"match"`
-	MatchMappingType string `json:"match_mapping_type"`
-	Mapping *Properties `json:"mapping,omitempty"`
+	Match            string      `json:"match"`
+	MatchMappingType string      `json:"match_mapping_type"`
+	Mapping          *Properties `json:"mapping,omitempty"`
 }
 
 type Mapping struct {
 	DynamicTemplates []map[string]DynamicTemplate `json:"dynamic_templates,omitempty"`
-	Properties map[string]Properties `json:"properties,omitempty"`
+	Properties       map[string]Properties        `json:"properties,omitempty"`
 }
 
 type IndexDef struct {
 	Mappings map[string]Mapping `json:"mappings,omitempty"`
-	Template string `json:"template,omitempty"`
+	Template string             `json:"template,omitempty"`
 }
 
 func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
-	return createIndexDef(c, "/" + processIndexName(name), def)
+	return createIndexDef(c, "/"+processIndexName(name), def)
 }
 
 func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
@@ -90,7 +90,7 @@ func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
 }
 
 func CreateIndexTemplate(c ElasticConnector, name string, def IndexDef) (err error) {
-	return createIndexDef(c, "/_template/" + name, def)
+	return createIndexDef(c, "/_template/"+name, def)
 }
 
 /*
@@ -136,29 +136,28 @@ func Clear(c ElasticConnector, toDelete ...string) (err error) {
 CreateDynamicMapping will create a sane default dynamic mapping where all
 string type fields are indexed twice, once analyzed under their proper name,
 and once non-analyzed under [name].na
- */
+*/
 func CreateDynamicMapping(c ElasticConnector) (err error) {
 	indexDef := IndexDef{
-		Template:
-		"*",
+		Template: "*",
 		Mappings: map[string]Mapping{
 			"_default_": Mapping{
 				DynamicTemplates: []map[string]DynamicTemplate{
 					map[string]DynamicTemplate{
 						"default": DynamicTemplate{
-							Match: "*",
+							Match:            "*",
 							MatchMappingType: "string",
 							Mapping: &Properties{
 								Type: "multi_field",
 								Fields: map[string]Properties{
 									"{name}": Properties{
 										Index: AnalyzedIndex,
-										Type: "string",
+										Type:  "string",
 										Store: true,
 									},
 									"{name}.na": Properties{
 										Index: NotAnalyzedIndex,
-										Type: "string",
+										Type:  "string",
 										Store: true,
 									},
 								},
@@ -174,7 +173,6 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 	}
 	return
 }
-
 
 func RemoveFromIndex(c ElasticConnector, index string, source interface{}) (err error) {
 	index = processIndexName(index)
@@ -268,12 +266,12 @@ type StringQuery struct {
 }
 
 type Query struct {
-	String *StringQuery `json:"query_string,omitempty"`
-	Term map[string]string `json:"term,omitempty"`
-	Range map[string]RangeDef `json:"range,omitempty"`
-	Bool *BoolQuery `json:"bool,omitempty"`
-	Filtered *FilteredQuery `json:"filtered,omitempty"`
-	MatchAll *MatchAllQuery `json:"match_all,omitempty"`
+	String   *StringQuery        `json:"query_string,omitempty"`
+	Term     map[string]string   `json:"term,omitempty"`
+	Range    map[string]RangeDef `json:"range,omitempty"`
+	Bool     *BoolQuery          `json:"bool,omitempty"`
+	Filtered *FilteredQuery      `json:"filtered,omitempty"`
+	MatchAll *MatchAllQuery      `json:"match_all,omitempty"`
 }
 
 type MatchAllQuery struct {
@@ -281,7 +279,7 @@ type MatchAllQuery struct {
 }
 
 type SearchRequest struct {
-	Query *Query `json:"query,omitempty"`
+	Query *Query      `json:"query,omitempty"`
 	From  int         `json:"from,omitempty"`
 	Size  int         `json:"size,omitempty"`
 	Sort  interface{} `json:"sort,omitempty"`
@@ -304,33 +302,34 @@ type Hits struct {
 }
 
 type SearchResponse struct {
-	Took float64     `json:"took"`
-	Hits Hits `json:"hits"`
+	Took float64 `json:"took"`
+	Hits Hits    `json:"hits"`
 }
 
 type FilteredQuery struct {
-	Query  *Query `json:"query"`
+	Query  *Query  `json:"query"`
 	Filter *Filter `json:"filter"`
 }
 
 type BoolFilter struct {
-	Must []Filter `json:"must,omitempty"`
+	Must    []Filter `json:"must,omitempty"`
 	MustNot []Filter `json:"must_not,omitempty"`
-	Should []Filter `json:"should,omitempty"`
+	Should  []Filter `json:"should,omitempty"`
 }
 
 type BoolQuery struct {
-	Must []Query `json:"must,omitempty"`
-	MustNot []Query `json:"must_not,omitempty"`
-	Should []Query `json:"should,omitempty"`
-	MinimumShouldMatch int `json:"minimum_should_match,omitempty"`
-	Boost float64 `json:"boost,omitempty"`
+	Must               []Query `json:"must,omitempty"`
+	MustNot            []Query `json:"must_not,omitempty"`
+	Should             []Query `json:"should,omitempty"`
+	MinimumShouldMatch int     `json:"minimum_should_match,omitempty"`
+	Boost              float64 `json:"boost,omitempty"`
 }
 
 type Filter struct {
-	Or []Query `json:"or,omitempty"`
-	Bool *BoolFilter `json:"bool,omitempty"`
-	Term map[string]string `json:"term,omitempty"`
+	Or    []Query             `json:"or,omitempty"`
+	Query *Query              `json:"query,omitempty"`
+	Bool  *BoolFilter         `json:"bool,omitempty"`
+	Term  map[string]string   `json:"term,omitempty"`
 	Range map[string]RangeDef `json:"range,omitempty"`
 }
 
