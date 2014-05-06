@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/soundtrackyourbrand/utils/key"
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 )
 
 type ElasticConnector interface {
