@@ -338,7 +338,6 @@ type Filter struct {
 	Bool  *BoolFilter         `json:"bool,omitempty"`
 	Term  map[string]string   `json:"term,omitempty"`
 	Range map[string]RangeDef `json:"range,omitempty"`
-	Query *Query `json:"query,omitempty"`
 }
 
 type RangeDef struct {
