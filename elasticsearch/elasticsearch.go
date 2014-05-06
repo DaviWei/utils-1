@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 )
 
 type ElasticConnector interface {
@@ -152,13 +153,13 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 								Fields: map[string]Properties{
 									"{name}": Properties{
 										Index: AnalyzedIndex,
-										Type:  "string",
-										Store: true,
+										Type: "string",
+										Store: false,
 									},
 									"{name}.na": Properties{
 										Index: NotAnalyzedIndex,
-										Type:  "string",
-										Store: true,
+										Type: "string",
+										Store: false,
 									},
 								},
 							},
@@ -282,7 +283,13 @@ type SearchRequest struct {
 	Query *Query      `json:"query,omitempty"`
 	From  int         `json:"from,omitempty"`
 	Size  int         `json:"size,omitempty"`
-	Sort  interface{} `json:"sort,omitempty"`
+	Sort  []map[string]Sort `json:"sort,omitempty"`
+}
+
+type Sort struct {
+	Order string `json:"order"`
+	Missing string `json:"missing,omitempty"`
+	IgnoreUnmapped bool `json:"ignore_unmapped"`
 }
 
 type Sources []map[string]*json.RawMessage
@@ -331,6 +338,7 @@ type Filter struct {
 	Bool  *BoolFilter         `json:"bool,omitempty"`
 	Term  map[string]string   `json:"term,omitempty"`
 	Range map[string]RangeDef `json:"range,omitempty"`
+	Query *Query `json:"query,omitempty"`
 }
 
 type RangeDef struct {
@@ -385,6 +393,8 @@ func Search(c ElasticConnector, query *SearchRequest, index string, result inter
 		return
 	}
 	defer response.Body.Close()
+
+	c.(gaecontext.JSONContext).Infof("### POSTed to %#v:\n%v", url, string(b))
 
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
