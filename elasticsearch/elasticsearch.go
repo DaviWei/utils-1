@@ -8,10 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/key"
-	"github.com/soundtrackyourbrand/utils"
 )
 
 type ElasticConnector interface {
@@ -154,12 +151,12 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 								Fields: map[string]Properties{
 									"{name}": Properties{
 										Index: AnalyzedIndex,
-										Type: "string",
+										Type:  "string",
 										Store: false,
 									},
 									"{name}.na": Properties{
 										Index: NotAnalyzedIndex,
-										Type: "string",
+										Type:  "string",
 										Store: false,
 									},
 								},
@@ -281,10 +278,10 @@ type MatchAllQuery struct {
 }
 
 type SearchRequest struct {
-	Query *Query      `json:"query,omitempty"`
-	From  int         `json:"from,omitempty"`
-	Size  int         `json:"size,omitempty"`
-	Sort  []map[string]Sort `json:"sort,omitempty"`
+	Query  *Query                  `json:"query,omitempty"`
+	From   int                     `json:"from,omitempty"`
+	Size   int                     `json:"size,omitempty"`
+	Sort   []map[string]Sort       `json:"sort,omitempty"`
 	Facets map[string]FacetRequest `json:"facets,omitempty"`
 }
 
@@ -294,13 +291,13 @@ type FacetRequest struct {
 
 type TermsFacetRequest struct {
 	Field string `json:"field"`
-	Size int `json:"size"`
+	Size  int    `json:"size"`
 }
 
 type Sort struct {
-	Order string `json:"order"`
-	Missing string `json:"missing,omitempty"`
-	IgnoreUnmapped bool `json:"ignore_unmapped"`
+	Order          string `json:"order"`
+	Missing        string `json:"missing,omitempty"`
+	IgnoreUnmapped bool   `json:"ignore_unmapped"`
 }
 
 type Sources []map[string]*json.RawMessage
@@ -320,8 +317,8 @@ type Hits struct {
 }
 
 type SearchResponse struct {
-	Took float64 `json:"took"`
-	Hits Hits    `json:"hits"`
+	Took   float64                  `json:"took"`
+	Hits   Hits                     `json:"hits"`
 	Facets map[string]FacetResponse `json:"facets,omitempty"`
 }
 
@@ -344,16 +341,16 @@ func (self *SearchResponse) Copy(result interface{}) (err error) {
 }
 
 type FacetResponse struct {
-	Type string `json:"_type"`
-	Missing int `json:"missing"`
-	Total int `json:"total"`
-	Other int `json:"other"`
-	Terms []TermFacetResponse `json:"terms"`
+	Type    string              `json:"_type"`
+	Missing int                 `json:"missing"`
+	Total   int                 `json:"total"`
+	Other   int                 `json:"other"`
+	Terms   []TermFacetResponse `json:"terms"`
 }
 
 type TermFacetResponse struct {
-	Term string `json:"term"`
-	Count int `json:"count"`
+	Term  string `json:"term"`
+	Count int    `json:"count"`
 }
 
 type FilteredQuery struct {
@@ -416,10 +413,10 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 	if index == "" {
 		url += "/_all"
 	} else {
-		url += "/"+index
+		url += "/" + index
 	}
 	if typ != "" {
-		url += "/"+typ
+		url += "/" + typ
 	}
 	url += "/_search"
 
@@ -442,7 +439,6 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 		return
 	}
 	defer response.Body.Close()
-	c.(gaecontext.JSONContext).Infof("### Sent\n%v", utils.Prettify(query))
 
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
@@ -454,7 +450,5 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 	if err != nil {
 		return
 	}
-	c.(gaecontext.JSONContext).Infof("### Received\n%v", utils.Prettify(result))
 	return
 }
-
