@@ -511,6 +511,25 @@ func DelAll(c PersistenceContext, src interface{}) (err error) {
 	return DelQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Name()))
 }
 
+func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) {
+	dsIds := make([]*datastore.Key, len(ids))
+	for index, id := range ids {
+		dsIds[index] = gaekey.ToGAE(c, id)
+	}
+	if err = datastore.GetMulti(c, dsIds, src); err != nil {
+		return
+	}
+	srcVal := reflect.ValueOf(src)
+	for index, id := range ids {
+		el := srcVal.Index(index)
+		el.FieldByName("Id").Set(reflect.ValueOf(id))
+		if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
+			return
+		}
+	}
+	return
+}
+
 func GetAll(c PersistenceContext, src interface{}) (err error) {
 	srcTyp := reflect.TypeOf(src)
 	if srcTyp.Kind() != reflect.Ptr {
