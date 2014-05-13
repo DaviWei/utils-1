@@ -21,6 +21,7 @@ import (
 
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/run"
+	"net/http"
 )
 
 func init() {
@@ -478,4 +479,15 @@ func ConstantTimeEqualString(s1, s2 string) bool {
 
 func ConstantTimeEqualBytes(b1, b2 []byte) bool {
 	return len(b1) == len(b2) && subtle.ConstantTimeCompare(b1, b2) == 1
+}
+
+// For debugging use. Converts a http.Request to a curl string for copy'n'paste to terminal
+func ToCurl(req *http.Request) string {
+	curl := fmt.Sprintf("curl -v -X%s %q -d %q", req.Method, req.URL, req.Body)
+	for header, vals := range req.Header {
+		for _, val := range vals {
+			curl = fmt.Sprintf(`%s -H "%s: %+v"`, curl, header, val)
+		}
+	}
+	return curl
 }
