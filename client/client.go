@@ -91,20 +91,21 @@ func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mail
 
 type RemoteAccount struct {
 	DefaultMeta
-	Address       string  `json:"address,omitempty"`
-	BusinessName  string  `json:"business_name,omitempty"`
-	BusinessType  string  `json:"business_type,omitempty"`
-	City          string  `json:"city,omitempty"`
-	Comment       string  `json:"comment,omitempty"`
-	ISOCountry    string  `json:"iso_country,omitempty"`
-	VATCode       string  `json:"vat_code,omitempty"`
-	Locale        string  `json:"locale,omitempty"`
-	Phone         string  `json:"phone,omitempty"`
-	Owner         key.Key `json:"owner,omitempty"`
-	PostalCode    string  `json:"postal_code,omitempty"`
-	MaxSoundZones int     `json:"max_sound_zones,omitempty"`
-	Deactivated   bool    `json:"deactivated,omitempty"`
-	OrgNumber     string  `json:"org_number,omitempty"`
+	Address               string  `json:"address,omitempty"`
+	BusinessName          string  `json:"business_name,omitempty"`
+	BusinessType          string  `json:"business_type,omitempty"`
+	City                  string  `json:"city,omitempty"`
+	Comment               string  `json:"comment,omitempty"`
+	ISOCountry            string  `json:"iso_country,omitempty"`
+	VATCode               string  `json:"vat_code,omitempty"`
+	Locale                string  `json:"locale,omitempty"`
+	Phone                 string  `json:"phone,omitempty"`
+	Owner                 key.Key `json:"owner,omitempty"`
+	PostalCode            string  `json:"postal_code,omitempty"`
+	MaxSoundZones         int     `json:"max_sound_zones,omitempty"`
+	MaxUnbilledSoundZones int     `json:"max_unbilled_sound_zones,omitempty"`
+	Deactivated           bool    `json:"deactivated,omitempty"`
+	OrgNumber             string  `json:"org_number,omitempty"`
 }
 
 type RemoteSoundZone struct {
@@ -121,9 +122,11 @@ type RemoteSoundZone struct {
 	SpotifyUsername string         `json:"spotify_username,omitempty"`
 	SpotifyPassword string         `json:"spotify_password,omitempty"`
 	PaidUntil       utils.JSONTime `json:"iso8601_paid_until"`
+	BilledUntil     utils.JSONTime `json:"iso8601_billed_until"`
 	Locale          string         `json:"locale,omitempty"`
 	Schedule        key.Key        `json:"schedule,omitempty"`
 	Deactivated     bool           `json:"deactivated"`
+	DeviceId        string         `json:"device_id"`
 }
 
 type RemoteSlot struct {
