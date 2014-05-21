@@ -65,7 +65,7 @@ type LogStats struct {
 	MinCost      float64
 }
 
-func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
+func GetLogStats(c appengine.Context, from, to time.Time, max int) (result *LogStats) {
 	result = &LogStats{
 		Statuses: StatusMap{},
 	}
@@ -87,6 +87,9 @@ func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
 		}
 		if result.MinCost == 0 || rec.Cost < result.MinCost {
 			result.MinCost = rec.Cost
+		}
+		if result.Records >= max {
+			break
 		}
 	}
 	return

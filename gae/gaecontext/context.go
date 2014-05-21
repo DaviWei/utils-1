@@ -36,7 +36,7 @@ func ServiceStatusRenderer(ok4xxRatio, ok5xxRatio float64) func(c JSONContext) (
 		result = &ServiceStatus{
 			Desc: "It's Log, Log, it's better than bad, it's good!",
 		}
-		stats := gae.GetLogStats(c, time.Now().Add(-time.Hour), time.Now())
+		stats := gae.GetLogStats(c, time.Now().Add(-time.Hour), time.Now(), 128)
 		result.Status = "status_ok"
 		var num4xx float64
 		var num5xx float64
@@ -109,9 +109,9 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 type DefaultContext struct {
 	appengine.Context
 	allowHTTPDuringTransactions bool
-	inTransaction    bool
-	afterTransaction []func(GAEContext) error
-	clientTimeout    time.Duration
+	inTransaction               bool
+	afterTransaction            []func(GAEContext) error
+	clientTimeout               time.Duration
 }
 
 func (self *DefaultContext) GetAllowHTTPDuringTransactions() bool {
