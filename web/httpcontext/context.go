@@ -323,6 +323,11 @@ func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) 
 }
 
 func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
+	defer func() {
+		if e := recover(); e != nil {
+			c.Errorf("PANIC\n%v\nRequest: %+v", e, c.Req())
+		}
+	}()
 	err := c.CheckScopes(scopes)
 	if err == nil {
 		err = f()
