@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -325,7 +326,7 @@ func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) 
 func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 	defer func() {
 		if e := recover(); e != nil {
-			c.Errorf("PANIC\n%v\nRequest: %+v", e, c.Req())
+			c.Errorf("PANIC\n%v\nRequest: %+v\nStack: %s", e, c.Req(), debug.Stack())
 		}
 	}()
 	err := c.CheckScopes(scopes)
