@@ -327,6 +327,7 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 	defer func() {
 		if e := recover(); e != nil {
 			c.Errorf("PANIC\n%v\nRequest: %+v\nStack: %s", e, c.Req(), debug.Stack())
+			panic(e)
 		}
 	}()
 	err := c.CheckScopes(scopes)
