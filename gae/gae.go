@@ -56,6 +56,9 @@ func (self StatusMap) MarshalJSON() (b []byte, err error) {
 
 type LogStats struct {
 	Records      int
+	From         time.Time
+	To           time.Time
+	Max          int
 	Statuses     StatusMap
 	TotalLatency time.Duration
 	MaxLatency   time.Duration
@@ -65,9 +68,12 @@ type LogStats struct {
 	MinCost      float64
 }
 
-func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
+func GetLogStats(c appengine.Context, from, to time.Time, max int) (result *LogStats) {
 	result = &LogStats{
 		Statuses: StatusMap{},
+		From:     from,
+		To:       to,
+		Max:      max,
 	}
 	query := &log.Query{StartTime: from, EndTime: to}
 	res := query.Run(c)
@@ -87,6 +93,9 @@ func GetLogStats(c appengine.Context, from, to time.Time) (result *LogStats) {
 		}
 		if result.MinCost == 0 || rec.Cost < result.MinCost {
 			result.MinCost = rec.Cost
+		}
+		if result.Records >= max {
+			break
 		}
 	}
 	return
