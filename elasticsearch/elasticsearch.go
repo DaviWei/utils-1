@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils/key"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/soundtrackyourbrand/utils/key"
 )
 
 type ElasticConnector interface {
@@ -259,18 +260,22 @@ type PageableItems struct {
 	Total int
 }
 
+type SimpleStringQuery StringQuery
+
 type StringQuery struct {
 	Query           string `json:"query"`
 	AnalyzeWildcard bool   `json:"analyze_wildcard"`
+	DefaultField    string `json:"default_field"`
 }
 
 type Query struct {
-	String   *StringQuery        `json:"query_string,omitempty"`
-	Term     map[string]string   `json:"term,omitempty"`
-	Range    map[string]RangeDef `json:"range,omitempty"`
-	Bool     *BoolQuery          `json:"bool,omitempty"`
-	Filtered *FilteredQuery      `json:"filtered,omitempty"`
-	MatchAll *MatchAllQuery      `json:"match_all,omitempty"`
+	String       *StringQuery        `json:"query_string,omitempty"`
+	SimpleString *SimpleStringQuery  `json:"simple_query_string,omitempty"`
+	Term         map[string]string   `json:"term,omitempty"`
+	Range        map[string]RangeDef `json:"range,omitempty"`
+	Bool         *BoolQuery          `json:"bool,omitempty"`
+	Filtered     *FilteredQuery      `json:"filtered,omitempty"`
+	MatchAll     *MatchAllQuery      `json:"match_all,omitempty"`
 }
 
 type MatchAllQuery struct {
