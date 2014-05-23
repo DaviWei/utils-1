@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/soundtrackyourbrand/utils/key"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
-	"github.com/soundtrackyourbrand/utils/key"
 )
 
 type ElasticConnector interface {
@@ -317,9 +317,11 @@ type Hits struct {
 }
 
 type SearchResponse struct {
-	Took   float64                  `json:"took"`
-	Hits   Hits                     `json:"hits"`
-	Facets map[string]FacetResponse `json:"facets,omitempty"`
+	Took    float64                  `json:"took"`
+	Hits    Hits                     `json:"hits"`
+	Facets  map[string]FacetResponse `json:"facets,omitempty"`
+	Page    int                      `json:"page"`
+	PerPage int                      `json:"per_page"`
 }
 
 func (self *SearchResponse) Copy(result interface{}) (err error) {
@@ -336,6 +338,8 @@ func (self *SearchResponse) Copy(result interface{}) (err error) {
 		return
 	}
 	resultValue.FieldByName("Total").Set(reflect.ValueOf(self.Hits.Total))
+	resultValue.FieldByName("Page").Set(reflect.ValueOf(self.Page))
+	resultValue.FieldByName("PerPage").Set(reflect.ValueOf(self.PerPage))
 
 	return
 }
@@ -407,6 +411,9 @@ sorting it using the specified sort (a JSON string describing a sort according t
 and limiting/offsetting it using the provided limit and offset.
 */
 func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result *SearchResponse, err error) {
+	if query.Size == 0 {
+		query.Size = 10
+	}
 	index = processIndexName(index)
 
 	url := c.GetElasticService()
@@ -450,5 +457,8 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 	if err != nil {
 		return
 	}
+
+	result.Page = query.From
+	result.PerPage = query.Size
 	return
 }
