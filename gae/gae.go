@@ -68,7 +68,7 @@ type LogStats struct {
 	MinCost      float64
 }
 
-func GetLogStats(c appengine.Context, from, to time.Time, max int) (result *LogStats) {
+func GetLogStats(c appengine.Context, from, to time.Time, max int, includeDelayTasks bool) (result *LogStats) {
 	result = &LogStats{
 		Statuses: StatusMap{},
 		From:     from,
@@ -78,24 +78,26 @@ func GetLogStats(c appengine.Context, from, to time.Time, max int) (result *LogS
 	query := &log.Query{StartTime: from, EndTime: to}
 	res := query.Run(c)
 	for rec, err := res.Next(); err == nil; rec, err = res.Next() {
-		result.Records++
-		result.Statuses[rec.Status]++
-		result.TotalLatency += rec.Latency
-		if result.MaxLatency == 0 || rec.Latency > result.MaxLatency {
-			result.MaxLatency = rec.Latency
-		}
-		if result.MinLatency == 0 || rec.Latency < result.MinLatency {
-			result.MinLatency = rec.Latency
-		}
-		result.TotalCost += rec.Cost
-		if result.MaxCost == 0 || rec.Cost > result.MaxCost {
-			result.MaxCost = rec.Cost
-		}
-		if result.MinCost == 0 || rec.Cost < result.MinCost {
-			result.MinCost = rec.Cost
-		}
-		if result.Records >= max {
-			break
+		if includeDelayTasks || rec.Resource != "/_ah/queue/go/delay" {
+			result.Records++
+			result.Statuses[rec.Status]++
+			result.TotalLatency += rec.Latency
+			if result.MaxLatency == 0 || rec.Latency > result.MaxLatency {
+				result.MaxLatency = rec.Latency
+			}
+			if result.MinLatency == 0 || rec.Latency < result.MinLatency {
+				result.MinLatency = rec.Latency
+			}
+			result.TotalCost += rec.Cost
+			if result.MaxCost == 0 || rec.Cost > result.MaxCost {
+				result.MaxCost = rec.Cost
+			}
+			if result.MinCost == 0 || rec.Cost < result.MinCost {
+				result.MinCost = rec.Cost
+			}
+			if result.Records >= max {
+				break
+			}
 		}
 	}
 	return
