@@ -36,7 +36,7 @@ func ServiceStatusRenderer(ok4xxRatio, ok5xxRatio float64) func(c JSONContext) (
 		result = &ServiceStatus{
 			Desc: "It's Log, Log, it's better than bad, it's good!",
 		}
-		stats := gae.GetLogStats(c, time.Now().Add(-time.Hour), time.Now(), 128)
+		stats := gae.GetLogStats(c, time.Now().Add(-time.Hour), time.Now(), 128, false)
 		result.Status = "status_ok"
 		var num4xx float64
 		var num5xx float64
