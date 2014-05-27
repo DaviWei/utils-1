@@ -288,6 +288,15 @@ type SearchRequest struct {
 	Size   int                     `json:"size,omitempty"`
 	Sort   []map[string]Sort       `json:"sort,omitempty"`
 	Facets map[string]FacetRequest `json:"facets,omitempty"`
+	Aggs   map[string]AggRequest   `json:"aggs,omitempty"`
+}
+
+type ValueCountAggRequest struct {
+	Field string `json:"field"`
+}
+
+type AggRequest struct {
+	ValueCount *ValueCountAggRequest `json:"value_count,omitempty"`
 }
 
 type FacetRequest struct {
@@ -322,11 +331,12 @@ type Hits struct {
 }
 
 type SearchResponse struct {
-	Took    float64                  `json:"took"`
-	Hits    Hits                     `json:"hits"`
-	Facets  map[string]FacetResponse `json:"facets,omitempty"`
-	Page    int                      `json:"page"`
-	PerPage int                      `json:"per_page"`
+	Took         float64                   `json:"took"`
+	Hits         Hits                      `json:"hits"`
+	Facets       map[string]FacetResponse  `json:"facets,omitempty"`
+	Page         int                       `json:"page"`
+	PerPage      int                       `json:"per_page"`
+	Aggregations map[string]map[string]int `json:"aggregations,omitempty"`
 }
 
 func (self *SearchResponse) Copy(result interface{}) (err error) {
