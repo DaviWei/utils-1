@@ -295,8 +295,13 @@ type ValueCountAggRequest struct {
 	Field string `json:"field"`
 }
 
+type CardinalityAggRequest struct {
+	Field string `json:"field"`
+}
+
 type AggRequest struct {
-	ValueCount *ValueCountAggRequest `json:"value_count,omitempty"`
+	ValueCount  *ValueCountAggRequest  `json:"value_count,omitempty"`
+	Cardinality *CardinalityAggRequest `json:"cardinality,omitempty"`
 }
 
 type FacetRequest struct {
@@ -473,7 +478,7 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 		return
 	}
 
-	result.Page = query.From
+	result.Page = 1 + (query.From / query.Size)
 	result.PerPage = query.Size
 	return
 }
