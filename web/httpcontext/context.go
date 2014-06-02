@@ -47,6 +47,10 @@ func (self HTTPError) GetStatus() int {
 	return self.Status
 }
 
+func (self HTTPError) GetStack() []byte {
+	return self.Stack
+}
+
 func (self HTTPError) String() string {
 	return fmt.Sprintf("Status: %v\nBody: %v\nCause: %v\nInfo: %v\nStack: %s", self.Status, self.Body, self.Cause, self.Info, self.Stack)
 }
@@ -59,7 +63,7 @@ func NewError(status int, body interface{}, info string, cause error) (result HT
 		Info:   info,
 	}
 
-	if ErrorStackTraces {
+	if ErrorStackTraces && status >= 500 {
 		result.Stack = make([]byte, 1024*1024)
 		runtime.Stack(result.Stack, true)
 	}
@@ -348,6 +352,9 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 			c.Errorf("%v\n%v\n\n", c.Req().URL, err)
 		} else {
 			c.Warningf("%v\n%v\n\n", c.Req().URL, err)
+		}
+		if stacker, ok := err.(utils.StackError); ok {
+			c.Infof("%s", string(stacker.GetStack()))
 		}
 	}
 }
