@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/soundtrackyourbrand/syb-core/gaecommon"
-	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -35,6 +33,7 @@ func GetKinds(c appengine.Context) (result []string, err error) {
 
 type PersistenceContext interface {
 	memcache.TransactionContext
+	Transaction(trans interface{}, crossGroup bool) error
 	AfterCreate(interface{}) error
 	AfterSave(interface{}) error
 	AfterUpdate(interface{}) error
@@ -636,10 +635,10 @@ func (self ErrLockTaken) Error() string {
 	return fmt.Sprintf("%v is already taken!", self.Key)
 }
 
-func (self *KeyLock) LockedBy(c gaecommon.Context) (isLocked bool, lockedBy key.Key, err error) {
+func (self *KeyLock) LockedBy(c PersistenceContext) (isLocked bool, lockedBy key.Key, err error) {
 	existingLock := &KeyLock{Id: self.Id}
-	if err = gae.GetById(c, existingLock); err != nil {
-		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+	if err = GetById(c, existingLock); err != nil {
+		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 			return
 		} else {
@@ -651,13 +650,13 @@ func (self *KeyLock) LockedBy(c gaecommon.Context) (isLocked bool, lockedBy key.
 	return
 }
 
-func (self *KeyLock) Lock(c gaecommon.Context) error {
+func (self *KeyLock) Lock(c PersistenceContext) error {
 	snapshot := *self
-	return c.Transaction(func(c gaecommon.Context) (err error) {
+	return c.Transaction(func(c PersistenceContext) (err error) {
 		*self = snapshot
 		existingLock := &KeyLock{Id: self.Id}
-		err = gae.GetById(c, existingLock)
-		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+		err = GetById(c, existingLock)
+		if _, ok := err.(ErrNoSuchEntity); ok {
 			err = nil
 		} else if err == nil {
 			err = ErrLockTaken{Key: self.Id}
@@ -665,24 +664,24 @@ func (self *KeyLock) Lock(c gaecommon.Context) error {
 		if err != nil {
 			return
 		}
-		err = gae.Put(c, self)
+		err = Put(c, self)
 		return
 	}, false)
 }
 
-func (self *KeyLock) Unlock(c gaecommon.Context) (err error) {
+func (self *KeyLock) Unlock(c PersistenceContext) (err error) {
 	snapshot := *self
-	return c.Transaction(func(c gaecommon.Context) (err error) {
+	return c.Transaction(func(c PersistenceContext) (err error) {
 		*self = snapshot
 		existingLock := &KeyLock{Id: self.Id}
-		if err = gae.GetById(c, existingLock); err != nil {
+		if err = GetById(c, existingLock); err != nil {
 			return
 		}
 		if existingLock.Entity != self.Entity {
 			err = fmt.Errorf("%+v doesn't own %v", self, self.Entity)
 			return
 		}
-		err = gae.Del(c, existingLock)
+		err = Del(c, existingLock)
 		return
 	}, false)
 }

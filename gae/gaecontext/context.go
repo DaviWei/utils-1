@@ -71,7 +71,6 @@ func ServiceStatusRenderer(ok4xxRatio, ok5xxRatio float64) func(c JSONContext) (
 
 type GAEContext interface {
 	gae.PersistenceContext
-	Transaction(trans interface{}, crossGroup bool) error
 	GetAllowHTTPDuringTransactions() bool
 	SetAllowHTTPDuringTransactions(b bool)
 	Client() *http.Client
