@@ -19,9 +19,10 @@ import (
 	"text/template"
 	"time"
 
+	"net/http"
+
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/run"
-	"net/http"
 )
 
 func init() {
@@ -30,7 +31,7 @@ func init() {
 
 const (
 	randomChars            = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	NonConfusingCharacters = "23456789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
+	NonConfusingCharacters = "356789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
 )
 
 var camelRegUl = regexp.MustCompile("^([A-Z0-9][a-z0-9]*)(.*)$")
@@ -67,6 +68,14 @@ func RandomString(i int) string {
 	buf := new(bytes.Buffer)
 	for buf.Len() < i {
 		fmt.Fprintf(buf, "%c", randomChars[rand.Intn(len(randomChars))])
+	}
+	return string(buf.Bytes())
+}
+
+func RandomStringFrom(chars string, i int) string {
+	buf := new(bytes.Buffer)
+	for buf.Len() < i {
+		fmt.Fprintf(buf, "%c", chars[rand.Intn(len(chars))])
 	}
 	return string(buf.Bytes())
 }
@@ -418,6 +427,31 @@ type MailType string
 type EmailTemplateSender interface {
 	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
 	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
+}
+
+type Base64String string
+
+func (self Base64String) Bytes() (result []byte, err error) {
+	return base64.StdEncoding.DecodeString(string(self))
+}
+
+func (self Base64String) MarshalJSON() (result []byte, err error) {
+	if _, err = base64.StdEncoding.DecodeString(string(self)); err != nil {
+		return
+	}
+	return json.Marshal(string(self))
+}
+
+func (self Base64String) String() string {
+	return string(self)
+}
+
+func (self *Base64String) UnmarshalJSON(b []byte) (err error) {
+	if err = json.Unmarshal(b, self); err != nil {
+		return err
+	}
+	_, err = base64.StdEncoding.DecodeString(string(*self))
+	return
 }
 
 type ByteString struct {
