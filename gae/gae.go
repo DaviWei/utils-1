@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/soundtrackyourbrand/syb-core/gaecommon"
+	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -619,4 +621,68 @@ func DelQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err er
 		}
 	}
 	return memcache.Del(c, memcacheKeys...)
+}
+
+type KeyLock struct {
+	Id     key.Key
+	Entity key.Key
+}
+
+type ErrLockTaken struct {
+	Key key.Key
+}
+
+func (self ErrLockTaken) Error() string {
+	return fmt.Sprintf("%v is already taken!", self.Key)
+}
+
+func (self *KeyLock) LockedBy(c gaecommon.Context) (isLocked bool, lockedBy key.Key, err error) {
+	existingLock := &KeyLock{Id: self.Id}
+	if err = gae.GetById(c, existingLock); err != nil {
+		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+			err = nil
+			return
+		} else {
+			return
+		}
+	}
+	isLocked = true
+	lockedBy = existingLock.Entity
+	return
+}
+
+func (self *KeyLock) Lock(c gaecommon.Context) error {
+	snapshot := *self
+	return c.Transaction(func(c gaecommon.Context) (err error) {
+		*self = snapshot
+		existingLock := &KeyLock{Id: self.Id}
+		err = gae.GetById(c, existingLock)
+		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+			err = nil
+		} else if err == nil {
+			err = ErrLockTaken{Key: self.Id}
+		}
+		if err != nil {
+			return
+		}
+		err = gae.Put(c, self)
+		return
+	}, false)
+}
+
+func (self *KeyLock) Unlock(c gaecommon.Context) (err error) {
+	snapshot := *self
+	return c.Transaction(func(c gaecommon.Context) (err error) {
+		*self = snapshot
+		existingLock := &KeyLock{Id: self.Id}
+		if err = gae.GetById(c, existingLock); err != nil {
+			return
+		}
+		if existingLock.Entity != self.Entity {
+			err = fmt.Errorf("%+v doesn't own %v", self, self.Entity)
+			return
+		}
+		err = gae.Del(c, existingLock)
+		return
+	}, false)
 }
