@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -367,6 +368,11 @@ type KeyLock struct {
 type ErrLockTaken struct {
 	Key    key.Key
 	Entity key.Key
+	Stack  []byte
+}
+
+func (self ErrLockTaken) GetStack() []byte {
+	return self.Stack
 }
 
 func (self ErrLockTaken) Error() string {
@@ -397,7 +403,11 @@ func (self *KeyLock) Lock(c GAEContext) error {
 		if _, ok := err.(gae.ErrNoSuchEntity); ok {
 			err = nil
 		} else if err == nil {
-			err = utils.NewError(ErrLockTaken{Key: self.Id, Entity: existingLock.Entity})
+			err = ErrLockTaken{
+				Key:    self.Id,
+				Entity: existingLock.Entity,
+				Stack:  debug.Stack(),
+			}
 		}
 		if err != nil {
 			return
