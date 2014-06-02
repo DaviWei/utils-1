@@ -15,13 +15,15 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"text/template"
 	"time"
 
+	"net/http"
+
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/run"
-	"net/http"
 )
 
 func init() {
@@ -30,7 +32,7 @@ func init() {
 
 const (
 	randomChars            = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	NonConfusingCharacters = "23456789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
+	NonConfusingCharacters = "356789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
 )
 
 var camelRegUl = regexp.MustCompile("^([A-Z0-9][a-z0-9]*)(.*)$")
@@ -44,7 +46,7 @@ func CamelToSnake(s string) (string, error) {
 	for len(s) > 0 {
 		i++
 		if i > 50 {
-			return s, fmt.Errorf("%#v doesn't seem possible to convert to snake case?", s)
+			return s, Errorf("%#v doesn't seem possible to convert to snake case?", s)
 		}
 		if match := camelRegUUx.FindStringSubmatch(s); match != nil {
 			resultSlice = append(resultSlice, strings.ToLower(match[1]))
@@ -71,6 +73,14 @@ func RandomString(i int) string {
 	return string(buf.Bytes())
 }
 
+func RandomStringFrom(chars string, i int) string {
+	buf := new(bytes.Buffer)
+	for buf.Len() < i {
+		fmt.Fprintf(buf, "%c", chars[rand.Intn(len(chars))])
+	}
+	return string(buf.Bytes())
+}
+
 func Prettify(obj interface{}) string {
 	b, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
@@ -82,10 +92,10 @@ func Prettify(obj interface{}) string {
 func InSlice(slice interface{}, needle interface{}) (result bool, err error) {
 	sliceValue := reflect.ValueOf(slice)
 	if sliceValue.Kind() != reflect.Slice {
-		err = fmt.Errorf("%#v is not a slice", slice)
+		err = Errorf("%#v is not a slice", slice)
 	}
 	if sliceValue.Type().Elem() != reflect.TypeOf(needle) {
-		err = fmt.Errorf("%#v is a slice of %#v", slice, needle)
+		err = Errorf("%#v is a slice of %#v", slice, needle)
 	}
 	for i := 0; i < sliceValue.Len(); i++ {
 		if reflect.DeepEqual(sliceValue.Index(i).Interface(), needle) {
@@ -123,7 +133,7 @@ func ParseAccessTokens(s []byte, token AccessToken) {
 	secret = s
 	accessTokenType = reflect.TypeOf(token)
 	if accessTokenType.Kind() != reflect.Ptr || accessTokenType.Elem().Kind() != reflect.Struct {
-		panic(fmt.Errorf("%v is not a pointer to a struct", token))
+		panic(Errorf("%v is not a pointer to a struct", token))
 	}
 	gob.Register(token)
 }
@@ -178,11 +188,11 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 	envelope := &tokenEnvelope{}
 	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(strings.Replace(d, ".", "=", -1))))
 	if err = dec.Decode(&envelope); err != nil {
-		err = fmt.Errorf("Invalid AccessToken: %v, %v", d, err)
+		err = Errorf("Invalid AccessToken: %v, %v", d, err)
 		return
 	}
 	if envelope.ExpiresAt.Before(time.Now()) {
-		err = fmt.Errorf("Expired AccessToken: %v", envelope)
+		err = Errorf("Expired AccessToken: %v", envelope)
 		return
 	}
 	wantedHash, err := envelope.generateHash()
@@ -190,39 +200,74 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 		return
 	}
 	if len(wantedHash) != len(envelope.Hash) || subtle.ConstantTimeCompare(envelope.Hash, wantedHash) != 1 {
-		err = fmt.Errorf("Invalid AccessToken: hash of %+v should be %v but was %v", envelope.Token, hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
+		err = Errorf("Invalid AccessToken: hash of %+v should be %v but was %v", envelope.Token, hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
 		return
 	}
 	dstVal := reflect.ValueOf(dst)
 	tokenVal := reflect.ValueOf(envelope.Token)
 	if dstVal.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%#v is not a pointer", dst)
+		err = Errorf("%#v is not a pointer", dst)
 		return
 	}
 	if tokenVal.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%#v is not a pointer", tokenVal.Interface())
+		err = Errorf("%#v is not a pointer", tokenVal.Interface())
 		return
 	}
 	if dstVal.Type() != tokenVal.Type() {
-		err = fmt.Errorf("Can't load a %v into a %v", tokenVal.Type(), dstVal.Type())
+		err = Errorf("Can't load a %v into a %v", tokenVal.Type(), dstVal.Type())
 		return
 	}
 	dstVal.Elem().Set(tokenVal.Elem())
 	return
 }
 
+type StackError interface {
+	GetStack() []byte
+	Error() string
+}
+
+type DefaultStackError struct {
+	Source error
+	Stack  []byte
+}
+
+func NewError(source error) StackError {
+	if stackError, ok := source.(StackError); ok {
+		return stackError
+	}
+	return DefaultStackError{
+		Source: source,
+		Stack:  debug.Stack(),
+	}
+}
+
+func Errorf(f string, args ...interface{}) StackError {
+	return DefaultStackError{
+		Source: fmt.Errorf(f, args...),
+		Stack:  debug.Stack(),
+	}
+}
+
+func (self DefaultStackError) Error() string {
+	return self.Source.Error()
+}
+
+func (self DefaultStackError) GetStack() []byte {
+	return self.Stack
+}
+
 func ValidateFuncOutput(f interface{}, out []reflect.Type) error {
 	fVal := reflect.ValueOf(f)
 	if fVal.Kind() != reflect.Func {
-		return fmt.Errorf("%v is not a func", f)
+		return Errorf("%v is not a func", f)
 	}
 	fType := fVal.Type()
 	if fType.NumOut() != len(out) {
-		return fmt.Errorf("%v should take %v arguments", f, len(out))
+		return Errorf("%v should take %v arguments", f, len(out))
 	}
 	for index, outType := range out {
 		if !fType.Out(index).AssignableTo(outType) {
-			return fmt.Errorf("Return value %v for %v (%v) should be assignable to %v", index, f, fType.Out(index), outType)
+			return Errorf("Return value %v for %v (%v) should be assignable to %v", index, f, fType.Out(index), outType)
 		}
 	}
 	return nil
@@ -240,15 +285,15 @@ func ValidateFuncOutputs(f interface{}, outs ...[]reflect.Type) (errs []error) {
 func ValidateFuncInput(f interface{}, in []reflect.Type) error {
 	fVal := reflect.ValueOf(f)
 	if fVal.Kind() != reflect.Func {
-		return fmt.Errorf("%v is not a func", f)
+		return Errorf("%v is not a func", f)
 	}
 	fType := fVal.Type()
 	if fType.NumIn() != len(in) {
-		return fmt.Errorf("%v should take %v arguments", f, len(in))
+		return Errorf("%v should take %v arguments", f, len(in))
 	}
 	for index, inType := range in {
 		if !fType.In(index).AssignableTo(inType) {
-			return fmt.Errorf("Argument %v for %v (%v) should be assignable to %v", index, f, fType.In(index), inType)
+			return Errorf("Argument %v for %v (%v) should be assignable to %v", index, f, fType.In(index), inType)
 		}
 	}
 	return nil
@@ -418,6 +463,31 @@ type MailType string
 type EmailTemplateSender interface {
 	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
 	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
+}
+
+type Base64String string
+
+func (self Base64String) Bytes() (result []byte, err error) {
+	return base64.StdEncoding.DecodeString(string(self))
+}
+
+func (self Base64String) MarshalJSON() (result []byte, err error) {
+	if _, err = base64.StdEncoding.DecodeString(string(self)); err != nil {
+		return
+	}
+	return json.Marshal(string(self))
+}
+
+func (self Base64String) String() string {
+	return string(self)
+}
+
+func (self *Base64String) UnmarshalJSON(b []byte) (err error) {
+	if err = json.Unmarshal(b, self); err != nil {
+		return err
+	}
+	_, err = base64.StdEncoding.DecodeString(string(*self))
+	return
 }
 
 type ByteString struct {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -107,21 +108,21 @@ func GetLogStats(c appengine.Context, from, to time.Time, max int, includeDelayT
 func getTypeAndId(model interface{}) (typ reflect.Type, id key.Key, err error) {
 	val := reflect.ValueOf(model)
 	if val.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer", model)
+		err = utils.Errorf("%+v is not a pointer", model)
 		return
 	}
 	if val.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a pointer to a struct", model)
+		err = utils.Errorf("%+v is not a pointer to a struct", model)
 		return
 	}
 	typ = val.Elem().Type()
 	idField := val.Elem().FieldByName(idFieldName)
 	if !idField.IsValid() {
-		err = fmt.Errorf("%+v does not have a field named Id", model)
+		err = utils.Errorf("%+v does not have a field named Id", model)
 		return
 	}
 	if !idField.Type().AssignableTo(reflect.TypeOf(key.Key(""))) {
-		err = fmt.Errorf("%+v does not have a field named Id that is a key.Key", model)
+		err = utils.Errorf("%+v has an Id field of type %v, that isn't assignable to key.Key", model, idField.Type())
 		return
 	}
 	id = idField.Interface().(key.Key)
@@ -236,7 +237,7 @@ func Del(c PersistenceContext, src interface{}) (err error) {
 		return
 	}
 	if id == "" {
-		err = fmt.Errorf("%+v doesn't have an Id", src)
+		err = utils.Errorf("%+v doesn't have an Id", src)
 		return
 	}
 	gaeKey := gaekey.ToGAE(c, id)
@@ -277,15 +278,15 @@ func PutMulti(c PersistenceContext, src interface{}) (err error) {
 	// validate
 	srcVal := reflect.ValueOf(src)
 	if srcVal.Kind() != reflect.Slice {
-		err = fmt.Errorf("%+v is not a slice", src)
+		err = utils.Errorf("%+v is not a slice", src)
 		return
 	}
 	if srcVal.Type().Elem().Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a slice of pointers", src)
+		err = utils.Errorf("%+v is not a slice of pointers", src)
 		return
 	}
 	if srcVal.Type().Elem().Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a slice of struct pointers", src)
+		err = utils.Errorf("%+v is not a slice of struct pointers", src)
 		return
 	}
 	// build required data for loading old entities
@@ -299,7 +300,7 @@ func PutMulti(c PersistenceContext, src interface{}) (err error) {
 			return
 		}
 		if id == "" {
-			err = fmt.Errorf("%+v doesn't have an id")
+			err = utils.Errorf("%+v doesn't have an id")
 			return
 		}
 		ids[i] = id
@@ -412,7 +413,7 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		return
 	}
 	if id == "" {
-		err = fmt.Errorf("%+v doesn't have an Id", src)
+		err = utils.Errorf("%+v doesn't have an Id", src)
 		return
 	}
 	gaeKey := gaekey.ToGAE(c, id)
@@ -512,11 +513,11 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 func DelAll(c PersistenceContext, src interface{}) (err error) {
 	srcTyp := reflect.TypeOf(src)
 	if srcTyp.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer", src)
+		err = utils.Errorf("%+v is not a pointer", src)
 		return
 	}
 	if srcTyp.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a pointer to a struct", src)
+		err = utils.Errorf("%+v is not a pointer to a struct", src)
 		return
 	}
 	return DelQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Name()))
@@ -544,19 +545,19 @@ func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) 
 func GetAll(c PersistenceContext, src interface{}) (err error) {
 	srcTyp := reflect.TypeOf(src)
 	if srcTyp.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer", src)
+		err = utils.Errorf("%+v is not a pointer", src)
 		return
 	}
 	if srcTyp.Elem().Kind() != reflect.Slice {
-		err = fmt.Errorf("%+v is not a pointer to a slice", src)
+		err = utils.Errorf("%+v is not a pointer to a slice", src)
 		return
 	}
 	if srcTyp.Elem().Elem().Kind() != reflect.Ptr {
-		err = fmt.Errorf("%+v is not a pointer to a slice of pointers", src)
+		err = utils.Errorf("%+v is not a pointer to a slice of pointers", src)
 		return
 	}
 	if srcTyp.Elem().Elem().Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%+v is not a pointer to a slice of struct pointers", src)
+		err = utils.Errorf("%+v is not a pointer to a slice of struct pointers", src)
 		return
 	}
 	return GetQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Elem().Elem().Name()))

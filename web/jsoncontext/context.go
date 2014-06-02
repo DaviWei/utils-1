@@ -251,6 +251,10 @@ type ValidationError struct {
 	Fields map[string]field `json:"fields,omitempty"`
 }
 
+func (self ValidationError) GetStack() []byte {
+	return nil
+}
+
 func (self ValidationError) GetStatus() int {
 	return self.Status
 }

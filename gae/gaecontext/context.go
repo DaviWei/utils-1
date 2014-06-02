@@ -10,6 +10,7 @@ import (
 	"github.com/mjibson/appstats"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
+	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 
@@ -92,16 +93,18 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 	if err = utils.ValidateFuncInput(f, []reflect.Type{
 		reflect.TypeOf((*GAEContext)(nil)).Elem(),
 	}); err != nil {
+		err = utils.NewError(err)
 		return
 	}
 	if err = utils.ValidateFuncOutput(f, []reflect.Type{
 		reflect.TypeOf((*error)(nil)).Elem(),
 	}); err != nil {
+		err = utils.NewError(err)
 		return
 	}
 	if errVal := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(c)})[0]; !errVal.IsNil() {
-		err = errVal.Interface().(error)
-		return err.(error)
+		err = utils.NewError(errVal.Interface().(error))
+		return
 	}
 	return nil
 }
@@ -354,4 +357,69 @@ func DocHandle(router *mux.Router, f interface{}, path string, method string, mi
 			return fu(c)
 		}, minAPIVersion, maxAPIVersion, scopes...)
 	}))
+}
+
+type KeyLock struct {
+	Id     key.Key
+	Entity key.Key
+}
+
+type ErrLockTaken struct {
+	Key    key.Key
+	Entity key.Key
+}
+
+func (self ErrLockTaken) Error() string {
+	return fmt.Sprintf("%v is already taken by %v", self.Key, self.Entity)
+}
+
+func (self *KeyLock) LockedBy(c GAEContext) (isLocked bool, lockedBy key.Key, err error) {
+	existingLock := &KeyLock{Id: self.Id}
+	if err = gae.GetById(c, existingLock); err != nil {
+		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+			err = nil
+			return
+		} else {
+			return
+		}
+	}
+	isLocked = true
+	lockedBy = existingLock.Entity
+	return
+}
+
+func (self *KeyLock) Lock(c GAEContext) error {
+	snapshot := *self
+	return c.Transaction(func(c GAEContext) (err error) {
+		*self = snapshot
+		existingLock := &KeyLock{Id: self.Id}
+		err = gae.GetById(c, existingLock)
+		if _, ok := err.(gae.ErrNoSuchEntity); ok {
+			err = nil
+		} else if err == nil {
+			err = utils.NewError(ErrLockTaken{Key: self.Id, Entity: existingLock.Entity})
+		}
+		if err != nil {
+			return
+		}
+		err = gae.Put(c, self)
+		return
+	}, false)
+}
+
+func (self *KeyLock) Unlock(c GAEContext) (err error) {
+	snapshot := *self
+	return c.Transaction(func(c GAEContext) (err error) {
+		*self = snapshot
+		existingLock := &KeyLock{Id: self.Id}
+		if err = gae.GetById(c, existingLock); err != nil {
+			return
+		}
+		if existingLock.Entity != self.Entity {
+			err = utils.Errorf("%+v doesn't own %v", self, self.Entity)
+			return
+		}
+		err = gae.Del(c, existingLock)
+		return
+	}, false)
 }
