@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -249,7 +250,8 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status code from elasticsearch %v: %v", url, response.Status)
+		body, _ := ioutil.ReadAll(response.Body)
+		err = fmt.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
 		return
 	}
 	return
