@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"
 )
 
@@ -297,6 +298,10 @@ type ValueCountAggRequest struct {
 	Field string `json:"field"`
 }
 
+type TermsAggRequest struct {
+	Field string `json:"field"`
+}
+
 type CardinalityAggRequest struct {
 	Field string `json:"field"`
 }
@@ -304,6 +309,9 @@ type CardinalityAggRequest struct {
 type AggRequest struct {
 	ValueCount  *ValueCountAggRequest  `json:"value_count,omitempty"`
 	Cardinality *CardinalityAggRequest `json:"cardinality,omitempty"`
+	Terms       *TermsAggRequest       `json:"terms,omitempty"`
+	Aggs        map[string]AggRequest  `json:"aggs,omitempty"`
+	Filter      *Filter                `json:"filter,omitempty"`
 }
 
 type FacetRequest struct {
@@ -337,13 +345,28 @@ type Hits struct {
 	Hits     []ElasticDoc `json:"hits"`
 }
 
+type AggregationResult struct {
+	Value     int                        `json:"value,omitempty"`
+	DocCount  int                        `json:"doc_count,omitempty"`
+	TermCount AggregationTermCountResult `json:"termcount,omitempty"`
+}
+
+type AggregationTermCountResult struct {
+	Buckets []AggregationTermCountBucket `json:"buckets"`
+}
+
+type AggregationTermCountBucket struct {
+	DocCount int    `json:"doc_count"`
+	Key      string `json:"key"`
+}
+
 type SearchResponse struct {
-	Took         float64                   `json:"took"`
-	Hits         Hits                      `json:"hits"`
-	Facets       map[string]FacetResponse  `json:"facets,omitempty"`
-	Page         int                       `json:"page"`
-	PerPage      int                       `json:"per_page"`
-	Aggregations map[string]map[string]int `json:"aggregations,omitempty"`
+	Took         float64                      `json:"took"`
+	Hits         Hits                         `json:"hits"`
+	Facets       map[string]FacetResponse     `json:"facets,omitempty"`
+	Page         int                          `json:"page"`
+	PerPage      int                          `json:"per_page"`
+	Aggregations map[string]AggregationResult `json:"aggregations,omitempty"`
 }
 
 func (self *SearchResponse) Copy(result interface{}) (err error) {
@@ -399,11 +422,11 @@ type BoolQuery struct {
 }
 
 type Filter struct {
-	Or    []Query             `json:"or,omitempty"`
-	Query *Query              `json:"query,omitempty"`
-	Bool  *BoolFilter         `json:"bool,omitempty"`
-	Term  map[string]string   `json:"term,omitempty"`
-	Range map[string]RangeDef `json:"range,omitempty"`
+	Or    []Query                `json:"or,omitempty"`
+	Query *Query                 `json:"query,omitempty"`
+	Bool  *BoolFilter            `json:"bool,omitempty"`
+	Term  map[string]interface{} `json:"term,omitempty"`
+	Range map[string]RangeDef    `json:"range,omitempty"`
 }
 
 type RangeDef struct {
@@ -475,8 +498,16 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 	}
 
 	result = &SearchResponse{}
-	err = json.NewDecoder(response.Body).Decode(&result)
+	bodyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bodyBytes, &result); err != nil {
+		var secondTry interface{}
+		if err = json.Unmarshal(bodyBytes, &secondTry); err != nil {
+			return
+		}
+		err = fmt.Errorf("Unable to marshal %v into %#v", utils.Prettify(secondTry), result)
 		return
 	}
 
