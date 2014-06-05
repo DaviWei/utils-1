@@ -122,11 +122,11 @@ type RemoteSoundZone struct {
 	SpotifyUsername string         `json:"spotify_username,omitempty"`
 	SpotifyPassword string         `json:"spotify_password,omitempty"`
 	PaidUntil       utils.JSONTime `json:"iso8601_paid_until"`
-	BilledUntil     utils.JSONTime `json:"iso8601_billed_until"`
+	BilledUntil     utils.JSONTime `json:"iso8601_billed_until,omitempty"`
 	Locale          string         `json:"locale,omitempty"`
 	Schedule        key.Key        `json:"schedule,omitempty"`
 	Deactivated     bool           `json:"deactivated"`
-	DeviceId        string         `json:"device_id"`
+	DeviceId        string         `json:"device_id,omitempty"`
 }
 
 type RemoteSlot struct {
