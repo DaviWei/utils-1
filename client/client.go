@@ -388,22 +388,6 @@ func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (r
 	return
 }
 
-type UnbilledSoundZonesResponse struct {
-	UnbilledSoundZones int `json:"unbilled_sound_zones"`
-}
-
-func CountUnbilledSoundZonesForAccount(c ServiceConnector, accountId key.Key, token AccessToken) (result *UnbilledSoundZonesResponse, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/sound_zones/unbilled", accountId.Encode()), token, nil)
-	if response.StatusCode != 200 {
-		err = errorFor(request, response)
-		return
-	}
-
-	result = &UnbilledSoundZonesResponse{}
-	err = json.NewDecoder(response.Body).Decode(&result)
-	return
-}
-
 func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSpotifyAccount, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("soundzones/%v/spotify_account", soundZone.Encode()), token, nil)
 	if response.StatusCode != 200 {
