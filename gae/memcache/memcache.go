@@ -364,8 +364,7 @@ func memoizeMulti(
 						found = false
 					}
 				} else {
-					resultValue := reflect.ValueOf(result)
-					found = result != nil && resultValue.IsValid() && !resultValue.IsNil()
+					found = !utils.IsNil(result)
 					if !found {
 						err = memcache.ErrCacheMiss
 					}

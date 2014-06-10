@@ -40,6 +40,18 @@ var camelReglU = regexp.MustCompile("^([a-z0-9]*)(.*)$")
 var camelRegUUx = regexp.MustCompile("^([A-Z0-9][A-Z0-9]+)$")
 var camelRegUU = regexp.MustCompile("^([A-Z0-9][A-Z0-9]+)(.*)$")
 
+func IsNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	val := reflect.ValueOf(i)
+	switch val.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return val.IsNil()
+	}
+	return false
+}
+
 func CamelToSnake(s string) (string, error) {
 	resultSlice := []string{}
 	i := 0
