@@ -361,7 +361,7 @@ func DocHandle(router *mux.Router, f interface{}, path string, method string, mi
 }
 
 type KeyLock struct {
-	Id     key.Key
+	Id     key.Key `datastore:"-"`
 	Entity key.Key
 }
 

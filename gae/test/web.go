@@ -632,6 +632,124 @@ func testPutMulti(c gaecontext.HTTPContext) {
 
 }
 
+type MemMulTS struct {
+	Id   key.Key `datastore:"-"`
+	Name string
+}
+
+func testMemcacheMulti(c gaecontext.HTTPContext) {
+	doTest1 := func(c gaecontext.HTTPContext) (ts1, ts2 *MemMulTS) {
+		gae.DelAll(c, &MemMulTS{})
+		var err error
+		ts1 = &MemMulTS{}
+		if ts1.Id, err = key.For(ts1, "", 0, ""); err != nil {
+			panic(err)
+		}
+		ts2 = &MemMulTS{}
+		if ts2.Id, err = key.For(ts2, "", 0, ""); err != nil {
+			panic(err)
+		}
+		if err := gae.Put(c, ts1); err != nil {
+			panic(err)
+		}
+		if err := gae.Put(c, ts2); err != nil {
+			panic(err)
+		}
+		return
+	}
+	doTest2 := func(c gaecontext.HTTPContext, ts1, ts2 *MemMulTS) {
+		load1 := &MemMulTS{}
+		load2 := &MemMulTS{}
+		load3 := &MemMulTS{}
+		fakeId, err := key.New("MemMulTS", "hehu", 0, "")
+		if err != nil {
+			return
+		}
+		fgen := func(id key.Key) func() (result interface{}, err error) {
+			return func() (result interface{}, err error) {
+				ts := &MemMulTS{
+					Id: id,
+				}
+				if err = gae.GetById(c, ts); err != nil {
+					if _, ok := err.(gae.ErrNoSuchEntity); ok {
+						err = nil
+						return
+					}
+					return
+				}
+				result = ts
+				return
+			}
+		}
+		if err := memcache.MemoizeMulti(c, []string{
+			ts1.Id.Encode(),
+			ts2.Id.Encode(),
+			fakeId.Encode(),
+		}, []interface{}{
+			load1,
+			load2,
+			load3,
+		}, []func() (interface{}, error){
+			fgen(ts1.Id),
+			fgen(ts2.Id),
+			fgen(fakeId),
+		}); err != nil {
+			if err[0] != nil || err[1] != nil || err[2] != memcache.ErrCacheMiss {
+				for _, serr := range err {
+					c.Infof("Error: %v", serr)
+				}
+				panic(err)
+			}
+		}
+		if load1.Id != ts1.Id {
+			panic(fmt.Errorf("wrong id, wanted %v but got %v", ts1.Id, load1.Id))
+		}
+		if load2.Id != ts2.Id {
+			panic("wrong id")
+		}
+		if load3.Id != "" {
+			panic("wrong id")
+		}
+
+		load1 = &MemMulTS{}
+		load2 = &MemMulTS{}
+		load3 = &MemMulTS{}
+		if err := memcache.MemoizeMulti(c, []string{
+			ts1.Id.Encode(),
+			ts2.Id.Encode(),
+			fakeId.Encode(),
+		}, []interface{}{
+			load1,
+			load2,
+			load3,
+		}, []func() (interface{}, error){
+			fgen(ts1.Id),
+			fgen(ts2.Id),
+			fgen(fakeId),
+		}); err != nil {
+			if err[0] != nil || err[1] != nil || err[2] != memcache.ErrCacheMiss {
+				panic(err)
+			}
+		}
+		if load1.Id != ts1.Id {
+			panic(fmt.Errorf("wrong id, wanted %v but got %v", ts1.Id, load1.Id))
+		}
+		if load2.Id != ts2.Id {
+			panic("wrong id")
+		}
+		if load3.Id != "" {
+			panic("wrong id")
+		}
+	}
+	ts1, ts2 := doTest1(c)
+	doTest2(c, ts1, ts2)
+	ts1, ts2 = doTest1(c)
+	c.Transaction(func(c gaecontext.HTTPContext) (err error) {
+		doTest2(c, ts1, ts2)
+		return
+	}, true)
+}
+
 func testAccessTokens(c gaecontext.HTTPContext) {
 	enc, err := utils.EncodeToken(&Token{Name: "hehu"}, time.Hour)
 	if err != nil {
@@ -672,6 +790,7 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 
 func test(c gaecontext.HTTPContext) error {
 
+	run(c, testMemcacheMulti)
 	run(c, testPutMulti)
 	run(c, testAncestorFindByKey)
 	run(c, testFindByKey)
@@ -718,8 +837,8 @@ func getUser(c gaecontext.JSONContext, q Query) (status int, result *User, err e
 func init() {
 	router := mux.NewRouter()
 	router.Path("/").Handler(gaecontext.HTTPHandlerFunc(test))
-	gaecontext.DocHandle(router, getUsers, "/api/users", "GET", 0)
-	gaecontext.DocHandle(router, getUser, "/api/user", "GET", 0, "basic")
+	gaecontext.DocHandle(router, getUsers, "/api/users", "GET", 0, 0)
+	gaecontext.DocHandle(router, getUser, "/api/user", "GET", 0, 0, "basic")
 	router.Handle("/doc", jsoncontext.DefaultDocHandler)
 	http.Handle("/", router)
 }

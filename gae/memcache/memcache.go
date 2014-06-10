@@ -10,9 +10,10 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/soundtrackyourbrand/utils"
+
 	"appengine"
 	"appengine/memcache"
-	"github.com/soundtrackyourbrand/utils"
 )
 
 var MemcacheEnabled = true
@@ -311,7 +312,7 @@ memoizeMulti will look for all provided keys, and load them into the destination
 
 Any missing values will be generated using the generatorFunctions and put in memcache with a duration timeout.
 
-If cacheNil is true, nil results or memcacheErrCacheMiss errors from the generator function will be cached.
+If cacheNil is true, nil results or memcache.ErrCacheMiss errors from the generator function will be cached.
 
 It returns a slice of bools that show whether each value was found (either from memcache or from the genrator function).
 */
@@ -355,14 +356,23 @@ func memoizeMulti(
 					panicChan <- recover()
 				}()
 				var result interface{}
-				if result, err = generatorFunctions[index](); err != nil && err != memcache.ErrCacheMiss {
-					return
+				found := true
+				if result, err = generatorFunctions[index](); err != nil {
+					if err != memcache.ErrCacheMiss {
+						return
+					} else {
+						found = false
+					}
+				} else {
+					resultValue := reflect.ValueOf(result)
+					found = result != nil && resultValue.IsValid() && !resultValue.IsNil()
+					if !found {
+						err = memcache.ErrCacheMiss
+					}
 				}
-				resultValue := reflect.ValueOf(result)
-				found := err == nil && !resultValue.IsNil()
-				var flags uint32
-				obj := result
 				if !c.InTransaction() && (found || cacheNil) {
+					obj := result
+					var flags uint32
 					if !found {
 						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
 						flags = nilCache
@@ -376,9 +386,9 @@ func memoizeMulti(
 						err = err2
 						return
 					}
-					if found {
-						utils.ReflectCopy(result, destinationPointer)
-					}
+				}
+				if found {
+					utils.ReflectCopy(result, destinationPointer)
 				}
 				return
 			}()
