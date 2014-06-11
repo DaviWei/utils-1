@@ -106,6 +106,12 @@ type RemoteAccount struct {
 	MaxUnbilledSoundZones int     `json:"max_unbilled_sound_zones,omitempty"`
 	Deactivated           bool    `json:"deactivated,omitempty"`
 	OrgNumber             string  `json:"org_number,omitempty"`
+	Mono                  bool    `json:"mono,omitempty"`
+	TimeZone              string  `json:"timezone,omitempty"`
+	MinimizeBandwidth     bool    `json:"minimize_bandwidth,omitempty"`
+	TrackSeparation       int     `json:"track_separation,omitempty"`
+	ArtistSeparation      int     `json:"artist_separation,omitempty"`
+	AlbumSeparation       int     `json:"album_separation,omitempty"`
 }
 
 type RemoteSoundZone struct {
