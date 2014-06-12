@@ -116,16 +116,20 @@ func getTypeAndId(model interface{}) (typ reflect.Type, id key.Key, err error) {
 		return
 	}
 	typ = val.Elem().Type()
-	idField := val.Elem().FieldByName(idFieldName)
-	if !idField.IsValid() {
+	idField, found := val.Elem().Type().FieldByName(idFieldName)
+	if !found {
 		err = utils.Errorf("%+v does not have a field named Id", model)
 		return
 	}
-	if !idField.Type().AssignableTo(reflect.TypeOf(key.Key(""))) {
-		err = utils.Errorf("%+v has an Id field of type %v, that isn't assignable to key.Key", model, idField.Type())
+	if !idField.Type.AssignableTo(reflect.TypeOf(key.Key(""))) {
+		err = utils.Errorf("%+v has an Id field of type %v, that isn't assignable to key.Key", model, idField.Type)
 		return
 	}
-	id = idField.Interface().(key.Key)
+	if idField.Tag.Get("datastore") != "-" {
+		err = utils.Errorf("%+v has an Id field stored in datastore, which will cause no end of trouble. Set the tag of the Id field to be `datastore:\"-\"`", model)
+		return
+	}
+	id = val.Elem().FieldByName(idFieldName).Interface().(key.Key)
 	return
 }
 
@@ -214,7 +218,7 @@ func (self ErrNoSuchEntity) Respond(c httpcontext.HTTPContextLogger) (err error)
 	return
 }
 
-func newError(dst interface{}, cause error) (err error) {
+func newErrNoSuchEntity(dst interface{}, cause error) (err error) {
 	var typ reflect.Type
 	var id key.Key
 	if typ, id, err = getTypeAndId(dst); err != nil {
@@ -475,7 +479,7 @@ func findById(c PersistenceContext, dst interface{}) (err error) {
 		return
 	}
 	if err = datastore.Get(c, gaekey.ToGAE(c, id), dst); err == datastore.ErrNoSuchEntity {
-		err = newError(dst, err)
+		err = newErrNoSuchEntity(dst, err)
 		return
 	}
 	if err = FilterOkErrors(err); err != nil {
@@ -505,7 +509,7 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 	}); err == nil {
 		err = runProcess(c, dst, AfterLoadName, nil)
 	} else if err == memcache.ErrCacheMiss {
-		err = newError(dst, datastore.ErrNoSuchEntity)
+		err = newErrNoSuchEntity(dst, datastore.ErrNoSuchEntity)
 	}
 	return
 }
