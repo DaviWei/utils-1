@@ -91,21 +91,20 @@ func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mail
 
 type RemoteAccount struct {
 	DefaultMeta
-	Address               string  `json:"address,omitempty"`
-	BusinessName          string  `json:"business_name,omitempty"`
-	BusinessType          string  `json:"business_type,omitempty"`
-	City                  string  `json:"city,omitempty"`
-	Comment               string  `json:"comment,omitempty"`
-	ISOCountry            string  `json:"iso_country,omitempty"`
-	VATCode               string  `json:"vat_code,omitempty"`
-	Locale                string  `json:"locale,omitempty"`
-	Phone                 string  `json:"phone,omitempty"`
-	Owner                 key.Key `json:"owner,omitempty"`
-	PostalCode            string  `json:"postal_code,omitempty"`
-	MaxSoundZones         int     `json:"max_sound_zones,omitempty"`
-	MaxUnbilledSoundZones int     `json:"max_unbilled_sound_zones,omitempty"`
-	Deactivated           bool    `json:"deactivated,omitempty"`
-	OrgNumber             string  `json:"org_number,omitempty"`
+	Address               string `json:"address,omitempty"`
+	BusinessName          string `json:"business_name,omitempty"`
+	BusinessType          string `json:"business_type,omitempty"`
+	City                  string `json:"city,omitempty"`
+	Comment               string `json:"comment,omitempty"`
+	ISOCountry            string `json:"iso_country,omitempty"`
+	VATCode               string `json:"vat_code,omitempty"`
+	Locale                string `json:"locale,omitempty"`
+	Phone                 string `json:"phone,omitempty"`
+	PostalCode            string `json:"postal_code,omitempty"`
+	MaxSoundZones         int    `json:"max_sound_zones,omitempty"`
+	MaxUnbilledSoundZones int    `json:"max_unbilled_sound_zones,omitempty"`
+	Deactivated           bool   `json:"deactivated,omitempty"`
+	OrgNumber             string `json:"org_number,omitempty"`
 }
 
 type RemoteSoundZone struct {
@@ -218,6 +217,22 @@ func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (resul
 	}
 
 	result = &RemoteLocation{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
+func GetAccountContact(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteUser, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/contact", account.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteUser{}
 	err = json.NewDecoder(response.Body).Decode(result)
 
 	return
@@ -352,8 +367,8 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 	return
 }
 
-func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", account.Owner.Encode()), token, account)
+func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", owner.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
