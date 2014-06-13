@@ -532,7 +532,7 @@ func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) 
 	for index, id := range ids {
 		dsIds[index] = gaekey.ToGAE(c, id)
 	}
-	if err = datastore.GetMulti(c, dsIds, src); err != nil {
+	if err = FilterOkErrors(datastore.GetMulti(c, dsIds, src)); err != nil {
 		return
 	}
 	srcVal := reflect.ValueOf(src)

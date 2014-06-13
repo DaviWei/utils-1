@@ -89,22 +89,37 @@ func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mail
 	return sender.SendEmailTemplate(self.Email, mailContext, templateName, self.Locale, attachments, accountId)
 }
 
+type SoundZoneSettings struct {
+	Mono    bool `json:"mono"`
+	Offline bool `json:"offline"`
+}
+
+type ScheduleSettings struct {
+	TrackSeparation  int `json:"track_separation"`
+	ArtistSeparation int `json:"artist_separation"`
+	AlbumSeparation  int `json:"album_separation"`
+}
+
 type RemoteAccount struct {
 	DefaultMeta
-	Address               string `json:"address,omitempty"`
-	BusinessName          string `json:"business_name,omitempty"`
-	BusinessType          string `json:"business_type,omitempty"`
-	City                  string `json:"city,omitempty"`
-	Comment               string `json:"comment,omitempty"`
-	ISOCountry            string `json:"iso_country,omitempty"`
-	VATCode               string `json:"vat_code,omitempty"`
-	Locale                string `json:"locale,omitempty"`
-	Phone                 string `json:"phone,omitempty"`
-	PostalCode            string `json:"postal_code,omitempty"`
-	MaxSoundZones         int    `json:"max_sound_zones,omitempty"`
-	MaxUnbilledSoundZones int    `json:"max_unbilled_sound_zones,omitempty"`
-	Deactivated           bool   `json:"deactivated,omitempty"`
-	OrgNumber             string `json:"org_number,omitempty"`
+	Address               string           `json:"address,omitempty"`
+	BusinessName          string           `json:"business_name,omitempty"`
+	BusinessType          string           `json:"business_type,omitempty"`
+	City                  string           `json:"city,omitempty"`
+	Comment               string           `json:"comment,omitempty"`
+	ISOCountry            string           `json:"iso_country,omitempty"`
+	VATCode               string           `json:"vat_code,omitempty"`
+	Locale                string           `json:"locale,omitempty"`
+	Phone                 string           `json:"phone,omitempty"`
+	PostalCode            string           `json:"postal_code,omitempty"`
+	MaxSoundZones         int              `json:"max_sound_zones,omitempty"`
+	MaxUnbilledSoundZones int              `json:"max_unbilled_sound_zones,omitempty"`
+	Deactivated           bool             `json:"deactivated,omitempty"`
+	OrgNumber             string           `json:"org_number,omitempty"`
+	ScheduleSettings      ScheduleSettings `json:"schedule_settings,omitempty"`
+	TrackSeparation       int              `json:"track_separation,omitempty"`
+	ArtistSeparation      int              `json:"artist_separation,omitempty"`
+	AlbumSeparation       int              `json:"album_separation,omitempty"`
 }
 
 type RemoteSoundZone struct {
