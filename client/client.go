@@ -100,6 +100,35 @@ type ScheduleSettings struct {
 	AlbumSeparation  int `json:"album_separation"`
 }
 
+type RemoteProductQueue struct {
+	DefaultMeta
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Queue       []string `json:"queue"`
+}
+
+type RemoteVoucher struct {
+	DefaultMeta
+	Code         string      `json:"code"`
+	Label        string      `json:"label"`
+	ValidUntil   utils.JSONTime `json:"iso8601_valid_until"`
+	ProductQueue key.Key     `json:"product_queue"`
+	Email        string      `json:"email"`
+	MaxAccounts int `json:"max_accounts"`
+	MaxActivationsPerAccount int `json:"max_activations_per_account"`
+
+	DenormProductQueue *RemoteProductQueue `json:"denorm_product_queue,omitempty"`
+}
+
+type RemotePaymentMethod struct {
+	DefaultMeta
+	ValidUntil    utils.JSONTime    `json:"iso8601_valid_until"`
+	MaskedCC      string         `json:"masked_cc"`
+	PaymentMethod string         `json:"payment_method"`
+	Voucher       string         `json:"voucher"`
+	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
+}
+
 type RemoteAccount struct {
 	DefaultMeta
 	Address               string           `json:"address,omitempty"`
@@ -304,6 +333,19 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 	result.Encoded = strings.Join(response.Header["X-Access-Token-Issued"], "")
 	result.Encoded = strings.Replace(result.Encoded, ",", "", -1)
 	result.Encoded = strings.Replace(result.Encoded, " ", "", -1)
+	return
+}
+
+func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result *RemotePaymentMethod, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method", account.Encode()), token, nil)
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemotePaymentMethod{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
 	return
 }
 
