@@ -547,6 +547,10 @@ func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) 
 }
 
 func GetAll(c PersistenceContext, src interface{}) (err error) {
+	return GetQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Elem().Elem().Name()))
+}
+
+func GetQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err error) {
 	srcTyp := reflect.TypeOf(src)
 	if srcTyp.Kind() != reflect.Ptr {
 		err = utils.Errorf("%+v is not a pointer", src)
@@ -556,18 +560,15 @@ func GetAll(c PersistenceContext, src interface{}) (err error) {
 		err = utils.Errorf("%+v is not a pointer to a slice", src)
 		return
 	}
-	if srcTyp.Elem().Elem().Kind() != reflect.Ptr {
-		err = utils.Errorf("%+v is not a pointer to a slice of pointers", src)
+	if srcTyp.Elem().Elem().Kind() == reflect.Ptr {
+		if srcTyp.Elem().Elem().Elem().Kind() != reflect.Struct {
+			err = utils.Errorf("%+v is not a pointer to a slice of struct pointers", src)
+			return
+		}
+	} else if srcTyp.Elem().Elem().Kind() != reflect.Struct {
+		err = utils.Errorf("%+v is not a pointer to a slice of structs", src)
 		return
 	}
-	if srcTyp.Elem().Elem().Elem().Kind() != reflect.Struct {
-		err = utils.Errorf("%+v is not a pointer to a slice of struct pointers", src)
-		return
-	}
-	return GetQuery(c, src, datastore.NewQuery(reflect.TypeOf(src).Elem().Elem().Elem().Name()))
-}
-
-func GetQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err error) {
 	var dataIds []*datastore.Key
 	dataIds, err = q.GetAll(c, src)
 	if err = FilterOkErrors(err); err != nil {
@@ -580,9 +581,16 @@ func GetQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err er
 		if k, err = gaekey.FromGAE(dataId); err != nil {
 			return
 		}
-		el.Elem().FieldByName("Id").Set(reflect.ValueOf(k))
-		if err = runProcess(c, el.Interface(), AfterLoadName, nil); err != nil {
-			return
+		if el.Kind() == reflect.Ptr {
+			el.Elem().FieldByName("Id").Set(reflect.ValueOf(k))
+			if err = runProcess(c, el.Interface(), AfterLoadName, nil); err != nil {
+				return
+			}
+		} else {
+			el.FieldByName("Id").Set(reflect.ValueOf(k))
+			if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
+				return
+			}
 		}
 	}
 	return
