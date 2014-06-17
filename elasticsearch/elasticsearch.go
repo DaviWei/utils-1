@@ -421,12 +421,17 @@ type BoolQuery struct {
 	Boost              float64 `json:"boost,omitempty"`
 }
 
+type MissingFilter struct {
+	Field string `json:"field"`
+}
+
 type Filter struct {
-	Or    []Query                `json:"or,omitempty"`
-	Query *Query                 `json:"query,omitempty"`
-	Bool  *BoolFilter            `json:"bool,omitempty"`
-	Term  map[string]interface{} `json:"term,omitempty"`
-	Range map[string]RangeDef    `json:"range,omitempty"`
+	Or      []Query                `json:"or,omitempty"`
+	Query   *Query                 `json:"query,omitempty"`
+	Bool    *BoolFilter            `json:"bool,omitempty"`
+	Term    map[string]interface{} `json:"term,omitempty"`
+	Range   map[string]RangeDef    `json:"range,omitempty"`
+	Missing *MissingFilter         `json:"missing,omitempty"`
 }
 
 type RangeDef struct {
