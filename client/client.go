@@ -109,20 +109,20 @@ type RemoteProductQueue struct {
 
 type RemoteVoucher struct {
 	DefaultMeta
-	Code         string      `json:"code"`
-	Label        string      `json:"label"`
-	ValidUntil   utils.JSONTime `json:"iso8601_valid_until"`
-	ProductQueue key.Key     `json:"product_queue"`
-	Email        string      `json:"email"`
-	MaxAccounts int `json:"max_accounts"`
-	MaxActivationsPerAccount int `json:"max_activations_per_account"`
+	Code                     string         `json:"code"`
+	Label                    string         `json:"label"`
+	ValidUntil               utils.JSONTime `json:"iso8601_valid_until"`
+	ProductQueue             key.Key        `json:"product_queue"`
+	Email                    string         `json:"email"`
+	MaxAccounts              int            `json:"max_accounts"`
+	MaxActivationsPerAccount int            `json:"max_activations_per_account"`
 
 	DenormProductQueue *RemoteProductQueue `json:"denorm_product_queue,omitempty"`
 }
 
 type RemotePaymentMethod struct {
 	DefaultMeta
-	ValidUntil    utils.JSONTime    `json:"iso8601_valid_until"`
+	ValidUntil    utils.JSONTime `json:"iso8601_valid_until"`
 	MaskedCC      string         `json:"masked_cc"`
 	PaymentMethod string         `json:"payment_method"`
 	Voucher       string         `json:"voucher"`
@@ -171,6 +171,19 @@ type RemoteSoundZone struct {
 	Deactivated               bool           `json:"deactivated"`
 	SpotifyAccountDeactivated bool           `json:"spotify_account_deactivated"`
 	DeviceId                  string         `json:"device_id,omitempty"`
+}
+
+type RemoteSoundZoneErrorRequest struct {
+	Unique         bool                  `json:"unique"`
+	SoundZoneError *RemoteSoundZoneError `json:"sound_zone_error"`
+}
+
+type RemoteSoundZoneError struct {
+	DefaultMeta
+	Type     string           `json:"type"`
+	Cause    utils.ByteString `json:"cause"`
+	Info     string           `json:"info"`
+	Resolved bool             `json:"resolved"`
 }
 
 type RemoteSlot struct {
@@ -416,6 +429,16 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 
 func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("soundzones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
+func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId key.Key, soundZoneErrorReq RemoteSoundZoneErrorRequest) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, soundZoneErrorReq)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
