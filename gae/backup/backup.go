@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	AEBackupInformationKind = "_AE_Backup_Information Entities"
+	AEBackupInformationKind = "_AE_Backup_Information"
 )
 
 type Backup struct {
