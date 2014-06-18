@@ -3,6 +3,8 @@ package backup
 import (
 	"time"
 
+	"github.com/soundtrackyourbrand/utils/gae"
+
 	"appengine"
 	"appengine/datastore"
 )
@@ -26,6 +28,7 @@ type Backups []*Backup
 
 func GetBackups(c appengine.Context) (result Backups, err error) {
 	ids, err := datastore.NewQuery(AEBackupInformationKind).GetAll(c, &result)
+	err = gae.FilterOkErrors(err)
 	if err != nil {
 		return
 	}
