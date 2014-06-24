@@ -201,7 +201,7 @@ type RemoteSpotifyAccount struct {
 	DefaultMeta
 	SoundZone          key.Key        `json:"sound_zone" datastore:"-"`
 	PaidUntil          utils.JSONTime `json:"iso8601_paid_until"`
-	ProductCode        string         `json:"product_code"`
+	ProductCode        string         `json:"current_product_code"`
 	IsRecurring        bool           `json:"is_recurring"`
 	LastAutoPayFailure bool           `json:"last_auto_pay_failure"`
 	Deactivated        bool           `json:"deactivated"`
