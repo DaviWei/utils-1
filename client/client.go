@@ -247,6 +247,7 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 		request.Header.Add("Content-Type", "application/json")
 	}
 
+	//TODO, we should start using version 2!
 	request.Header.Add("X-API-Version", "1")
 	response, err = c.Client().Do(request)
 	if err != nil {
