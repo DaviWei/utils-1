@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	jsonUtils "github.com/soundtrackyourbrand/utils/json"
@@ -145,7 +147,14 @@ func RunBodyBeforeMarshal(c interface{}, body interface{}, arg interface{}) (err
 			if fun.Type().NumIn() == 3 {
 				args = append(args, reflect.ValueOf(arg))
 			}
+			timer := time.Now()
+
 			res := fun.Call(args)
+
+			if time.Now().Sub(timer) > (500 * time.Millisecond) {
+				c.(httpcontext.HTTPContextLogger).Infof("BeforeMarshal for %s is slow, took: %v", val.Type(), time.Now().Sub(timer))
+			}
+
 			if res[0].IsNil() {
 				return nil
 			} else {

@@ -3,6 +3,7 @@ package gae
 import (
 	"fmt"
 	"reflect"
+	"time"
 )
 
 const (
@@ -30,6 +31,8 @@ var processors = []string{
 }
 
 func runProcess(c PersistenceContext, model interface{}, name string, arg interface{}) error {
+	timer := time.Now()
+	typ := reflect.TypeOf(model)
 	contextFunc := reflect.ValueOf(c).MethodByName(name).Interface().(func(interface{}) error)
 	if err := contextFunc(model); err != nil {
 		return err
@@ -48,8 +51,14 @@ func runProcess(c PersistenceContext, model interface{}, name string, arg interf
 			results = process.Call([]reflect.Value{reflect.ValueOf(c)})
 		}
 		if !results[0].IsNil() {
+			if time.Now().Sub(timer) > (500 * time.Millisecond) {
+				c.Infof("%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
+			}
 			return results[len(results)-1].Interface().(error)
 		}
+	}
+	if time.Now().Sub(timer) > (500 * time.Millisecond) {
+		c.Infof("%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
 	}
 	return nil
 }
