@@ -325,8 +325,9 @@ Any missing values will be generated using the generatorFunctions and put in mem
 func MemoizeMulti(c TransactionContext, keys []string, destinationPointers []interface{}, generatorFunctions []func() (interface{}, error)) (errors appengine.MultiError) {
 	newFunctions := make([]func() (interface{}, time.Duration, error), len(generatorFunctions))
 	for index, gen := range generatorFunctions {
+		genCpy := gen
 		newFunctions[index] = func() (res interface{}, dur time.Duration, err error) {
-			res, err = gen()
+			res, err = genCpy()
 			return
 		}
 	}
