@@ -218,12 +218,21 @@ AddToIndex adds source to a search index.
 Source must have a field `Id *datastore.key`.
 */
 func AddToIndex(c ElasticConnector, index string, source interface{}) (err error) {
+	sourceVal := reflect.ValueOf(source)
+	if sourceVal.Kind() != reflect.Ptr {
+		err = fmt.Errorf("%v is not a pointer")
+		return
+	}
+	if sourceVal.Elem().Kind() != reflect.Struct {
+		err = fmt.Errorf("%v is not a pointer to a struct")
+		return
+	}
 	index = processIndexName(index)
 
-	value := reflect.ValueOf(source)
-	id := value.Elem().FieldByName("Id").Interface().(key.Key).Encode()
+	value := reflect.ValueOf(source).Elem()
+	id := value.FieldByName("Id").Interface().(key.Key).Encode()
 
-	name := value.Elem().Type().Name()
+	name := value.Type().Name()
 
 	json, err := json.Marshal(source)
 	if err != nil {
@@ -235,6 +244,16 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 		index,
 		name,
 		id)
+
+	updatedAtField := value.FieldByName("UpdatedAt")
+	if updatedAtField.IsValid() {
+		updatedAtUnixNano := updatedAtField.MethodByName("UnixNano")
+		if updatedAtUnixNano.IsValid() {
+			if unixNano, ok := updatedAtUnixNano.Call(nil)[0].Interface().(int64); ok && unixNano > 0 {
+				url = fmt.Sprintf("%v?version_type=external&version=%v", url, updatedAtUnixNano.Call(nil)[0].Interface())
+			}
+		}
+	}
 
 	request, err := http.NewRequest("PUT", url, bytes.NewBuffer(json))
 	if err != nil {
@@ -250,7 +269,7 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK && response.StatusCode != http.StatusConflict {
 		body, _ := ioutil.ReadAll(response.Body)
 		err = fmt.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
 		return
