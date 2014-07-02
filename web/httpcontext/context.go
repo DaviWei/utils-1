@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"runtime"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -40,14 +38,14 @@ type HTTPError struct {
 	Body   interface{}
 	Cause  error
 	Info   string
-	Stack  []byte
+	Stack  string
 }
 
 func (self HTTPError) GetStatus() int {
 	return self.Status
 }
 
-func (self HTTPError) GetStack() []byte {
+func (self HTTPError) GetStack() string {
 	return self.Stack
 }
 
@@ -64,8 +62,7 @@ func NewError(status int, body interface{}, info string, cause error) (result HT
 	}
 
 	if ErrorStackTraces && status >= 500 {
-		result.Stack = make([]byte, 1024*1024)
-		runtime.Stack(result.Stack, true)
+		result.Stack = utils.Stack()
 	}
 	return
 }
@@ -330,7 +327,7 @@ func (self *DefaultHTTPContext) CheckScopes(allowedScopes []string) (err error) 
 func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 	defer func() {
 		if e := recover(); e != nil {
-			c.Errorf("PANIC\n%v\nRequest: %+v\nStack: %s", e, c.Req(), debug.Stack())
+			c.Errorf("PANIC\n%v\nRequest: %+v\nStack: %s", e, c.Req(), utils.Stack())
 			panic(e)
 		}
 	}()

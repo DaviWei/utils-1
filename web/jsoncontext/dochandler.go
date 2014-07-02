@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"text/template"
@@ -483,7 +482,7 @@ func DocHandler(templ *template.Template) http.Handler {
 			"Example": func(r JSONType) (result string, err error) {
 				defer func() {
 					if e := recover(); e != nil {
-						result = fmt.Sprintf("%v\n%s", e, debug.Stack())
+						result = fmt.Sprintf("%v\n%s", e, utils.Stack())
 					}
 				}()
 				x := utils.Example(r.ReflectType)

@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime/debug"
+	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -50,6 +50,12 @@ func IsNil(i interface{}) bool {
 		return val.IsNil()
 	}
 	return false
+}
+
+func Stack() string {
+	buf := make([]byte, 1<<14)
+	generated := runtime.Stack(buf, true)
+	return string(buf[:generated])
 }
 
 func CamelToSnake(s string) (string, error) {
@@ -234,13 +240,13 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 }
 
 type StackError interface {
-	GetStack() []byte
+	GetStack() string
 	Error() string
 }
 
 type DefaultStackError struct {
 	Source error
-	Stack  []byte
+	Stack  string
 }
 
 func NewError(source error) StackError {
@@ -249,14 +255,14 @@ func NewError(source error) StackError {
 	}
 	return DefaultStackError{
 		Source: source,
-		Stack:  debug.Stack(),
+		Stack:  Stack(),
 	}
 }
 
 func Errorf(f string, args ...interface{}) StackError {
 	return DefaultStackError{
 		Source: fmt.Errorf(f, args...),
-		Stack:  debug.Stack(),
+		Stack:  Stack(),
 	}
 }
 
@@ -264,7 +270,7 @@ func (self DefaultStackError) Error() string {
 	return self.Source.Error()
 }
 
-func (self DefaultStackError) GetStack() []byte {
+func (self DefaultStackError) GetStack() string {
 	return self.Stack
 }
 

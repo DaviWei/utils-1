@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -777,7 +776,7 @@ func testAccessTokens(c gaecontext.HTTPContext) {
 func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	defer func() {
 		if e := recover(); e != nil {
-			msg := fmt.Sprintf("Failed: %v\n%s", e, debug.Stack())
+			msg := fmt.Sprintf("Failed: %v\n%s", e, utils.Stack())
 			c.Infof("%v", msg)
 			c.Resp().WriteHeader(500)
 			fmt.Fprintln(c.Resp(), msg)
