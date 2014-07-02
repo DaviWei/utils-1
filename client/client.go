@@ -264,6 +264,30 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 	return
 }
 
+type CountContainer struct {
+	Count int `json:"count"`
+}
+
+func CountSoundZonesForSchedule(c ServiceConnector, schedule key.Key, token AccessToken) (result int, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("schedules/%v/sound_zone_count", schedule.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	container := &CountContainer{}
+	if err = json.NewDecoder(response.Body).Decode(container); err != nil {
+		return
+	}
+
+	result = container.Count
+
+	return
+}
+
 func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (result *RemoteLocation, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
 	if err != nil {
