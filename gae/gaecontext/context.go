@@ -432,3 +432,41 @@ func (self *KeyLock) Unlock(c GAEContext) (err error) {
 		return
 	}, false)
 }
+
+type Counter struct {
+	Count int64
+}
+
+const (
+	GAEContextCounterKind = "GAEContextCounterKind"
+)
+
+/*
+AcquireSequenceNo will return the next number in the named sequence.
+*/
+func AcquireSequenceNo(c GAEContext, name string) (result int64, err error) {
+	result = 0
+	key := datastore.NewKey(c, GAEContextCounterKind, name, 0, nil)
+	for {
+		err = c.Transaction(func(c GAEContext) (err error) {
+
+			var x Counter
+			if err = datastore.Get(c, key, &x); err != nil && err != datastore.ErrNoSuchEntity {
+				return
+			}
+			x.Count++
+			if _, err = datastore.Put(c, key, &x); err != nil {
+				return
+			}
+			result = x.Count
+			return
+
+		}, false)
+
+		/* Dont fail on concurrent transaction.. Continue trying... */
+		if err != datastore.ErrConcurrentTransaction {
+			break
+		}
+	}
+	return
+}
