@@ -66,6 +66,7 @@ type RemoteLocation struct {
 
 	Account key.Key `json:"account"`
 
+	Name       string `json:"name"`
 	PostalCode string `json:"postal_code"`
 	Address    string `json:"address"`
 	City       string `json:"city"`
