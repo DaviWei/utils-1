@@ -249,6 +249,14 @@ type DefaultStackError struct {
 	Stack  string
 }
 
+func (self DefaultStackError) Error() string {
+	return self.Source.Error() + "\n" + self.Stack
+}
+
+func (self DefaultStackError) GetStack() string {
+	return self.Stack
+}
+
 func NewError(source error) StackError {
 	if stackError, ok := source.(StackError); ok {
 		return stackError
@@ -264,14 +272,6 @@ func Errorf(f string, args ...interface{}) StackError {
 		Source: fmt.Errorf(f, args...),
 		Stack:  Stack(),
 	}
-}
-
-func (self DefaultStackError) Error() string {
-	return self.Source.Error()
-}
-
-func (self DefaultStackError) GetStack() string {
-	return self.Stack
 }
 
 func ValidateFuncOutput(f interface{}, out []reflect.Type) error {
