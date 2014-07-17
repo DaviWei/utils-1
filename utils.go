@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"os"
@@ -571,7 +572,13 @@ func ConstantTimeEqualBytes(b1, b2 []byte) bool {
 
 // For debugging use. Converts a http.Request to a curl string for copy'n'paste to terminal
 func ToCurl(req *http.Request) string {
-	curl := fmt.Sprintf("curl -v -X%s %q -d %q", req.Method, req.URL, req.Body)
+	bodyPart := ""
+	if req.Body != nil {
+		b, _ := ioutil.ReadAll(req.Body)
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+		bodyPart = fmt.Sprintf(" -d %#v", string(b))
+	}
+	curl := fmt.Sprintf("curl -v -X%s %q%v", req.Method, req.URL, bodyPart)
 	for header, vals := range req.Header {
 		for _, val := range vals {
 			curl = fmt.Sprintf(`%s -H "%s: %+v"`, curl, header, val)
