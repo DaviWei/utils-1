@@ -136,6 +136,10 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 	if err == memcache.ErrCacheMiss {
 		err = nil
 		found = false
+	} else if err == memcache.ErrServerError {
+		c.Errorf("Memcache error: %v", err)
+		err = nil
+		found = false
 	}
 	return
 }
@@ -296,6 +300,10 @@ func memGetMulti(c TransactionContext, keys []string, destinationPointers []inte
 
 	itemHash, err := memcache.GetMulti(c, keys)
 	if err != nil {
+		if err == memcache.ErrServerError {
+			c.Errorf("Memcache server error: %v", err)
+			err = ErrCacheMiss
+		}
 		for index, _ := range errors {
 			errors[index] = err
 		}
