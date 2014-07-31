@@ -137,6 +137,7 @@ type RemoteAccount struct {
 	BusinessType          string           `json:"business_type,omitempty"`
 	City                  string           `json:"city,omitempty"`
 	Comment               string           `json:"comment,omitempty"`
+	KeyAccountManager     string           `json:"key_account_manager,omitempty"`
 	ISOCountry            string           `json:"iso_country,omitempty"`
 	VATCode               string           `json:"vat_code,omitempty"`
 	Locale                string           `json:"locale,omitempty"`
