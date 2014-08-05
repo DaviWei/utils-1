@@ -16,13 +16,14 @@ import (
 type finder struct {
 	fields []reflect.StructField
 	model  interface{}
+	typ string
 }
 
 // registeredFinders is used to find what cache keys to invalidate when a model is CRUDed.
 var registeredFinders = map[string][]finder{}
 
 // newFinder returns an optionally registered finder after having validated the correct type of input data.
-func newFinder(model interface{}, register bool, fields ...string) (result finder) {
+func newFinder(finderType string, model interface{}, register bool, fields ...string) (result finder) {
 	typ := reflect.TypeOf(model).Elem()
 	structFields := make([]reflect.StructField, len(fields))
 	for index, field := range fields {
@@ -35,6 +36,7 @@ func newFinder(model interface{}, register bool, fields ...string) (result finde
 	result = finder{
 		fields: structFields,
 		model:  model,
+		typ: finderType,
 	}
 	if register {
 		name := reflect.TypeOf(model).Elem().Name()
@@ -49,7 +51,7 @@ Finder will return a finder function that runs a datastore query to find matchin
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
 func Finder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, values ...interface{}) error {
-	return newFinder(model, false, fields...).get
+	return newFinder("get", model, false, fields...).get
 }
 
 /*
@@ -60,7 +62,15 @@ It will also register the finder so that MemcacheKeys will return keys to invali
 The returned function will set the Id field of all found models, and call their AfterLoad functions if any.
 */
 func AncestorFinder(model interface{}, fields ...string) func(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) error {
-	return newFinder(model, true, fields...).getWithAncestor
+	return newFinder("get", model, true, fields...).getWithAncestor
+}
+
+func Counter(model interface{}, fields ...string) func(c PersistenceContext, values ...interface{}) (int, error) {
+	return newFinder("count", model, false, fields...).count
+}
+
+func AncestorCounter(model interface{}, fields ...string) func(c PersistenceContext, ancestor key.Key, values ...interface{}) (int, error) {
+	return newFinder("count", model, true, fields...).countWithAncestor
 }
 
 // find runs a datastore query, if ancestor != nil an ancestor query, and sets the id of all found models.
@@ -93,9 +103,24 @@ func (self finder) find(c PersistenceContext, dst interface{}, ancestor key.Key,
 	return
 }
 
+func (self finder) getCount(c PersistenceContext, ancestor key.Key, values []interface{}) (result int, err error) {
+	q := datastore.NewQuery(reflect.TypeOf(self.model).Elem().Name())
+	if ancestor != "" {
+		q = q.Ancestor(gaekey.ToGAE(c, ancestor))
+	}
+	for index, value := range values {
+		q = q.Filter(fmt.Sprintf("%v=", self.fields[index].Name), value)
+	}
+	result, err = q.Count(c)
+	if err = FilterOkErrors(err); err != nil {
+		return
+	}
+	return
+}
+
 // keyForValues returns the memcache key to use for the given ancestor and values searched for
 func (self finder) keyForValues(ancestor key.Key, values []interface{}) string {
-	return fmt.Sprintf("%v{Ancestor:%v,%+v:%+v}", reflect.TypeOf(self.model).Elem().Name(), ancestor, self.fields, values)
+	return fmt.Sprintf("%v{Typ:%v,Ancestor:%v,%+v:%+v}", self.typ, reflect.TypeOf(self.model).Elem().Name(), ancestor, self.fields, values)
 }
 
 // cacheKeys will append to oldKeys, and also return as newKeys, all cache keys this finder may use to find the provided model.
@@ -121,9 +146,46 @@ func (self finder) cacheKeys(c PersistenceContext, model interface{}, oldKeys *[
 	return
 }
 
+func (self finder) count(c PersistenceContext, values ...interface{}) (result int, err error) {
+	return self.countWithAncestor(c, "", values...)
+}
+
 // see Finder
 func (self finder) get(c PersistenceContext, dst interface{}, values ...interface{}) (err error) {
 	return self.getWithAncestor(c, dst, "", values...)
+}
+
+type countResult struct {
+	Count int
+}
+
+// see AncestorFinder
+func (self finder) countWithAncestor(c PersistenceContext, ancestor key.Key, values ...interface{}) (result int, err error) {
+	if len(values) != len(self.fields) {
+		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
+		return
+	}
+	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data
+	if ancestor == "" {
+		if result, err = self.getCount(c, "", values); err != nil {
+			return
+		}
+	} else {
+		count := &countResult{}
+		if err = memcache.Memoize(c, self.keyForValues(ancestor, values), count, func() (result interface{}, err error) {
+			var num int
+			if num, err = self.getCount(c, ancestor, values); err == nil {
+				result = &countResult{
+					Count: num,
+				}
+			}
+			return
+		}); err != nil {
+			return
+		}
+		result = count.Count
+	}
+	return
 }
 
 // see AncestorFinder
