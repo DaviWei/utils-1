@@ -209,6 +209,7 @@ type RemoteSpotifyAccount struct {
 	Deactivated        bool           `json:"deactivated"`
 	Username           string         `json:"username"`
 	Account            key.Key        `json:"account" datastore:"-"`
+	ISOCountry         string         `json:"iso_country"`
 }
 
 func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName utils.MailType, attachments []utils.Attachment) error {
@@ -227,10 +228,12 @@ func errorFor(request *http.Request, response *http.Response) (err error) {
 
 func DoRequest(c ServiceConnector, method, service, path string, token AccessToken, body interface{}) (request *http.Request, response *http.Response, err error) {
 	buf := new(bytes.Buffer)
-	err = json.NewEncoder(buf).Encode(body)
-	if err != nil {
-		return
+	if body != nil {
+		if err = json.NewEncoder(buf).Encode(body); err != nil {
+			return
+		}
 	}
+
 	request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
 	if err != nil {
 		return
