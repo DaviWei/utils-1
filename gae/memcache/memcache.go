@@ -387,7 +387,12 @@ func memoizeMulti(
 			go func() (err error) {
 				defer func() {
 					errors[index] = err
-					panicChan <- recover()
+					if e := recover(); e != nil {
+						c.Infof("Panic: %v", e)
+						panicChan <- fmt.Errorf("%v\n%v", e, utils.Stack())
+					} else {
+						panicChan <- nil
+					}
 				}()
 				var result interface{}
 				var duration time.Duration
