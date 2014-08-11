@@ -480,8 +480,8 @@ type Attachment struct {
 type MailType string
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
-	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
+	SendEmailTemplate(recipient, cc string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
+	SendEmailTemplateFromSender(recipient, cc string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
 }
 
 type Base64String string
