@@ -676,6 +676,9 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 				flagDefault = providedFlagDefault == "true"
 			}
 			flag.BoolVar(v.Field(i).Addr().Interface().(*bool), flagName, flagDefault, flagDesc)
+		default:
+			err = Errorf("Unrecognized flag type for field %v of %v", f, v)
+			return
 		}
 	}
 
