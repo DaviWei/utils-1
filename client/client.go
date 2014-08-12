@@ -86,8 +86,8 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters, msg utils.Message, accountId *key.Key) error {
-	return sender.SendEmailTemplate(ep, msg, accountId)
+func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters, accountId *key.Key) error {
+	return sender.SendEmailTemplate(ep, accountId)
 }
 
 type SoundZoneSettings struct {
@@ -212,9 +212,9 @@ type RemoteSpotifyAccount struct {
 	ISOCountry         string         `json:"iso_country"`
 }
 
-func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters, msg utils.Message) error {
+func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters) error {
 	accountId := self.Id.Parent().Parent()
-	return sender.SendEmailTemplate(ep, msg, &accountId)
+	return sender.SendEmailTemplate(ep, &accountId)
 }
 
 func errorFor(request *http.Request, response *http.Response) (err error) {
