@@ -87,6 +87,8 @@ type RemoteUser struct {
 }
 
 func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters, accountId *key.Key) error {
+	ep.To = self.Email
+	ep.Locale = self.Locale
 	return sender.SendEmailTemplate(ep, accountId)
 }
 
