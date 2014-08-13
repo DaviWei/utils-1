@@ -481,9 +481,18 @@ type Attachment struct {
 
 type MailType string
 
+type EmailParameters struct {
+	To           string
+	Cc           string
+	Sender       string
+	Attachments  []Attachment
+	Locale       string
+	TemplateName MailType
+	MailContext  map[string]interface{}
+}
+
 type EmailTemplateSender interface {
-	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
-	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
+	SendEmailTemplate(ep *EmailParameters, accountId *key.Key) error
 }
 
 type Base64String string
