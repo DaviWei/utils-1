@@ -8,6 +8,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -17,6 +18,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -594,4 +596,101 @@ func ToCurl(req *http.Request) string {
 		}
 	}
 	return curl
+}
+
+func GenerateFlags(i interface{}) (result []string, err error) {
+	v := reflect.ValueOf(i)
+	t := v.Type()
+
+	if t.Kind() != reflect.Ptr {
+		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		return
+	}
+
+	t = t.Elem()
+	v = v.Elem()
+
+	if t.Kind() != reflect.Struct {
+		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		return
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		flagName := f.Name
+		if explicitFlagName := f.Tag.Get("flag"); explicitFlagName != "" {
+			flagName = explicitFlagName
+		}
+		result = append(result, fmt.Sprintf("-%v=%v", flagName, v.Field(i).Interface()))
+	}
+
+	return
+}
+
+func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
+	v := reflect.ValueOf(i)
+	t := v.Type()
+
+	if t.Kind() != reflect.Ptr {
+		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		return
+	}
+
+	t = t.Elem()
+	v = v.Elem()
+
+	if t.Kind() != reflect.Struct {
+		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		return
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		flagName := f.Name
+		if explicitFlagName := f.Tag.Get("flag"); explicitFlagName != "" {
+			flagName = explicitFlagName
+		}
+		flagDesc := f.Name
+		if explicitFlagDesc := f.Tag.Get("flag_desc"); explicitFlagDesc != "" {
+			flagDesc = explicitFlagDesc
+		}
+		switch f.Type.Kind() {
+		case reflect.Int:
+			flagDefault := 0
+			explicitFlagDefault := f.Tag.Get("flag_default")
+			if providedFlagDefault, found := defaultMap[f.Name]; found {
+				explicitFlagDefault = providedFlagDefault
+			}
+			if explicitFlagDefault != "" {
+				if flagDefault, err = strconv.Atoi(explicitFlagDefault); err != nil {
+					return
+				}
+			}
+			flag.IntVar(v.Field(i).Addr().Interface().(*int), flagName, flagDefault, flagDesc)
+		case reflect.String:
+			flagDefault := ""
+			if explicitFlagDefault := f.Tag.Get("flag_default"); explicitFlagDefault != "" {
+				flagDefault = explicitFlagDefault
+			}
+			if providedFlagDefault, found := defaultMap[f.Name]; found {
+				flagDefault = providedFlagDefault
+			}
+			flag.StringVar(v.Field(i).Addr().Interface().(*string), flagName, flagDefault, flagDesc)
+		case reflect.Bool:
+			flagDefault := false
+			if explicitFlagDefault := f.Tag.Get("flag_default"); explicitFlagDefault != "" {
+				flagDefault = explicitFlagDefault == "true"
+			}
+			if providedFlagDefault, found := defaultMap[f.Name]; found {
+				flagDefault = providedFlagDefault == "true"
+			}
+			flag.BoolVar(v.Field(i).Addr().Interface().(*bool), flagName, flagDefault, flagDesc)
+		default:
+			err = Errorf("Unrecognized flag type for field %v of %v", f, v)
+			return
+		}
+	}
+
+	flag.Parse()
+	return
 }
