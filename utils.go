@@ -25,7 +25,6 @@ import (
 
 	"net/http"
 
-	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/run"
 )
 
@@ -471,28 +470,6 @@ func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
 		}
 	}
 	return
-}
-
-type Attachment struct {
-	ContentID string
-	Name      string
-	Data      []byte
-}
-
-type MailType string
-
-type EmailParameters struct {
-	To           string
-	Cc           string
-	Sender       string
-	Attachments  []Attachment
-	Locale       string
-	TemplateName MailType
-	MailContext  map[string]interface{}
-}
-
-type EmailTemplateSender interface {
-	SendEmailTemplate(ep *EmailParameters, accountId *key.Key) error
 }
 
 type Base64String string

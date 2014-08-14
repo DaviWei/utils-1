@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/email"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
@@ -86,7 +87,7 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters, accountId *key.Key) error {
+func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, accountId *key.Key) error {
 	ep.To = self.Email
 	ep.Locale = self.Locale
 	return sender.SendEmailTemplate(ep, accountId)
@@ -214,7 +215,7 @@ type RemoteSpotifyAccount struct {
 	ISOCountry         string         `json:"iso_country"`
 }
 
-func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, ep *utils.EmailParameters) error {
+func (self *RemoteSoundZone) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters) error {
 	accountId := self.Id.Parent().Parent()
 	return sender.SendEmailTemplate(ep, &accountId)
 }
