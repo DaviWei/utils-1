@@ -218,6 +218,10 @@ func (self ErrNoSuchEntity) Respond(c httpcontext.HTTPContextLogger) (err error)
 	return
 }
 
+func (self ErrNoSuchEntity) GetStatus() int {
+	return 404
+}
+
 func newErrNoSuchEntity(dst interface{}, cause error) (err error) {
 	var typ reflect.Type
 	var id key.Key
