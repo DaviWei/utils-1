@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/soundtrackyourbrand/utils"
 )
 
 type genealogyAssertion struct {
@@ -144,7 +146,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = fmt.Errorf("%v doesn't have a valid parent", self)
+				err = utils.Errorf("%v doesn't have a valid parent", self)
 				return
 			}
 		}
@@ -162,7 +164,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = fmt.Errorf("%v doesn't have a valid StringID", self)
+				err = utils.Errorf("%v doesn't have a valid StringID", self)
 				return
 			}
 		}
