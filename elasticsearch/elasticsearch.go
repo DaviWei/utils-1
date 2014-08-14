@@ -278,8 +278,10 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 }
 
 type PageableItems struct {
-	Items []interface{}
-	Total int
+	Items   []interface{}
+	Total   int
+	Page    int
+	PerPage int
 }
 
 type SimpleStringQuery StringQuery
