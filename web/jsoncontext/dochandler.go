@@ -358,6 +358,8 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 			if fType.In(1).Kind() == reflect.Ptr {
 				in := reflect.New(fType.In(1).Elem())
 				if err = c.DecodeJSON(in.Interface()); err != nil {
+					mess := fmt.Sprintf("Unable to parse %#v as JSON: %v", string(c.DecodedBody()), err)
+					err = NewError(400, mess, mess, err)
 					return
 				}
 				args[1] = in
