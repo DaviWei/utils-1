@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 )
 
 type genealogyAssertion struct {
@@ -260,6 +261,7 @@ func Decode(s string) (result Key, err error) {
 	b := []byte{}
 	b, err = base64.URLEncoding.DecodeString(strings.Replace(s, ".", "=", -1))
 	if err != nil {
+		err = httpcontext.NewError(400, err.Error(), err.Error(), err)
 		return
 	}
 	result = Key(string(b))
