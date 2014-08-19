@@ -22,6 +22,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"os/exec"
 
 	"net/http"
 
@@ -392,6 +393,18 @@ const (
 )
 var GitRevisionAt = time.Unix(0, {{.Time}})
 `))
+
+func GitCommitted(dir string) (result bool, err error) {
+	_, _, err = run.RunAndReturn("git", "diff-index", "--quiet", "HEAD", "--")
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			err = nil
+		}
+		return
+	}
+	result = true
+	return
+}
 
 func GitRevision(dir string) (rev string, err error) {
 	revisionResult, _, err := run.RunAndReturn("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD")
