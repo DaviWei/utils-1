@@ -73,7 +73,7 @@ type RemoteLocation struct {
 	City                  string `json:"city"`
 	ISOCountry            string `json:"iso_country"`
 	Locale                string `json:"locale"`
-	BillingGroup          string           `json:"billing_group",omitempty`
+	BillingGroup          key.Key `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
