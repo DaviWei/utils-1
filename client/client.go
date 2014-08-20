@@ -67,12 +67,13 @@ type RemoteLocation struct {
 
 	Account key.Key `json:"account"`
 
-	Name       string `json:"name"`
-	PostalCode string `json:"postal_code"`
-	Address    string `json:"address"`
-	City       string `json:"city"`
-	ISOCountry string `json:"iso_country"`
-	Locale     string `json:"locale"`
+	Name                  string `json:"name"`
+	PostalCode            string `json:"postal_code"`
+	Address               string `json:"address"`
+	City                  string `json:"city"`
+	ISOCountry            string `json:"iso_country"`
+	Locale                string `json:"locale"`
+	BillingGroup          string           `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
@@ -531,8 +532,8 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
-		"password": password,
-	})
+			"password": password,
+		})
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
