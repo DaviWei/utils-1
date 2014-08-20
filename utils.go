@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -22,7 +23,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-	"os/exec"
 
 	"net/http"
 
@@ -682,5 +682,44 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 	}
 
 	flag.Parse()
+	return
+}
+
+type Parallelizer struct {
+	funcs []func() error
+	c     chan error
+}
+
+func (self *Parallelizer) Start(f func() error) {
+	if self.c == nil {
+		self.c = make(chan error)
+	}
+	self.funcs = append(self.funcs, f)
+	go func() {
+		self.c <- f()
+	}()
+}
+
+type MultiError []error
+
+func (self MultiError) Error() string {
+	s := make([]string, len(self))
+	for index, err := range self {
+		s[index] = err.Error()
+	}
+	return strings.Join(s, ", ")
+}
+
+func (self *Parallelizer) Wait() (err error) {
+	merr := MultiError{}
+	for _, _ = range self.funcs {
+		if e := <-self.c; e != nil {
+			merr = append(merr, e)
+		}
+	}
+	if len(merr) > 0 {
+		err = merr
+		return
+	}
 	return
 }
