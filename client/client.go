@@ -296,6 +296,24 @@ func CountSoundZonesForSchedule(c ServiceConnector, schedule key.Key, token Acce
 	return
 }
 
+type ScheduleRef struct {
+	Schedule key.Key `json:"schedule"`
+}
+func ReplaceScheduleForSoundZones(c ServiceConnector, oldSchedule, newSchedule key.Key, token AccessToken) (err error) {
+	scheduleRef := &ScheduleRef{
+		Schedule: newSchedule,
+	}
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("schedules/%v/sound_zones", oldSchedule.Encode()), token, scheduleRef)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+	return
+}
+
 func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (result *RemoteLocation, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
 	if err != nil {
