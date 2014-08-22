@@ -299,6 +299,7 @@ func CountSoundZonesForSchedule(c ServiceConnector, schedule key.Key, token Acce
 type ScheduleRef struct {
 	Schedule key.Key `json:"schedule"`
 }
+
 func ReplaceScheduleForSoundZones(c ServiceConnector, oldSchedule, newSchedule key.Key, token AccessToken) (err error) {
 	scheduleRef := &ScheduleRef{
 		Schedule: newSchedule,
