@@ -16,7 +16,7 @@ import (
 type finder struct {
 	fields []reflect.StructField
 	model  interface{}
-	typ string
+	typ    string
 }
 
 // registeredFinders is used to find what cache keys to invalidate when a model is CRUDed.
@@ -36,7 +36,7 @@ func newFinder(finderType string, model interface{}, register bool, fields ...st
 	result = finder{
 		fields: structFields,
 		model:  model,
-		typ: finderType,
+		typ:    finderType,
 	}
 	if register {
 		name := reflect.TypeOf(model).Elem().Name()

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/email"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
@@ -66,12 +67,13 @@ type RemoteLocation struct {
 
 	Account key.Key `json:"account"`
 
-	Name       string `json:"name"`
-	PostalCode string `json:"postal_code"`
-	Address    string `json:"address"`
-	City       string `json:"city"`
-	ISOCountry string `json:"iso_country"`
-	Locale     string `json:"locale"`
+	Name                  string `json:"name"`
+	PostalCode            string `json:"postal_code"`
+	Address               string `json:"address"`
+	City                  string `json:"city"`
+	ISOCountry            string `json:"iso_country"`
+	Locale                string `json:"locale"`
+	BillingGroup          key.Key `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
@@ -86,8 +88,10 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName utils.MailType, attachments []utils.Attachment, accountId *key.Key) error {
-	return sender.SendEmailTemplate(self.Email, mailContext, templateName, self.Locale, attachments, accountId)
+func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, accountId *key.Key) error {
+	ep.To = self.Email
+	ep.Locale = self.Locale
+	return sender.SendEmailTemplate(ep, accountId)
 }
 
 type SoundZoneSettings struct {
@@ -212,9 +216,9 @@ type RemoteSpotifyAccount struct {
 	ISOCountry         string         `json:"iso_country"`
 }
 
-func (self *RemoteSoundZone) SendEmailTemplate(sender utils.EmailTemplateSender, mailContext map[string]interface{}, templateName utils.MailType, attachments []utils.Attachment) error {
+func (self *RemoteSoundZone) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters) error {
 	accountId := self.Id.Parent().Parent()
-	return sender.SendEmailTemplate(self.Email, mailContext, templateName, self.Locale, attachments, &accountId)
+	return sender.SendEmailTemplate(ep, &accountId)
 }
 
 func errorFor(request *http.Request, response *http.Response) (err error) {
@@ -290,6 +294,25 @@ func CountSoundZonesForSchedule(c ServiceConnector, schedule key.Key, token Acce
 
 	result = container.Count
 
+	return
+}
+
+type ScheduleRef struct {
+	Schedule key.Key `json:"schedule"`
+}
+
+func ReplaceScheduleForSoundZones(c ServiceConnector, oldSchedule, newSchedule key.Key, token AccessToken) (err error) {
+	scheduleRef := &ScheduleRef{
+		Schedule: newSchedule,
+	}
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("schedules/%v/sound_zones", oldSchedule.Encode()), token, scheduleRef)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
 	return
 }
 
@@ -528,8 +551,8 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
-		"password": password,
-	})
+			"password": password,
+		})
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return

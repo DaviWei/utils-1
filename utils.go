@@ -14,18 +14,20 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
 	"net/http"
 
-	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/run"
 )
 
@@ -394,6 +396,18 @@ const (
 var GitRevisionAt = time.Unix(0, {{.Time}})
 `))
 
+func GitCommitted(dir string) (result bool, err error) {
+	_, _, err = run.RunAndReturn("git", "diff-index", "--quiet", "HEAD", "--")
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			err = nil
+		}
+		return
+	}
+	result = true
+	return
+}
+
 func GitRevision(dir string) (rev string, err error) {
 	revisionResult, _, err := run.RunAndReturn("git", "--git-dir", filepath.Join(dir, ".git"), "--work-tree", dir, "rev-parse", "HEAD")
 	if err != nil {
@@ -471,19 +485,6 @@ func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
 		}
 	}
 	return
-}
-
-type Attachment struct {
-	ContentID string
-	Name      string
-	Data      []byte
-}
-
-type MailType string
-
-type EmailTemplateSender interface {
-	SendEmailTemplate(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, accountId *key.Key) (err error)
-	SendEmailTemplateFromSender(recipient string, mailContext map[string]interface{}, templateName MailType, locale string, attachments []Attachment, senderAddress string, accountId *key.Key) (err error)
 }
 
 type Base64String string
@@ -683,5 +684,99 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 	}
 
 	flag.Parse()
+	return
+}
+
+type MultiError []error
+
+func (self MultiError) Error() string {
+	s := make([]string, len(self))
+	for index, err := range self {
+		s[index] = err.Error()
+	}
+	return strings.Join(s, ", ")
+}
+
+type Parallelizer struct {
+	count int64
+	c     chan error
+}
+
+func (self *Parallelizer) Start(f func() error) {
+	if self.c == nil {
+		self.c = make(chan error)
+	}
+	atomic.AddInt64(&self.count, 1)
+	go func() {
+		self.c <- f()
+	}()
+}
+
+func (self *Parallelizer) Wait() (err error) {
+	merr := MultiError{}
+	for count := atomic.LoadInt64(&self.count); count > 0; count = atomic.AddInt64(&self.count, -1) {
+		if e := <-self.c; e != nil {
+			merr = append(merr, e)
+		}
+	}
+	if len(merr) > 0 {
+		err = merr
+		return
+	}
+	return
+}
+
+type SyncLock struct {
+	syncs map[interface{}]*sync.Mutex
+	lock  sync.Mutex
+}
+
+/*
+Sync will run only one f at a time for this s in this SyncLock.
+*/
+func (self *SyncLock) Sync(s interface{}, f func() error) error {
+	(&self.lock).Lock()
+	if self.syncs == nil {
+		self.syncs = map[interface{}]*sync.Mutex{}
+	}
+	lock, found := self.syncs[s]
+	if !found {
+		lock = &sync.Mutex{}
+		self.syncs[s] = lock
+	}
+	(&self.lock).Unlock()
+	lock.Lock()
+	defer lock.Unlock()
+	return f()
+}
+
+type WaitOnce struct {
+	SyncLock
+	onces map[interface{}]*sync.Once
+	lock  sync.Mutex
+}
+
+/*
+Once will run only one f, ever, for this s in this WaitOnce, and not return until it has run at least once.
+*/
+func (self *WaitOnce) Once(s interface{}, f func() error) (err error) {
+	(&self.lock).Lock()
+	if self.onces == nil {
+		self.onces = map[interface{}]*sync.Once{}
+	}
+	once, found := self.onces[s]
+	if !found {
+		once = &sync.Once{}
+		self.onces[s] = once
+	}
+	(&self.lock).Unlock()
+	if err = (&self.SyncLock).Sync(s, func() (err error) {
+		once.Do(func() {
+			err = f()
+		})
+		return
+	}); err != nil {
+		return
+	}
 	return
 }

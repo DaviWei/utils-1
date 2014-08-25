@@ -9,6 +9,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 )
 
 type genealogyAssertion struct {
@@ -144,7 +147,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = fmt.Errorf("%v doesn't have a valid parent", self)
+				err = utils.Errorf("%v doesn't have a valid parent", self)
 				return
 			}
 		}
@@ -162,7 +165,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = fmt.Errorf("%v doesn't have a valid StringID", self)
+				err = utils.Errorf("%v doesn't have a valid StringID", self)
 				return
 			}
 		}
@@ -258,6 +261,7 @@ func Decode(s string) (result Key, err error) {
 	b := []byte{}
 	b, err = base64.URLEncoding.DecodeString(strings.Replace(s, ".", "=", -1))
 	if err != nil {
+		err = httpcontext.NewError(400, err.Error(), err.Error(), err)
 		return
 	}
 	result = Key(string(b))
