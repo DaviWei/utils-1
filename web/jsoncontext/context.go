@@ -49,6 +49,7 @@ type JSONContext interface {
 	DecodedBody() []byte
 	LoadJSON(i interface{}) error
 	CopyJSON(in, out interface{}) error
+	MarshalJSON(subContext interface{}, body interface{}, reason interface{}) ([]byte, error)
 }
 
 type JSONContextLogger interface {
@@ -58,13 +59,15 @@ type JSONContextLogger interface {
 
 type DefaultJSONContext struct {
 	httpcontext.HTTPContextLogger
-	apiVersion  int
-	decodedBody []byte
+	apiVersion      int
+	decodedBody     []byte
+	marshalSyncLock *utils.SyncLock
 }
 
 func NewJSONContext(c httpcontext.HTTPContextLogger) (result *DefaultJSONContext) {
 	result = &DefaultJSONContext{
 		HTTPContextLogger: c,
+		marshalSyncLock:   &utils.SyncLock{},
 	}
 	if result.Req() != nil {
 		if header := result.Req().Header.Get(APIVersionHeader); header != "" {
@@ -118,7 +121,7 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
-func RunBodyBeforeMarshal(c interface{}, body interface{}, arg interface{}) (err error) {
+func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg interface{}) (result []byte, err error) {
 	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
@@ -131,35 +134,36 @@ func RunBodyBeforeMarshal(c interface{}, body interface{}, arg interface{}) (err
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
 		if fun.IsValid() {
-			// Validate BeforeMarshal takes something that implements JSONContextLogger
-			if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
-				if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType, reflect.TypeOf(arg)}); err != nil {
-					return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+			return self.marshalSyncLock.Sync(val.Interface(), func() (err error) {
+				// Validate BeforeMarshal takes something that implements JSONContextLogger
+				if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
+					if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType, reflect.TypeOf(arg)}); err != nil {
+						return fmt.Errorf("BeforeMarshal needs to take an JSONContextLogger")
+					}
 				}
-			}
 
-			// Validate BeforeMarshal returns an error
-			if err = utils.ValidateFuncOutput(fun.Interface(), []reflect.Type{reflect.TypeOf((*error)(nil)).Elem()}); err != nil {
-				return fmt.Errorf("BeforeMarshal needs to return an error")
-			}
+				// Validate BeforeMarshal returns an error
+				if err = utils.ValidateFuncOutput(fun.Interface(), []reflect.Type{reflect.TypeOf((*error)(nil)).Elem()}); err != nil {
+					return fmt.Errorf("BeforeMarshal needs to return an error")
+				}
 
-			args := []reflect.Value{cVal, stack}
-			if fun.Type().NumIn() == 3 {
-				args = append(args, reflect.ValueOf(arg))
-			}
-			timer := time.Now()
+				args := []reflect.Value{cVal, stack}
+				if fun.Type().NumIn() == 3 {
+					args = append(args, reflect.ValueOf(arg))
+				}
+				timer := time.Now()
 
-			res := fun.Call(args)
+				res := fun.Call(args)
 
-			if time.Now().Sub(timer) > (500 * time.Millisecond) {
-				c.(httpcontext.HTTPContextLogger).Infof("BeforeMarshal for %s is slow, took: %v", val.Type(), time.Now().Sub(timer))
-			}
+				if time.Now().Sub(timer) > (500 * time.Millisecond) {
+					self.Infof("BeforeMarshal for %s is slow, took: %v", val.Type(), time.Now().Sub(timer))
+				}
 
-			if res[0].IsNil() {
-				return nil
-			} else {
-				return res[0].Interface().(error)
-			}
+				if !res[0].IsNil() {
+					err = res[0].Interface().(error)
+				}
+				return
+			})
 		}
 
 		// Try do recursion on these types.
@@ -194,10 +198,26 @@ func RunBodyBeforeMarshal(c interface{}, body interface{}, arg interface{}) (err
 
 	// Run recursive reflection on self.Body that executes BeforeMarshal on every object possible.
 	stack := []interface{}{}
-	return runRecursive(reflect.ValueOf(body), reflect.ValueOf(stack))
+	if err = runRecursive(reflect.ValueOf(body), reflect.ValueOf(stack)); err != nil {
+		return
+	}
+
+	// This makes sure that replies that returns a slice that is empty returns a '[]' instad of 'null'
+	if body == nil {
+		t := reflect.ValueOf(&body).Elem()
+		if t.Kind() == reflect.Slice {
+			t.Set(reflect.MakeSlice(t.Type(), 0, 0))
+		}
+	}
+
+	if result, err = json.MarshalIndent(body, "", "  "); err != nil {
+		return
+	}
+
+	return
 }
 
-func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err error) {
+func respond(c JSONContextLogger, status int, body interface{}) (err error) {
 	if body != nil {
 		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
@@ -205,20 +225,9 @@ func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err
 		c.Resp().WriteHeader(status)
 	}
 	if body != nil {
-		if err = RunBodyBeforeMarshal(c, body, RespondMarshal); err != nil {
-			return
-		}
-
-		// This makes sure that replies that returns a slice that is empty returns a '[]' instad of 'null'
-		if body == nil {
-			t := reflect.ValueOf(&body).Elem()
-			if t.Kind() == reflect.Slice {
-				t.Set(reflect.MakeSlice(t.Type(), 0, 0))
-			}
-		}
-
 		var marshalled []byte
-		if marshalled, err = json.MarshalIndent(body, "", "  "); err != nil {
+		marshalled, err = c.MarshalJSON(c, body, RespondMarshal)
+		if err != nil {
 			return
 		}
 		_, err = c.Resp().Write(marshalled)
@@ -228,7 +237,7 @@ func respond(c httpcontext.HTTPContextLogger, status int, body interface{}) (err
 }
 
 func (self Resp) Respond(c httpcontext.HTTPContextLogger) (err error) {
-	return respond(c, self.Status, self.Body)
+	return respond(c.(JSONContextLogger), self.Status, self.Body)
 }
 
 type JSONError struct {
@@ -240,7 +249,7 @@ func (self JSONError) GetStatus() int {
 }
 
 func (self JSONError) Respond(c httpcontext.HTTPContextLogger) (err error) {
-	return respond(c, self.Status, self.Body)
+	return respond(c.(JSONContextLogger), self.Status, self.Body)
 }
 
 func NewError(status int, body interface{}, info string, cause error) (result JSONError) {
