@@ -566,12 +566,12 @@ func SetPassword(c ServiceConnector, user key.Key, password string, token Access
 }
 
 func AddToBigQuery(c ServiceConnector, i interface{}) (err error) {
-	bq, err := bigquery.New("", c.Client())
+	bq, err := bigquery.New(c.Client())
 	if err != nil {
 		return
 	}
 
-	if err == bq.AssertTable(i) {
+	if err = bq.AssertTable(i); err != nil {
 		return
 	}
 	return

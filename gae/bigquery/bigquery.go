@@ -1,16 +1,21 @@
 package bigquery
 
 import (
-	"net/http"
-
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
+	"net/http"
+)
+
+const (
+	iss       = "syb-core-development-warehouse@appspot.gserviceaccount.com"
+	projectId = "syb-core-development-warehouse"
+	datasetId = "test_dataset" //"warehouse"
 )
 
 type BigQuery struct {
 	service *gbigquery.Service
 }
 
-func New(baseURL string, client *http.Client) (result *BigQuery, err error) {
+func New(client *http.Client) (result *BigQuery, err error) {
 	service, err := gbigquery.New(client)
 	if err != nil {
 		return
@@ -30,18 +35,33 @@ the latest (counted by UpdatedAt) row per unique Id.
 It assumes that i has a field "Id" that is a key.Key, and a field "UpdatedAt" that is a utils.Time.
 */
 func (self *BigQuery) AssertTable(i interface{}) (err error) {
-	projectId := "syb-core-development-warehouse"
-	datasetId := "test_dataset" //"warehouse"
 	table := &gbigquery.Table{}
-	tablesService := gbigquery.NewTablesService(self.service)
-	//list := tablesService.List(projectId, datasetId)
-	notExist := false
-	if notExist {
-		// New empty table in dataset
-		tablesService.Insert(projectId, datasetId, table)
-	} else {
-		tableId := ""
-		tablesService.Patch(projectId, datasetId, tableId, table)
+	table.TableReference = &gbigquery.TableReference{
+		DatasetId: datasetId,
+		ProjectId: projectId,
+		TableId:   "test_data",
 	}
+	job := &gbigquery.Job{
+		Configuration: &gbigquery.JobConfiguration{
+			Load: &gbigquery.JobConfigurationLoad{
+				DestinationTable: &gbigquery.TableReference{
+					DatasetId: datasetId,
+					ProjectId: projectId,
+					TableId:   table.TableReference.TableId,
+				},
+				//MaxBadRecords:    source.maxBadRecords,
+				//Schema:           &source.schema,
+				//SourceUris:       []string{source.uri},
+				//WriteDisposition: source.disposition,
+			},
+		},
+	}
+
+	call := self.service.Jobs.Insert(projectId, job)
+	job, err = call.Do()
+	if err != nil {
+		return err
+	}
+
 	return
 }
