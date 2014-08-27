@@ -38,8 +38,29 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
-func (self *BigQuery) createTable(val reflect.Value) (err error) {
+func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.TablesService) (err error) {
 	fmt.Println("Want to create table for", val)
+	table := &gbigquery.Table{
+		TableReference: &gbigquery.TableReference{
+			DatasetId: self.datasetId,
+			ProjectId: self.projectId,
+			TableId:   val.Type().Name(),
+		},
+		Schema: &gbigquery.TableSchema{
+			Fields: []*gbigquery.TableFieldSchema{
+				&gbigquery.TableFieldSchema{
+					Name: "lul",
+					Type: "STRING",
+				},
+			},
+		},
+	}
+	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
+		return
+	}
+	if _, err = tablesService.Update(self.projectId, self.datasetId, table.TableReference.TableId, table).Do(); err != nil {
+		return
+	}
 	return
 }
 
@@ -61,11 +82,11 @@ func (self *BigQuery) AssertTable(i interface{}) (err error) {
 	for val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
-	tableService := gbigquery.NewTablesService(self.service)
-	table, err := tableService.Get(self.projectId, self.datasetId, val.Type().Name()).Do()
+	tablesService := gbigquery.NewTablesService(self.service)
+	table, err := tablesService.Get(self.projectId, self.datasetId, val.Type().Name()).Do()
 	if err != nil {
 		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 404 {
-			return self.createTable(val)
+			return self.createTable(val, tablesService)
 		} else {
 			return
 		}
