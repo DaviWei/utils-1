@@ -4,16 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/email"
+	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/soundtrackyourbrand/utils"
-	"github.com/soundtrackyourbrand/utils/email"
-	"github.com/soundtrackyourbrand/utils/key"
-	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
 
 type DefaultAccessToken struct {
@@ -62,18 +61,35 @@ type DefaultMeta struct {
 	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
+type ScrobbleRequest struct {
+	Uri          string           `json:"uri"`
+	Artists      []ScrobbleArtist `json:"artists"`
+	PlaylistUri  string           `json:"playlist_uri"`
+	PlaylistName string           `json:"playlist_name"`
+	Skipped      bool             `json:"skipped"`
+	At           utils.JSONTime   `json:"played_at"`
+	SongName     string           `json:"song_name"`
+	WasOffline   bool             `json:"offline"`
+	ChannelName  string           `json:"channel_name"`
+}
+
+type ScrobbleArtist struct {
+	Name string `json:"name"`
+	Uri  string `json:"uri"`
+}
+
 type RemoteLocation struct {
 	DefaultMeta
 
 	Account key.Key `json:"account"`
 
-	Name                  string `json:"name"`
-	PostalCode            string `json:"postal_code"`
-	Address               string `json:"address"`
-	City                  string `json:"city"`
-	ISOCountry            string `json:"iso_country"`
-	Locale                string `json:"locale"`
-	BillingGroup          key.Key `json:"billing_group",omitempty`
+	Name         string  `json:"name"`
+	PostalCode   string  `json:"postal_code"`
+	Address      string  `json:"address"`
+	City         string  `json:"city"`
+	ISOCountry   string  `json:"iso_country"`
+	Locale       string  `json:"locale"`
+	BillingGroup key.Key `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
@@ -551,8 +567,8 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
-			"password": password,
-		})
+		"password": password,
+	})
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
