@@ -10,13 +10,8 @@ import (
 )
 
 const (
-	iss       = "syb-core-development-warehouse@appspot.gserviceaccount.com"
-	projectId = "syb-core-development-warehouse"
-	datasetId = "test_dataset" //"warehouse"
-)
-
-const (
-	BigqueryScope = gbigquery.BigqueryScope
+	BigqueryScope  = gbigquery.BigqueryScope
+	DataTypeString = "STRING"
 )
 
 type BigQuery struct {
@@ -50,7 +45,7 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 			Fields: []*gbigquery.TableFieldSchema{
 				&gbigquery.TableFieldSchema{
 					Name: "lul",
-					Type: "STRING",
+					Type: DataTypeString,
 				},
 			},
 		},
@@ -58,9 +53,21 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
 		return
 	}
-	if _, err = tablesService.Update(self.projectId, self.datasetId, table.TableReference.TableId, table).Do(); err != nil {
+	tabledataService := &gbigquery.TabledataService{}
+	var response *gbigquery.TableDataInsertAllResponse
+	tabledatainsertallrequest := &gbigquery.TableDataInsertAllRequest{
+		Rows: []*gbigquery.TableDataInsertAllRequestRows{
+			&gbigquery.TableDataInsertAllRequestRows{
+				Json: map[string]gbigquery.JsonValue{
+					"lul": "herp",
+				},
+			},
+		},
+	}
+	if response, err = tabledataService.InsertAll(self.projectId, self.datasetId, table.TableReference.TableId, tabledatainsertallrequest).Do(); err != nil {
 		return
 	}
+	fmt.Printf("\nresponse:%+v", response)
 	return
 }
 
