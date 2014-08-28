@@ -35,6 +35,15 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 
 func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.TablesService) (err error) {
 	fmt.Println("Want to create table for", val)
+	var schemaFields []*gbigquery.TableFieldSchema
+
+	for i := 0; i < val.Type().NumField(); i++ {
+		schemaFields = append(schemaFields, &gbigquery.TableFieldSchema{
+			Name: val.Type().Field(i).Name,
+			Type: DataTypeString,
+		})
+	}
+
 	table := &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
 			DatasetId: self.datasetId,
@@ -42,12 +51,7 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 			TableId:   val.Type().Name(),
 		},
 		Schema: &gbigquery.TableSchema{
-			Fields: []*gbigquery.TableFieldSchema{
-				&gbigquery.TableFieldSchema{
-					Name: "lul",
-					Type: DataTypeString,
-				},
-			},
+			Fields: schemaFields,
 		},
 	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
