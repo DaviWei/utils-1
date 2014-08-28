@@ -10,8 +10,13 @@ import (
 )
 
 const (
-	BigqueryScope  = gbigquery.BigqueryScope
-	DataTypeString = "STRING"
+	BigqueryScope     = gbigquery.BigqueryScope
+	dataTypeString    = "STRING"
+	dataTypeInteger   = "INTEGER"
+	dataTypeRecord    = "STRING" // "RECORD"
+	dataTypeFloat     = "FLOAT"
+	dataTypeBool      = "BOOLEAN"
+	dataTypeTimeStamp = "STRING" // "TIMESTAMP"
 )
 
 type BigQuery struct {
@@ -33,6 +38,45 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
+func getDataType(field reflect.StructField) (dataType string) {
+	switch field.Type.Kind() {
+	// Strings
+	case reflect.String:
+		dataType = dataTypeString
+
+		// Integers
+	case reflect.Int:
+		dataType = dataTypeInteger
+	case reflect.Int32:
+		dataType = dataTypeInteger
+	case reflect.Int64:
+		dataType = dataTypeInteger
+
+		// Nested structs - recursion?
+	case reflect.Struct:
+		dataType = dataTypeRecord
+
+		// Floats
+	case reflect.Float32:
+		dataType = dataTypeFloat
+	case reflect.Float64:
+		dataType = dataTypeFloat
+
+		// Bools
+	case reflect.Bool:
+		dataType = dataTypeBool
+
+		/*case reflect.TimeStamp:
+		dataType = dataTypeTimeStamo
+		*/
+
+		// Pointers, most likely structs but not neccesarily
+	case reflect.Ptr:
+		dataType = dataTypeRecord
+	}
+	return
+}
+
 func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.TablesService) (err error) {
 	fmt.Println("Want to create table for", val)
 	var schemaFields []*gbigquery.TableFieldSchema
@@ -40,7 +84,7 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 	for i := 0; i < val.Type().NumField(); i++ {
 		schemaFields = append(schemaFields, &gbigquery.TableFieldSchema{
 			Name: val.Type().Field(i).Name,
-			Type: DataTypeString,
+			Type: getDataType(val.Type().Field(i)),
 		})
 	}
 
