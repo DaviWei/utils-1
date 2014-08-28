@@ -13,7 +13,7 @@ const (
 	BigqueryScope     = gbigquery.BigqueryScope
 	dataTypeString    = "STRING"
 	dataTypeInteger   = "INTEGER"
-	dataTypeRecord    = "STRING" // "RECORD"
+	dataTypeRecord    = "RECORD"
 	dataTypeFloat     = "FLOAT"
 	dataTypeBool      = "BOOLEAN"
 	dataTypeTimeStamp = "STRING" // "TIMESTAMP"
@@ -72,21 +72,47 @@ func getDataType(field reflect.StructField) (dataType string) {
 
 		// Pointers, most likely structs but not neccesarily
 	case reflect.Ptr:
+		//getDataType(field.Type.Elem())
 		dataType = dataTypeRecord
+
+	default:
+		panic(fmt.Errorf("field:%v", field.Type.Kind()))
 	}
+
+	return
+}
+
+func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema) {
+	var schemaFields []*gbigquery.TableFieldSchema
+
+	fmt.Printf("\n\nval.Type():%v\n\n", val.Type())
+
+	for i := 0; i < val.Type().NumField(); i++ {
+		field := val.Type().Field(i)
+		dataType := getDataType(field)
+
+		schemaField := &gbigquery.TableFieldSchema{}
+
+		fmt.Printf("\n\ndatatype:%v\n\n", dataType)
+
+		if dataType == dataTypeRecord {
+			// TODO: Handle not found structs
+			nestedStruct, _ := field.Type.Elem().FieldByName(field.Name)
+			schemaField.Fields = buildSchemaFields(reflect.ValueOf(nestedStruct))
+		}
+
+		schemaField.Name = field.Name
+		schemaField.Type = dataType
+
+		schemaFields = append(schemaFields, schemaField)
+	}
+
+	result = schemaFields
 	return
 }
 
 func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.TablesService) (err error) {
 	fmt.Println("Want to create table for", val)
-	var schemaFields []*gbigquery.TableFieldSchema
-
-	for i := 0; i < val.Type().NumField(); i++ {
-		schemaFields = append(schemaFields, &gbigquery.TableFieldSchema{
-			Name: val.Type().Field(i).Name,
-			Type: getDataType(val.Type().Field(i)),
-		})
-	}
 
 	table := &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
@@ -95,7 +121,7 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 			TableId:   val.Type().Name(),
 		},
 		Schema: &gbigquery.TableSchema{
-			Fields: schemaFields,
+			Fields: buildSchemaFields(val),
 		},
 	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
