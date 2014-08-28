@@ -63,6 +63,23 @@ type DefaultMeta struct {
 	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
+type ScrobbleRequest struct {
+	Uri          string           `json:"uri"`
+	Artists      []ScrobbleArtist `json:"artists"`
+	PlaylistUri  string           `json:"playlist_uri"`
+	PlaylistName string           `json:"playlist_name"`
+	Skipped      bool             `json:"skipped"`
+	At           utils.JSONTime   `json:"played_at"`
+	SongName     string           `json:"song_name"`
+	WasOffline   bool             `json:"offline"`
+	ChannelName  string           `json:"channel_name"`
+}
+
+type ScrobbleArtist struct {
+	Name string `json:"name"`
+	Uri  string `json:"uri"`
+}
+
 type RemoteLocation struct {
 	DefaultMeta
 
@@ -501,8 +518,8 @@ func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId ke
 	return
 }
 
-func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", owner.Encode()), token, account)
+func CreateBusinessAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts/business", owner.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return

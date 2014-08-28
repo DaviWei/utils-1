@@ -26,9 +26,8 @@ import (
 	"text/template"
 	"time"
 
-	"net/http"
-
 	"github.com/soundtrackyourbrand/utils/run"
+	"net/http"
 )
 
 func init() {
