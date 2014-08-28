@@ -53,21 +53,6 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
 		return
 	}
-	tabledataService := &gbigquery.TabledataService{}
-	var response *gbigquery.TableDataInsertAllResponse
-	tabledatainsertallrequest := &gbigquery.TableDataInsertAllRequest{
-		Rows: []*gbigquery.TableDataInsertAllRequestRows{
-			&gbigquery.TableDataInsertAllRequestRows{
-				Json: map[string]gbigquery.JsonValue{
-					"lul": "herp",
-				},
-			},
-		},
-	}
-	if response, err = tabledataService.InsertAll(self.projectId, self.datasetId, table.TableReference.TableId, tabledatainsertallrequest).Do(); err != nil {
-		return
-	}
-	fmt.Printf("\nresponse:%+v", response)
 	return
 }
 
