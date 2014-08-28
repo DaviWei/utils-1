@@ -516,8 +516,8 @@ func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId ke
 	return
 }
 
-func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", owner.Encode()), token, account)
+func CreateBusinessAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts/business", owner.Encode()), token, account)
 	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
