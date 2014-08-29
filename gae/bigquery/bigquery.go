@@ -80,11 +80,11 @@ func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema)
 
 		if schemaField.Type == dataTypeRecord {
 			fieldVal := val.Field(i)
-			fmt.Printf("fieldVal0:%v\n", fieldVal)
 			for fieldVal.Kind() == reflect.Ptr {
 				fieldVal = val.Field(i).Elem()
 			}
 			if fieldVal.Kind() == reflect.Invalid {
+				// If we end up here, schema is never built??
 				fmt.Printf("\nInvalid kind on value.\n")
 				return
 			}
