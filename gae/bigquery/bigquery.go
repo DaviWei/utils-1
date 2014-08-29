@@ -81,6 +81,7 @@ func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema)
 		if schemaField.Type == dataTypeRecord {
 			fieldVal := val.Field(i)
 			for fieldVal.Kind() == reflect.Ptr {
+				schemaField.Description = "This field was originally a pointer."
 				fieldVal = val.Field(i).Elem()
 			}
 			if fieldVal.Kind() == reflect.Invalid {
