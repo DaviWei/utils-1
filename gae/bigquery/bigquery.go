@@ -38,71 +38,60 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
-func getDataType(field reflect.StructField) (dataType string) {
-	switch field.Type.Kind() {
-	// Strings
-	case reflect.String:
-		dataType = dataTypeString
+// If not found,  invalid to insert in bigquery
+var biqqueryDataTypes = map[reflect.Kind]string{
+	reflect.Bool:    dataTypeBool,
+	reflect.Int:     dataTypeInteger,
+	reflect.Int8:    dataTypeInteger,
+	reflect.Int16:   dataTypeInteger,
+	reflect.Int32:   dataTypeInteger,
+	reflect.Int64:   dataTypeInteger,
+	reflect.Uint:    dataTypeInteger,
+	reflect.Uint8:   dataTypeInteger,
+	reflect.Uint16:  dataTypeInteger,
+	reflect.Uint32:  dataTypeInteger,
+	reflect.Uint64:  dataTypeInteger,
+	reflect.Uintptr: dataTypeRecord,
+	reflect.Float32: dataTypeFloat,
+	reflect.Float64: dataTypeFloat,
+	//reflect.Array:   dataTypeRecord,
 
-		// Integers
-	case reflect.Int:
-		dataType = dataTypeInteger
-	case reflect.Int32:
-		dataType = dataTypeInteger
-	case reflect.Int64:
-		dataType = dataTypeInteger
-
-		// Nested structs - recursion?
-	case reflect.Struct:
-		dataType = dataTypeRecord
-
-		// Floats
-	case reflect.Float32:
-		dataType = dataTypeFloat
-	case reflect.Float64:
-		dataType = dataTypeFloat
-
-		// Bools
-	case reflect.Bool:
-		dataType = dataTypeBool
-
-		/*case reflect.TimeStamp:
-		dataType = dataTypeTimeStamo
-		*/
-
-		// Pointers, most likely structs but not neccesarily
-	case reflect.Ptr:
-		//getDataType(field.Type.Elem())
-		dataType = dataTypeRecord
-
-	default:
-		panic(fmt.Errorf("field:%v", field.Type.Kind()))
-	}
-
-	return
+	//reflect.Map: dataTypeRecord,
+	reflect.Ptr: dataTypeRecord,
+	//reflect.Slice:  dataTypeRecord,
+	reflect.String: dataTypeString,
+	reflect.Struct: dataTypeRecord,
 }
 
 func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema) {
 	var schemaFields []*gbigquery.TableFieldSchema
 
-	fmt.Printf("\n\nval.Type():%v\n\n", val.Type())
-
 	for i := 0; i < val.Type().NumField(); i++ {
 		field := val.Type().Field(i)
-		dataType := getDataType(field)
+		dataType, found := biqqueryDataTypes[field.Type.Kind()]
+		if !found {
+			fmt.Printf("Reflect kind %v not supported.", field.Type.Kind())
+		}
 
 		schemaField := &gbigquery.TableFieldSchema{}
 
-		fmt.Printf("\n\ndatatype:%v\n\n", dataType)
-
 		if dataType == dataTypeRecord {
-			// TODO: Handle not found structs
-			nestedStruct, _ := field.Type.Elem().FieldByName(field.Name)
-			schemaField.Fields = buildSchemaFields(reflect.ValueOf(nestedStruct))
+			// TODO: Return on not found structs
+			if field.Type.Kind() == reflect.Ptr {
+				nestedStruct, _ := field.Type.Elem().FieldByName(field.Name)
+				schemaField.Fields = buildSchemaFields(reflect.ValueOf(nestedStruct))
+			} else {
+				/*nestedStruct := field
+				schemaField.Fields = buildSchemaFields(field.Type.FieldByName(nestedStruct))*/
+				return
+			}
+
 		}
 
 		schemaField.Name = field.Name
 		schemaField.Type = dataType
+
+		fmt.Printf("\nKind:%v\nschemfield:%#v\n", field.Type.Kind(), schemaField)
 
 		schemaFields = append(schemaFields, schemaField)
 	}
