@@ -116,6 +116,12 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 					Fields: fieldFields,
 				})
 			}
+		case reflect.Slice:
+			// Assume that slices are byte slices and base64 encoded
+			result = append(result, &gbigquery.TableFieldSchema{
+				Name: field.Name,
+				Type: dataTypeString,
+			})
 		default:
 			err = utils.Errorf("Unsupported kind for schema field: %v", field)
 			return
