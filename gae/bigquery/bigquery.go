@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"time"
+
+	"github.com/soundtrackyourbrand/utils"
 
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
 	"code.google.com/p/google-api-go-client/googleapi"
 )
+
+var timeType = reflect.TypeOf(time.Now())
 
 const (
 	BigqueryScope     = gbigquery.BigqueryScope
@@ -16,7 +21,7 @@ const (
 	dataTypeRecord    = "RECORD"
 	dataTypeFloat     = "FLOAT"
 	dataTypeBool      = "BOOLEAN"
-	dataTypeTimeStamp = "STRING" // "TIMESTAMP"
+	dataTypeTimeStamp = "TIMESTAMP"
 )
 
 type BigQuery struct {
@@ -38,78 +43,97 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
-// If not found,  invalid to insert in bigquery
-var biqqueryDataTypes = map[reflect.Kind]string{
-	reflect.Bool:   dataTypeBool,
-	reflect.Int:    dataTypeInteger,
-	reflect.Int8:   dataTypeInteger,
-	reflect.Int16:  dataTypeInteger,
-	reflect.Int32:  dataTypeInteger,
-	reflect.Int64:  dataTypeInteger,
-	reflect.Uint:   dataTypeInteger,
-	reflect.Uint8:  dataTypeInteger,
-	reflect.Uint16: dataTypeInteger,
-	reflect.Uint32: dataTypeInteger,
-	reflect.Uint64: dataTypeInteger,
-	//reflect.Uintptr: dataTypeRecord,
-	reflect.Float32: dataTypeFloat,
-	reflect.Float64: dataTypeFloat,
-	//reflect.Array:   dataTypeRecord,
+func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, err error) {
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		fieldType := field.Type
+		for fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
 
-	//reflect.Map: dataTypeRecord,
-	reflect.Ptr: dataTypeRecord,
-	//reflect.Slice:  dataTypeRecord,
-	reflect.String: dataTypeString,
-	reflect.Struct: dataTypeRecord,
-}
-
-func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema) {
-	var schemaFields []*gbigquery.TableFieldSchema
-
-	for i := 0; i < val.Type().NumField(); i++ {
-		field := val.Type().Field(i)
-
-		schemaField := &gbigquery.TableFieldSchema{}
-
-		found := false
-		if schemaField.Type, found = biqqueryDataTypes[field.Type.Kind()]; !found {
-			fmt.Printf("\nReflect kind %v (field name: %v) not supported.\n", field.Type.Kind(), field.Name)
+		switch fieldType.Kind() {
+		case reflect.Bool:
+			result = append(result, &gbigquery.TableFieldSchema{
+				Name: field.Name,
+				Type: dataTypeBool,
+			})
+		case reflect.Float32:
+			fallthrough
+		case reflect.Float64:
+			result = append(result, &gbigquery.TableFieldSchema{
+				Name: field.Name,
+				Type: dataTypeFloat,
+			})
+		case reflect.String:
+			result = append(result, &gbigquery.TableFieldSchema{
+				Name: field.Name,
+				Type: dataTypeString,
+			})
+		case reflect.Uint:
+			fallthrough
+		case reflect.Uint8:
+			fallthrough
+		case reflect.Uint16:
+			fallthrough
+		case reflect.Uint32:
+			fallthrough
+		case reflect.Uint64:
+			fallthrough
+		case reflect.Int:
+			fallthrough
+		case reflect.Int8:
+			fallthrough
+		case reflect.Int16:
+			fallthrough
+		case reflect.Int32:
+			fallthrough
+		case reflect.Int64:
+			result = append(result, &gbigquery.TableFieldSchema{
+				Name: field.Name,
+				Type: dataTypeInteger,
+			})
+		case reflect.Struct:
+			switch fieldType {
+			case timeType:
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name: field.Name,
+					Type: dataTypeTimeStamp,
+				})
+			default:
+				var fieldFields []*gbigquery.TableFieldSchema
+				if fieldFields, err = buildSchemaFields(fieldType); err != nil {
+					return
+				}
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name:   field.Name,
+					Type:   dataTypeRecord,
+					Fields: fieldFields,
+				})
+			}
+		default:
+			err = utils.Errorf("Unsupported kind for schema field: %v", field)
 			return
 		}
-		schemaField.Name = field.Name
 
-		if schemaField.Type == dataTypeRecord {
-			fieldVal := val.Field(i)
-			for fieldVal.Kind() == reflect.Ptr {
-				schemaField.Description = "This field was originally a pointer."
-				fieldVal = val.Field(i).Elem()
-			}
-			if fieldVal.Kind() == reflect.Invalid {
-				// If we end up here, schema is never built??
-				fmt.Printf("\nInvalid kind on value.\n")
-				return
-			}
-			schemaField.Fields = buildSchemaFields(fieldVal)
-		}
-
-		schemaFields = append(schemaFields, schemaField)
 	}
 
-	result = schemaFields
 	return
 }
 
-func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.TablesService) (err error) {
-	fmt.Println("Want to create table for", val)
+func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.TablesService) (err error) {
 
+	var fields []*gbigquery.TableFieldSchema
+	if fields, err = buildSchemaFields(typ); err != nil {
+		return
+	}
 	table := &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
 			DatasetId: self.datasetId,
 			ProjectId: self.projectId,
-			TableId:   val.Type().Name(),
+			TableId:   typ.Name(),
 		},
 		Schema: &gbigquery.TableSchema{
-			Fields: buildSchemaFields(val),
+			Fields: fields,
 		},
 	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
@@ -118,8 +142,8 @@ func (self *BigQuery) createTable(val reflect.Value, tablesService *gbigquery.Ta
 	return
 }
 
-func (self *BigQuery) patchTable(val reflect.Value, table *gbigquery.Table) (err error) {
-	fmt.Println("Want to patch table for", val, "and", table)
+func (self *BigQuery) patchTable(typ reflect.Type, table *gbigquery.Table) (err error) {
+	fmt.Println("Want to patch table for", typ, "and", table)
 	return
 }
 
@@ -132,18 +156,18 @@ the latest (counted by UpdatedAt) row per unique Id.
 It assumes that i has a field "Id" that is a key.Key, and a field "UpdatedAt" that is a utils.Time.
 */
 func (self *BigQuery) AssertTable(i interface{}) (err error) {
-	val := reflect.ValueOf(i)
-	for val.Kind() == reflect.Ptr {
-		val = val.Elem()
+	typ := reflect.TypeOf(i)
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
 	}
 	tablesService := gbigquery.NewTablesService(self.service)
-	table, err := tablesService.Get(self.projectId, self.datasetId, val.Type().Name()).Do()
+	table, err := tablesService.Get(self.projectId, self.datasetId, typ.Name()).Do()
 	if err != nil {
 		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 404 {
-			return self.createTable(val, tablesService)
+			return self.createTable(typ, tablesService)
 		} else {
 			return
 		}
 	}
-	return self.patchTable(val, table)
+	return self.patchTable(typ, table)
 }
