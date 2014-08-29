@@ -40,18 +40,18 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 
 // If not found,  invalid to insert in bigquery
 var biqqueryDataTypes = map[reflect.Kind]string{
-	reflect.Bool:    dataTypeBool,
-	reflect.Int:     dataTypeInteger,
-	reflect.Int8:    dataTypeInteger,
-	reflect.Int16:   dataTypeInteger,
-	reflect.Int32:   dataTypeInteger,
-	reflect.Int64:   dataTypeInteger,
-	reflect.Uint:    dataTypeInteger,
-	reflect.Uint8:   dataTypeInteger,
-	reflect.Uint16:  dataTypeInteger,
-	reflect.Uint32:  dataTypeInteger,
-	reflect.Uint64:  dataTypeInteger,
-	reflect.Uintptr: dataTypeRecord,
+	reflect.Bool:   dataTypeBool,
+	reflect.Int:    dataTypeInteger,
+	reflect.Int8:   dataTypeInteger,
+	reflect.Int16:  dataTypeInteger,
+	reflect.Int32:  dataTypeInteger,
+	reflect.Int64:  dataTypeInteger,
+	reflect.Uint:   dataTypeInteger,
+	reflect.Uint8:  dataTypeInteger,
+	reflect.Uint16: dataTypeInteger,
+	reflect.Uint32: dataTypeInteger,
+	reflect.Uint64: dataTypeInteger,
+	//reflect.Uintptr: dataTypeRecord,
 	reflect.Float32: dataTypeFloat,
 	reflect.Float64: dataTypeFloat,
 	//reflect.Array:   dataTypeRecord,
@@ -68,30 +68,28 @@ func buildSchemaFields(val reflect.Value) (result []*gbigquery.TableFieldSchema)
 
 	for i := 0; i < val.Type().NumField(); i++ {
 		field := val.Type().Field(i)
-		dataType, found := biqqueryDataTypes[field.Type.Kind()]
-		if !found {
-			fmt.Printf("Reflect kind %v not supported.", field.Type.Kind())
-		}
 
 		schemaField := &gbigquery.TableFieldSchema{}
 
-		if dataType == dataTypeRecord {
-			// TODO: Return on not found structs
-			if field.Type.Kind() == reflect.Ptr {
-				nestedStruct, _ := field.Type.Elem().FieldByName(field.Name)
-				schemaField.Fields = buildSchemaFields(reflect.ValueOf(nestedStruct))
-			} else {
-				/*nestedStruct := field
-				schemaField.Fields = buildSchemaFields(field.Type.FieldByName(nestedStruct))*/
+		found := false
+		if schemaField.Type, found = biqqueryDataTypes[field.Type.Kind()]; !found {
+			fmt.Printf("\nReflect kind %v (field name: %v) not supported.\n", field.Type.Kind(), field.Name)
+			return
+		}
+		schemaField.Name = field.Name
+
+		if schemaField.Type == dataTypeRecord {
+			fieldVal := val.Field(i)
+			fmt.Printf("fieldVal0:%v\n", fieldVal)
+			for fieldVal.Kind() == reflect.Ptr {
+				fieldVal = val.Field(i).Elem()
+			}
+			if fieldVal.Kind() == reflect.Invalid {
+				fmt.Printf("\nInvalid kind on value.\n")
 				return
 			}
-
+			schemaField.Fields = buildSchemaFields(fieldVal)
 		}
-
-		schemaField.Name = field.Name
-		schemaField.Type = dataType
-
-		fmt.Printf("\nKind:%v\nschemfield:%#v\n", field.Type.Kind(), schemaField)
 
 		schemaFields = append(schemaFields, schemaField)
 	}
