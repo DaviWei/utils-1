@@ -13,6 +13,7 @@ import (
 )
 
 var timeType = reflect.TypeOf(time.Now())
+var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
 
 const (
 	BigqueryScope     = gbigquery.BigqueryScope
@@ -94,6 +95,11 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 			})
 		case reflect.Struct:
 			switch fieldType {
+			case byteStringType:
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name: field.Name,
+					Type: dataTypeString,
+				})
 			case timeType:
 				result = append(result, &gbigquery.TableFieldSchema{
 					Name: field.Name,
