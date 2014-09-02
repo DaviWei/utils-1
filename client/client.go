@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils"
-	"github.com/soundtrackyourbrand/utils/email"
-	"github.com/soundtrackyourbrand/utils/key"
-	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/email"
+	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
 
 type DefaultAccessToken struct {
@@ -195,17 +196,13 @@ type RemoteSoundZone struct {
 	DeviceId                  string         `json:"device_id,omitempty"`
 }
 
-type RemoteSoundZoneErrorRequest struct {
-	Unique         bool                  `json:"unique"`
-	SoundZoneError *RemoteSoundZoneError `json:"sound_zone_error"`
-}
-
 type RemoteSoundZoneError struct {
 	DefaultMeta
 	Type     string           `json:"type"`
 	Cause    utils.ByteString `json:"cause"`
 	Info     string           `json:"info"`
 	Resolved bool             `json:"resolved"`
+	Unique   bool             `json:"unique"`
 }
 
 type RemoteSlot struct {
@@ -506,8 +503,8 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 	return
 }
 
-func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId key.Key, soundZoneErrorReq RemoteSoundZoneErrorRequest) (err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, soundZoneErrorReq)
+func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId key.Key, soundZoneError RemoteSoundZoneError) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, soundZoneError)
 	if response.StatusCode != 200 {
 		err = errorFor(request, response)
 		return
