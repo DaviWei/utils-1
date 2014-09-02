@@ -132,13 +132,12 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 	return
 }
 
-func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.TablesService) (err error) {
-
+func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err error) {
 	var fields []*gbigquery.TableFieldSchema
 	if fields, err = buildSchemaFields(typ); err != nil {
 		return
 	}
-	table := &gbigquery.Table{
+	result = &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
 			DatasetId: self.datasetId,
 			ProjectId: self.projectId,
@@ -148,14 +147,28 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 			Fields: fields,
 		},
 	}
+	return
+}
+
+func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.TablesService) (err error) {
+	table, err := self.buildTable(typ)
+	if err != nil {
+		return
+	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
 		return
 	}
 	return
 }
 
-func (self *BigQuery) patchTable(typ reflect.Type, table *gbigquery.Table) (err error) {
-	fmt.Println("Want to patch table for", typ, "and", table)
+func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, table *gbigquery.Table) (err error) {
+	table, err = self.buildTable(typ)
+	if err != nil {
+		return
+	}
+	if _, err = tablesService.Patch(self.projectId, self.datasetId, table.Id, table).Do(); err != nil {
+		return
+	}
 	return
 }
 
@@ -181,7 +194,7 @@ func (self *BigQuery) AssertTable(i interface{}) (err error) {
 			return
 		}
 	}
-	return self.patchTable(typ, table)
+	return self.patchTable(typ, tablesService, table)
 }
 
 func (self *BigQuery) InsertTableData(i interface{}) (err error) {
