@@ -15,6 +15,7 @@ type MailType string
 type EmailParameters struct {
 	To           string
 	Cc           string
+	Bcc          string
 	Sender       string
 	Attachments  []Attachment
 	Locale       string

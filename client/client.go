@@ -62,18 +62,35 @@ type DefaultMeta struct {
 	UpdatedBy key.Key        `json:"updated_by,omitempty"`
 }
 
+type ScrobbleRequest struct {
+	Uri          string           `json:"uri"`
+	Artists      []ScrobbleArtist `json:"artists"`
+	PlaylistUri  string           `json:"playlist_uri"`
+	PlaylistName string           `json:"playlist_name"`
+	Skipped      bool             `json:"skipped"`
+	At           utils.JSONTime   `json:"played_at"`
+	SongName     string           `json:"song_name"`
+	WasOffline   bool             `json:"offline"`
+	ChannelName  string           `json:"channel_name"`
+}
+
+type ScrobbleArtist struct {
+	Name string `json:"name"`
+	Uri  string `json:"uri"`
+}
+
 type RemoteLocation struct {
 	DefaultMeta
 
 	Account key.Key `json:"account"`
 
-	Name                  string `json:"name"`
-	PostalCode            string `json:"postal_code"`
-	Address               string `json:"address"`
-	City                  string `json:"city"`
-	ISOCountry            string `json:"iso_country"`
-	Locale                string `json:"locale"`
-	BillingGroup          key.Key `json:"billing_group",omitempty`
+	Name         string  `json:"name"`
+	PostalCode   string  `json:"postal_code"`
+	Address      string  `json:"address"`
+	City         string  `json:"city"`
+	ISOCountry   string  `json:"iso_country"`
+	Locale       string  `json:"locale"`
+	BillingGroup key.Key `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
@@ -179,17 +196,13 @@ type RemoteSoundZone struct {
 	DeviceId                  string         `json:"device_id,omitempty"`
 }
 
-type RemoteSoundZoneErrorRequest struct {
-	Unique         bool                  `json:"unique"`
-	SoundZoneError *RemoteSoundZoneError `json:"sound_zone_error"`
-}
-
 type RemoteSoundZoneError struct {
 	DefaultMeta
 	Type     string           `json:"type"`
 	Cause    utils.ByteString `json:"cause"`
 	Info     string           `json:"info"`
 	Resolved bool             `json:"resolved"`
+	Unique   bool             `json:"unique"`
 }
 
 type RemoteSlot struct {
@@ -520,8 +533,8 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 	return
 }
 
-func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId key.Key, soundZoneErrorReq RemoteSoundZoneErrorRequest) (err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, soundZoneErrorReq)
+func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId key.Key, soundZoneError RemoteSoundZoneError) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, soundZoneError)
 	if err != nil {
 		return
 	}
@@ -533,8 +546,8 @@ func UpdateSoundZoneErrors(c ServiceConnector, token AccessToken, soundZoneId ke
 	return
 }
 
-func CreateAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts", owner.Encode()), token, account)
+func CreateBusinessAccount(c ServiceConnector, token AccessToken, account RemoteAccount, owner key.Key) (result *RemoteAccount, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("users/%v/accounts/business", owner.Encode()), token, account)
 	if err != nil {
 		return
 	}
@@ -596,8 +609,8 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
-			"password": password,
-		})
+		"password": password,
+	})
 	if err != nil {
 		return
 	}

@@ -203,11 +203,9 @@ func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg
 	}
 
 	// This makes sure that replies that returns a slice that is empty returns a '[]' instad of 'null'
-	if body == nil {
-		t := reflect.ValueOf(&body).Elem()
-		if t.Kind() == reflect.Slice {
-			t.Set(reflect.MakeSlice(t.Type(), 0, 0))
-		}
+	bodyVal := reflect.ValueOf(body)
+	if bodyVal.Kind() == reflect.Slice && bodyVal.IsNil() {
+		reflect.ValueOf(&body).Elem().Set(reflect.MakeSlice(bodyVal.Type(), 0, 0))
 	}
 
 	if result, err = json.MarshalIndent(body, "", "  "); err != nil {
