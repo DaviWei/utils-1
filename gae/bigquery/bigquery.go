@@ -166,7 +166,7 @@ func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.Tabl
 	if err != nil {
 		return
 	}
-	if _, err = tablesService.Patch(self.projectId, self.datasetId, table.Id, table).Do(); err != nil {
+	if _, err = tablesService.Patch(self.projectId, self.datasetId, table.TableReference.TableId, table).Do(); err != nil {
 		return
 	}
 	return
