@@ -2,16 +2,19 @@ package bigquery
 
 import (
 	"fmt"
-	"github.com/soundtrackyourbrand/utils"
 	"net/http"
 	"reflect"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/gae"
 
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
 	"code.google.com/p/google-api-go-client/googleapi"
 )
 
 var timeType = reflect.TypeOf(time.Now())
+var gaeTimeType = reflect.TypeOf(gae.JSONTime{})
 var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
 
 const (
@@ -112,6 +115,11 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 					Type: dataTypeString,
 				})
 			case timeType:
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name: field.Name,
+					Type: dataTypeTimeStamp,
+				})
+			case gaeTimeType:
 				result = append(result, &gbigquery.TableFieldSchema{
 					Name: field.Name,
 					Type: dataTypeTimeStamp,
