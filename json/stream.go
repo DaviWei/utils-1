@@ -153,11 +153,12 @@ func NewEncoder(w io.Writer) *Encoder {
 //
 // See the documentation for Marshal for details about the
 // conversion of Go values to JSON.
-func (enc *Encoder) Encode(v interface{}) error {
+func (enc *Encoder) Encode(v interface{}, args ...interface{}) error {
 	if enc.err != nil {
 		return enc.err
 	}
 	e := newEncodeState()
+	e.args = args
 	err := e.marshal(v)
 	if err != nil {
 		return err
@@ -184,7 +185,7 @@ func (enc *Encoder) Encode(v interface{}) error {
 type RawMessage []byte
 
 // MarshalJSON returns *m as the JSON encoding of m.
-func (m *RawMessage) MarshalJSON() ([]byte, error) {
+func (m *RawMessage) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return *m, nil
 }
 

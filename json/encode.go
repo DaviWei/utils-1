@@ -128,8 +128,9 @@ import (
 // handle them.  Passing cyclic structures to Marshal will result in
 // an infinite recursion.
 //
-func Marshal(v interface{}) ([]byte, error) {
+func Marshal(v interface{}, args ...interface{}) ([]byte, error) {
 	e := &encodeState{}
+	e.args = args
 	err := e.marshal(v)
 	if err != nil {
 		return nil, err
@@ -138,8 +139,8 @@ func Marshal(v interface{}) ([]byte, error) {
 }
 
 // MarshalIndent is like Marshal but applies Indent to format the output.
-func MarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
-	b, err := Marshal(v)
+func MarshalIndent(v interface{}, prefix, indent string, args ...interface{}) ([]byte, error) {
+	b, err := Marshal(v, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +190,7 @@ func HTMLEscape(dst *bytes.Buffer, src []byte) {
 // Marshaler is the interface implemented by objects that
 // can marshal themselves into valid JSON.
 type Marshaler interface {
-	MarshalJSON() ([]byte, error)
+	MarshalJSON(arg ...interface{}) ([]byte, error)
 }
 
 // An UnsupportedTypeError is returned by Marshal when attempting
@@ -240,6 +241,7 @@ var hex = "0123456789abcdef"
 type encodeState struct {
 	bytes.Buffer // accumulated output
 	scratch      [64]byte
+	args         []interface{}
 }
 
 var encodeStatePool sync.Pool
@@ -411,7 +413,7 @@ func marshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
 		return
 	}
 	m := v.Interface().(Marshaler)
-	b, err := m.MarshalJSON()
+	b, err := m.MarshalJSON(e.args)
 	if err == nil {
 		// copy JSON into buffer, checking validity.
 		err = compact(&e.Buffer, b, true)
@@ -428,7 +430,7 @@ func addrMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
 		return
 	}
 	m := va.Interface().(Marshaler)
-	b, err := m.MarshalJSON()
+	b, err := m.MarshalJSON(e.args)
 	if err == nil {
 		// copy JSON into buffer, checking validity.
 		err = compact(&e.Buffer, b, true)

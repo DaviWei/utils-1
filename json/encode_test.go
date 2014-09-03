@@ -148,7 +148,7 @@ func TestUnsupportedValues(t *testing.T) {
 // Ref has Marshaler and Unmarshaler methods with pointer receiver.
 type Ref int
 
-func (*Ref) MarshalJSON() ([]byte, error) {
+func (*Ref) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return []byte(`"ref"`), nil
 }
 
@@ -160,7 +160,7 @@ func (r *Ref) UnmarshalJSON([]byte) error {
 // Val has Marshaler methods with value receiver.
 type Val int
 
-func (Val) MarshalJSON() ([]byte, error) {
+func (Val) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return []byte(`"val"`), nil
 }
 
@@ -216,7 +216,7 @@ func TestRefValMarshal(t *testing.T) {
 // C implements Marshaler and returns unescaped JSON.
 type C int
 
-func (C) MarshalJSON() ([]byte, error) {
+func (C) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return []byte(`"<&>"`), nil
 }
 
