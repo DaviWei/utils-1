@@ -187,6 +187,10 @@ func HTMLEscape(dst *bytes.Buffer, src []byte) {
 	}
 }
 
+type SimpleMarshaler interface {
+	MarshalJSON() ([]byte, error)
+}
+
 // Marshaler is the interface implemented by objects that
 // can marshal themselves into valid JSON.
 type Marshaler interface {
@@ -348,17 +352,24 @@ func typeEncoder(t reflect.Type) encoderFunc {
 }
 
 var (
-	marshalerType     = reflect.TypeOf(new(Marshaler)).Elem()
-	textMarshalerType = reflect.TypeOf(new(encoding.TextMarshaler)).Elem()
+	simpleMarshalerType = reflect.TypeOf(new(SimpleMarshaler)).Elem()
+	marshalerType       = reflect.TypeOf(new(Marshaler)).Elem()
+	textMarshalerType   = reflect.TypeOf(new(encoding.TextMarshaler)).Elem()
 )
 
 // newTypeEncoder constructs an encoderFunc for a type.
 // The returned encoder only checks CanAddr when allowAddr is true.
 func newTypeEncoder(t reflect.Type, allowAddr bool) encoderFunc {
+	if t.Implements(simpleMarshalerType) {
+		return simpleMarshalerEncoder
+	}
 	if t.Implements(marshalerType) {
 		return marshalerEncoder
 	}
 	if t.Kind() != reflect.Ptr && allowAddr {
+		if reflect.PtrTo(t).Implements(simpleMarshalerType) {
+			return newCondAddrEncoder(addrSimpleMarshalerEncoder, newTypeEncoder(t, false))
+		}
 		if reflect.PtrTo(t).Implements(marshalerType) {
 			return newCondAddrEncoder(addrMarshalerEncoder, newTypeEncoder(t, false))
 		}
@@ -407,13 +418,46 @@ func invalidValueEncoder(e *encodeState, v reflect.Value, quoted bool) {
 	e.WriteString("null")
 }
 
+func simpleMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	m := v.Interface().(SimpleMarshaler)
+	b, err := m.MarshalJSON()
+	if err == nil {
+		// copy JSON into buffer, checking validity.
+		err = compact(&e.Buffer, b, true)
+	}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
+
+func addrSimpleMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	va := v.Addr()
+	if va.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	m := va.Interface().(SimpleMarshaler)
+	b, err := m.MarshalJSON()
+	if err == nil {
+		// copy JSON into buffer, checking validity.
+		err = compact(&e.Buffer, b, true)
+	}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
+
 func marshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
 	if v.Kind() == reflect.Ptr && v.IsNil() {
 		e.WriteString("null")
 		return
 	}
 	m := v.Interface().(Marshaler)
-	b, err := m.MarshalJSON(e.args)
+	b, err := m.MarshalJSON(e.args...)
 	if err == nil {
 		// copy JSON into buffer, checking validity.
 		err = compact(&e.Buffer, b, true)
@@ -430,7 +474,7 @@ func addrMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
 		return
 	}
 	m := va.Interface().(Marshaler)
-	b, err := m.MarshalJSON(e.args)
+	b, err := m.MarshalJSON(e.args...)
 	if err == nil {
 		// copy JSON into buffer, checking validity.
 		err = compact(&e.Buffer, b, true)

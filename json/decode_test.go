@@ -15,6 +15,97 @@ import (
 	"time"
 )
 
+const (
+	ISO8601Format = "20060102150405"
+)
+
+type OldSchoolMarshaler string
+
+func (self OldSchoolMarshaler) MarshalJSON() (b []byte, err error) {
+	return Marshal("prutt")
+}
+
+func (self *OldSchoolMarshaler) UnmarshalJSON(b []byte) (err error) {
+	*self = "hepp"
+	return
+}
+
+func TestOldSchoolMarshaler(t *testing.T) {
+	o := OldSchoolMarshaler("hej")
+	b, err := Marshal(o)
+	if err != nil {
+		t.Fatalf("Unable to marshal %v: %v", o, err)
+	}
+	var o2 OldSchoolMarshaler
+	if err := Unmarshal(b, &o2); err != nil {
+		t.Fatalf("Unable to unmarshal %s: %v", b, err)
+	}
+	if o2 != "hepp" {
+		t.Fatalf("Wanted 'hepp', got %v", o2)
+	}
+}
+
+type SpecialTime struct {
+	time.Time
+}
+
+func (self SpecialTime) MarshalJSON(args ...interface{}) (b []byte, err error) {
+	if len(args) == 1 {
+		if s, ok := args[0].(string); ok && s == "iso8601" {
+			return Marshal(self.Time.Format(ISO8601Format))
+		}
+	}
+	return Marshal(self.Time)
+}
+
+func (self *SpecialTime) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
+	if len(args) == 1 {
+		if s, ok := args[0].(string); ok && s == "iso8601" {
+			s := ""
+			if err = Unmarshal(b, &s); err != nil {
+				return
+			}
+			t := time.Time{}
+			if t, err = time.Parse(ISO8601Format, s); err != nil {
+				return
+			}
+			self.Time = t
+			return
+		}
+	}
+	return Unmarshal(b, &self.Time)
+}
+
+func TestDualMarshalling(t *testing.T) {
+	t1 := SpecialTime{time.Now()}
+	b, err := Marshal(t1)
+	if err != nil {
+		t.Fatalf("Unable to marshal %v: %v", t1, err)
+	}
+	t2 := SpecialTime{}
+	err = Unmarshal(b, &t2)
+	if err != nil {
+		t.Fatalf("Unable to unmarshal %s: %v", b, err)
+	}
+	if !reflect.DeepEqual(t1, t2) {
+		t.Fatalf("Wanted %v, got %v", t1, t2)
+	}
+
+	t1 = SpecialTime{time.Now()}
+	b, err = Marshal(t1, "iso8601")
+	if err != nil {
+		t.Fatalf("Unable to marshal %v: %v", t1, err)
+	}
+	t2 = SpecialTime{}
+	err = Unmarshal(b, &t2, "iso8601")
+	if err != nil {
+		t.Fatalf("Unable to unmarshal %s: %v", b, err)
+	}
+	if t1.Time.Format(ISO8601Format) != t2.Time.Format(ISO8601Format) {
+		t.Fatalf("Wanted %v, got %v", t1, t2)
+	}
+}
+
 type T struct {
 	X string
 	Y int
