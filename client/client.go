@@ -12,7 +12,6 @@ import (
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/email"
-	"github.com/soundtrackyourbrand/utils/gae/bigquery"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
@@ -623,17 +622,5 @@ func SetPassword(c ServiceConnector, user key.Key, password string, token Access
 	result = &RemoteUser{}
 	err = json.NewDecoder(response.Body).Decode(result)
 
-	return
-}
-
-func AddToBigQuery(c ServiceConnector, i interface{}) (err error) {
-	bq, err := bigquery.New(c.Client())
-	if err != nil {
-		return
-	}
-
-	if err = bq.AssertTable(i); err != nil {
-		return
-	}
 	return
 }
