@@ -2,7 +2,6 @@ package jsoncontext
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils/json"
 
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"

@@ -2,7 +2,6 @@ package json
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -11,7 +10,7 @@ import (
 
 func CopyJSON(in interface{}, out interface{}, context string, accessScopes ...string) (err error) {
 	buf := &bytes.Buffer{}
-	if err = json.NewEncoder(buf).Encode(in); err != nil {
+	if err = NewEncoder(buf).Encode(in); err != nil {
 		return
 	}
 	err = LoadJSON(buf, out, context, accessScopes...)
@@ -22,8 +21,8 @@ func CopyJSON(in interface{}, out interface{}, context string, accessScopes ...s
 LoadJSON will JSON decode in into out, but only the fields of out that have a tag 'update_scopes' matching the provided accessScopes or '*'.
 */
 func LoadJSON(in io.Reader, out interface{}, context string, accessScopes ...string) (err error) {
-	var decodedJSON map[string]*json.RawMessage
-	if err = json.NewDecoder(in).Decode(&decodedJSON); err != nil {
+	var decodedJSON map[string]*RawMessage
+	if err = NewDecoder(in).Decode(&decodedJSON); err != nil {
 		return
 	}
 
@@ -78,7 +77,7 @@ func LoadJSON(in io.Reader, out interface{}, context string, accessScopes ...str
 		}
 
 		// Use json unmarshal the raw value in to correct field.
-		if err = json.Unmarshal(*data, valueField.Addr().Interface()); err != nil {
+		if err = Unmarshal(*data, valueField.Addr().Interface()); err != nil {
 			return
 		}
 	}

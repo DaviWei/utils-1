@@ -1,11 +1,12 @@
 package key
 
 import (
-	"encoding/json"
 	"math/rand"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils/json"
 )
 
 func init() {

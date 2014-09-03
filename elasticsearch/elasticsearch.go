@@ -2,13 +2,14 @@ package elasticsearch
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/soundtrackyourbrand/utils/json"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"

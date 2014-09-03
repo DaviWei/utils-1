@@ -2,7 +2,6 @@ package jsoncontext
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
-	jsonUtils "github.com/soundtrackyourbrand/utils/json"
+	"github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 )
 
@@ -84,7 +83,7 @@ func (self *DefaultJSONContext) CopyJSON(in, out interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	return jsonUtils.CopyJSON(in, out, self.Req().Method, token.Scopes()...)
+	return json.CopyJSON(in, out, self.Req().Method, token.Scopes()...)
 }
 
 func (self *DefaultJSONContext) DecodedBody() []byte {
@@ -102,10 +101,10 @@ func (self *DefaultJSONContext) DecodeJSON(i interface{}) (err error) {
 func (self *DefaultJSONContext) LoadJSON(out interface{}) (err error) {
 	at, err := self.AccessToken(nil)
 	if err != nil {
-		return jsonUtils.LoadJSON(self.Req().Body, out, self.Req().Method)
+		return json.LoadJSON(self.Req().Body, out, self.Req().Method)
 	}
 	scopes := at.Scopes()
-	return jsonUtils.LoadJSON(self.Req().Body, out, self.Req().Method, scopes...)
+	return json.LoadJSON(self.Req().Body, out, self.Req().Method, scopes...)
 }
 
 func (self *DefaultJSONContext) APIVersion() int {

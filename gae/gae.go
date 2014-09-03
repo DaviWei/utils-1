@@ -1,10 +1,11 @@
 package gae
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils/json"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
@@ -636,43 +637,4 @@ func DelQuery(c PersistenceContext, src interface{}, q *datastore.Query) (err er
 		}
 	}
 	return memcache.Del(c, memcacheKeys...)
-}
-
-type JSONTime struct {
-	time.Time
-}
-
-func (self JSONTime) MarshalJSON(args ...interface{}) ([]byte, error) {
-	if len(args) == 1 {
-		if s, ok := args[0].(string); ok && s == "bigquery" {
-			return json.Marshal(self.Time)
-		}
-	}
-	return json.Marshal(self.Time.Format(utils.ISO8601DateTimeFormat))
-}
-
-func (self *JSONTime) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
-	if len(args) == 1 {
-		if s, ok := args[0].(string); ok && s == "bigquery" {
-			t := time.Time{}
-			if err = json.Unmarshal(b, &t); err != nil {
-				return
-			}
-			self.Time = t
-			return
-		}
-	}
-	var s string
-	if err = json.Unmarshal(b, &s); err == nil {
-		if s != "" {
-			self.Time, err = time.Parse(utils.ISO8601DateTimeFormat, s)
-		} else {
-			self.Time = time.Time{}
-		}
-	}
-	return
-}
-
-func (self *JSONTime) String() string {
-	return self.Time.Format(utils.ISO8601DateTimeFormat)
 }

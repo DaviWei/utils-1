@@ -176,7 +176,10 @@ func (enc *Encoder) Encode(v interface{}, args ...interface{}) error {
 	if _, err = enc.w.Write(e.Bytes()); err != nil {
 		enc.err = err
 	}
-	encodeStatePool.Put(e)
+	/*
+		uncomment when go_appengine runs 1.3...
+		encodeStatePool.Put(e)
+	*/
 	return err
 }
 

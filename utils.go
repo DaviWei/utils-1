@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -26,8 +25,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/soundtrackyourbrand/utils/run"
+	"github.com/soundtrackyourbrand/utils/json"
+
 	"net/http"
+
+	"github.com/soundtrackyourbrand/utils/run"
 )
 
 func init() {
@@ -456,34 +458,49 @@ func UpdateGitRevision(dir, destination string) (err error) {
 	return
 }
 
-type JSONTime time.Time
-
 const (
 	ISO8601DayTimeFormat  = "150405"
 	ISO8601DateTimeFormat = "20060102150405"
 	ISO8601DateFormat     = "20060102"
 )
 
-func (self JSONTime) MarshalJSON() ([]byte, error) {
-	if time.Time(self).IsZero() {
-		return json.Marshal(nil)
-	}
-	return json.Marshal(time.Time(self).Format(ISO8601DateTimeFormat))
+type JSONTime struct {
+	time.Time
 }
 
-func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
+func (self JSONTime) MarshalJSON(args ...interface{}) ([]byte, error) {
+	if len(args) == 1 {
+		if s, ok := args[0].(string); ok && s == "bigquery" {
+			return json.Marshal(self.Time)
+		}
+	}
+	return json.Marshal(self.Time.Format(ISO8601DateTimeFormat))
+}
+
+func (self *JSONTime) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
+	if len(args) == 1 {
+		if s, ok := args[0].(string); ok && s == "bigquery" {
+			t := time.Time{}
+			if err = json.Unmarshal(b, &t); err != nil {
+				return
+			}
+			self.Time = t
+			return
+		}
+	}
 	var s string
 	if err = json.Unmarshal(b, &s); err == nil {
 		if s != "" {
-			var t time.Time
-			if t, err = time.Parse(ISO8601DateTimeFormat, s); err == nil {
-				*self = JSONTime(t)
-			}
+			self.Time, err = time.Parse(ISO8601DateTimeFormat, s)
 		} else {
-			*self = JSONTime(time.Time{})
+			self.Time = time.Time{}
 		}
 	}
 	return
+}
+
+func (self *JSONTime) String() string {
+	return self.Time.Format(ISO8601DateTimeFormat)
 }
 
 type Base64String string

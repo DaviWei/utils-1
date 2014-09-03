@@ -3,12 +3,13 @@ package key
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/soundtrackyourbrand/utils/json"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"

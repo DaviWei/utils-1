@@ -248,14 +248,20 @@ type encodeState struct {
 	args         []interface{}
 }
 
+/*
+uncomment when go_appengine runs 1.3...
 var encodeStatePool sync.Pool
+*/
 
 func newEncodeState() *encodeState {
-	if v := encodeStatePool.Get(); v != nil {
-		e := v.(*encodeState)
-		e.Reset()
-		return e
-	}
+	/*
+		uncomment when go_appengine runs 1.3...
+		if v := encodeStatePool.Get(); v != nil {
+			e := v.(*encodeState)
+			e.Reset()
+			return e
+		}
+	*/
 	return new(encodeState)
 }
 
