@@ -2,11 +2,10 @@ package bigquery
 
 import (
 	"fmt"
+	"github.com/soundtrackyourbrand/utils"
 	"net/http"
 	"reflect"
 	"time"
-
-	"github.com/soundtrackyourbrand/utils"
 
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
 	"code.google.com/p/google-api-go-client/googleapi"
@@ -29,6 +28,18 @@ type BigQuery struct {
 	service   *gbigquery.Service
 	projectId string
 	datasetId string
+}
+
+func (self *BigQuery) GetService() *gbigquery.Service {
+	return self.service
+}
+
+func (self *BigQuery) GetProjectId() string {
+	return self.projectId
+}
+
+func (self *BigQuery) GetDatasetId() string {
+	return self.datasetId
 }
 
 func New(client *http.Client, projectId, datasetId string) (result *BigQuery, err error) {
@@ -236,8 +247,8 @@ func buildRows(i interface{}) (result []*gbigquery.TableDataInsertAllRequestRows
 		typ = typ.Elem()
 	}
 	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		fieldName, fieldData := formatData(field, val.FieldByName(field.Name))
+		//field := typ.Field(i)
+		fieldName, fieldData := "derp", "herp" //formatData(field, val.FieldByName(field.Name))
 
 		result = append(result, &gbigquery.TableDataInsertAllRequestRows{
 			// InsertId string `json:"insertId,omitempty"`
@@ -256,77 +267,50 @@ func buildRows(i interface{}) (result []*gbigquery.TableDataInsertAllRequestRows
 	return
 }
 
-func formatData(field reflect.StructField, fieldValue reflect.Value) (fieldName string, fieldData interface{}) {
-	fieldType := field.Type
-	for fieldType.Kind() == reflect.Ptr {
-		fieldType = fieldType.Elem()
-	}
-	switch fieldType.Kind() {
-	case reflect.Bool:
-		return field.Name, fieldValue.Bool()
+/*
+func formatData(field reflect.StructField, fieldValue interface{}) (fieldName string, fieldData interface{}, err error) {
 
-	case reflect.Float32:
-		fallthrough
-	case reflect.Float64:
-		return field.Name, fieldValue.Float()
-
-	case reflect.String:
-		return field.Name, fieldValue.String()
-
-	case reflect.Uint:
-		fallthrough
-	case reflect.Uint8:
-		fallthrough
-	case reflect.Uint16:
-		fallthrough
-	case reflect.Uint32:
-		fallthrough
-	case reflect.Uint64:
-		return field.Name, fieldValue.Uint()
-
-	case reflect.Int:
-		fallthrough
-	case reflect.Int8:
-		fallthrough
-	case reflect.Int16:
-		fallthrough
-	case reflect.Int32:
-		fallthrough
-	case reflect.Int64:
-		return field.Name, fieldValue.Int()
-
-	case reflect.Struct:
-		return "StringData", "herp"
-		/*switch fieldType {
-			case byteStringType:
-				return field.Name, string(reflect.ValueOf(field).Bytes())
-
-			case timeType:
-				return field.Name, time.Now()
-
-			default:
-				var fieldFields []*gbigquery.TableFieldSchema
-					if fieldFields, err = buildSchemaFields(fieldType); err != nil {
-						return
-					}
-					result = append(result, &gbigquery.TableFieldSchema{
-						Name:   field.Name,
-						Type:   dataTypeRecord,
-						Fields: fieldFields,
-					})
-			}
-
-		/*case reflect.Slice:
-		// Assume that slices are byte slices and base64 encoded
-		result = append(result, &gbigquery.TableFieldSchema{
-			Name: field.Name,
-			Type: dataTypeString,
-		})*/
+	marshalled := []byte{}
+	switch v := fieldValue.(type) {
+	case common.Time:
+		if marshalled, err = json.Marshal(v.Time); err != nil {
+			return
+		}
+	case utils.ByteString:
+		if marshalled, err = json.Marshal(string(v.Bytes)); err != nil {
+			return
+		}
+	case []byte:
+		encoded := ""
+		if encoded, err = base64.StdEncoding.EncodeToString(v); err != nil {
+			return
+		}
+		if marshalled, err = json.Marshal(encoded); err != nil {
+			return
+		}
 	default:
-		return "StringData", "herp"
-		//err = utils.Errorf("Unsupported kind for schema field: %v", field)
+		val := reflect.ValueOf(fieldValue)
+		for val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+		if val.Kind() == reflect.Struct {
+			typ := val.Type()
+			m := map[string]interface{}{}
+			for i := 0; i < typ.NumField(); i++ {
+
+			}
+			for i := 0; i < val.NumField(); i++ {
+				fieldData, err = formatData(field.Type.Field())
+			}
+		} else {
+			if marshalled, err = json.Marshal(fieldValue); err != nil {
+				return
+			}
+		}
+	}
+	if err = json.Unmarshal(marshalled, &fieldData); err != nil {
 		return
 	}
-
 	return
 }
+*/
