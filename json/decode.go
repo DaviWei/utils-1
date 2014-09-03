@@ -64,11 +64,12 @@ import (
 // Instead, they are replaced by the Unicode replacement
 // character U+FFFD.
 //
-func Unmarshal(data []byte, v interface{}) error {
+func Unmarshal(data []byte, v interface{}, args ...interface{}) error {
 	// Check for well-formedness.
 	// Avoids filling out half a data structure
 	// before discovering a JSON syntax error.
 	var d decodeState
+	d.args = args
 	err := checkValid(data, &d.scan)
 	if err != nil {
 		return err
@@ -84,7 +85,7 @@ func Unmarshal(data []byte, v interface{}) error {
 // a JSON value. UnmarshalJSON must copy the JSON data
 // if it wishes to retain the data after returning.
 type Unmarshaler interface {
-	UnmarshalJSON([]byte) error
+	UnmarshalJSON([]byte, ...interface{}) error
 }
 
 // An UnmarshalTypeError describes a JSON value that was
@@ -175,6 +176,7 @@ type decodeState struct {
 	savedError error
 	tempstr    string // scratch space to avoid some allocations
 	useNumber  bool
+	args       []interface{}
 }
 
 // errPhase is used for errors that should not happen unless
@@ -345,7 +347,7 @@ func (d *decodeState) array(v reflect.Value) {
 	u, ut, pv := d.indirect(v, false)
 	if u != nil {
 		d.off--
-		err := u.UnmarshalJSON(d.next())
+		err := u.UnmarshalJSON(d.next(), d.args...)
 		if err != nil {
 			d.error(err)
 		}
@@ -451,7 +453,7 @@ func (d *decodeState) object(v reflect.Value) {
 	u, ut, pv := d.indirect(v, false)
 	if u != nil {
 		d.off--
-		err := u.UnmarshalJSON(d.next())
+		err := u.UnmarshalJSON(d.next(), d.args...)
 		if err != nil {
 			d.error(err)
 		}
@@ -634,7 +636,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted bool
 	wantptr := item[0] == 'n' // null
 	u, ut, pv := d.indirect(v, wantptr)
 	if u != nil {
-		err := u.UnmarshalJSON(item)
+		err := u.UnmarshalJSON(item, d.args...)
 		if err != nil {
 			d.error(err)
 		}

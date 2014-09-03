@@ -36,7 +36,7 @@ func (dec *Decoder) UseNumber() { dec.d.useNumber = true }
 //
 // See the documentation for Unmarshal for details about
 // the conversion of JSON into a Go value.
-func (dec *Decoder) Decode(v interface{}) error {
+func (dec *Decoder) Decode(v interface{}, args ...interface{}) error {
 	if dec.err != nil {
 		return dec.err
 	}
@@ -50,6 +50,7 @@ func (dec *Decoder) Decode(v interface{}) error {
 	// the connection is still usable since we read a complete JSON
 	// object from it before the error happened.
 	dec.d.init(dec.buf[0:n])
+	dec.d.args = args
 	err = dec.d.unmarshal(v)
 
 	// Slide rest of data down.
@@ -190,7 +191,7 @@ func (m *RawMessage) MarshalJSON(args ...interface{}) ([]byte, error) {
 }
 
 // UnmarshalJSON sets *m to a copy of data.
-func (m *RawMessage) UnmarshalJSON(data []byte) error {
+func (m *RawMessage) UnmarshalJSON(data []byte, args ...interface{}) error {
 	if m == nil {
 		return errors.New("json.RawMessage: UnmarshalJSON on nil pointer")
 	}

@@ -57,7 +57,7 @@ type unmarshaler struct {
 	T bool
 }
 
-func (u *unmarshaler) UnmarshalJSON(b []byte) error {
+func (u *unmarshaler) UnmarshalJSON(b []byte, args ...interface{}) error {
 	*u = unmarshaler{true} // All we need to see that UnmarshalJSON is called.
 	return nil
 }
@@ -1261,7 +1261,7 @@ func TestUnmarshalUnexported(t *testing.T) {
 // as an RFC 3339 time in UTC.
 type Time3339 time.Time
 
-func (t *Time3339) UnmarshalJSON(b []byte) error {
+func (t *Time3339) UnmarshalJSON(b []byte, args ...interface{}) error {
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
 		return fmt.Errorf("types: failed to unmarshal non-string value %q as an RFC 3339 time", b)
 	}

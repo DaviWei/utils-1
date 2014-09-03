@@ -152,7 +152,7 @@ func (*Ref) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return []byte(`"ref"`), nil
 }
 
-func (r *Ref) UnmarshalJSON([]byte) error {
+func (r *Ref) UnmarshalJSON([]byte, ...interface{}) error {
 	*r = 12
 	return nil
 }
