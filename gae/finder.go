@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
@@ -191,7 +192,15 @@ func (self finder) countWithAncestor(c PersistenceContext, ancestor key.Key, val
 // see AncestorFinder
 func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancestor key.Key, values ...interface{}) (err error) {
 	if len(values) != len(self.fields) {
-		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
+		wantedTypeNames := []string{}
+		for _, field := range self.fields {
+			wantedTypeNames = append(wantedTypeNames, field.Type.Name())
+		}
+		givenTypeNames := []string{}
+		for _, val := range values {
+			givenTypeNames = append(givenTypeNames, reflect.TypeOf(val).Name())
+		}
+		err = utils.Errorf("Finder wants %+v as arguments, but got %+v", wantedTypeNames, givenTypeNames)
 		return
 	}
 	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data
