@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/soundtrackyourbrand/utils"
@@ -240,11 +241,17 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	// Unfound rows are ignored :O
-	for _, errors := range tableDataList.InsertErrors {
-		for _, errorProto := range errors.Errors {
-			fmt.Printf("\nerr:%#v\n", errorProto)
+
+	// Build insert errors error message
+	if len(tableDataList.InsertErrors) != 0 {
+		errorStrings := []string{"Error inserting into Bigquery:"}
+		for _, errors := range tableDataList.InsertErrors {
+			for _, errorProto := range errors.Errors {
+				errorStrings = append(errorStrings, fmt.Sprintf("\nReason:%v,\nMessage:%v,\nLocation:%v", errorProto.Reason, errorProto.Message, errorProto.Location))
+			}
 		}
+		err = utils.Errorf(strings.Join(errorStrings, "\n"))
 	}
+
 	return
 }
