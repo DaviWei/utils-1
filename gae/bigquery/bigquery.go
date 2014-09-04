@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/utils/json"
 
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
 	"code.google.com/p/google-api-go-client/googleapi"
@@ -216,22 +217,26 @@ func (self *BigQuery) AssertTable(i interface{}) (err error) {
 }
 
 func (self *BigQuery) InsertTableData(i interface{}) (err error) {
+	j := map[string]gbigquery.JsonValue{}
+
+	b, err := json.Marshal(i, "bigquery")
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(b, &j); err != nil {
+		return
+	}
+
 	request := &gbigquery.TableDataInsertAllRequest{
-		// Kind: The resource type of the response.
-		//Kind string `json:"kind,omitempty"`
-
-		Rows: buildRows(i),
-		//Rows  `json:"rows,omitempty"`
+		Rows: []*gbigquery.TableDataInsertAllRequestRows{
+			&gbigquery.TableDataInsertAllRequestRows{
+				Json: j,
+			},
+		},
 	}
 
-	tabledataService := gbigquery.NewTabledataService(self.service)
-
-	typ := reflect.TypeOf(i)
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-
-	tableDataList, err := tabledataService.InsertAll(self.projectId, self.datasetId, typ.Name(), request).Do()
+	tabledataService := gbigquery.NewTabledataService(self.GetService())
+	tableDataList, err := tabledataService.InsertAll(self.GetProjectId(), self.GetDatasetId(), "TestData", request).Do()
 	if err != nil {
 		return
 	}
@@ -243,81 +248,3 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	}
 	return
 }
-
-func buildRows(i interface{}) (result []*gbigquery.TableDataInsertAllRequestRows) {
-	val := reflect.ValueOf(i)
-	for val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	typ := reflect.TypeOf(i)
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-	for i := 0; i < typ.NumField(); i++ {
-		//field := typ.Field(i)
-		fieldName, fieldData := "derp", "herp" //formatData(field, val.FieldByName(field.Name))
-
-		result = append(result, &gbigquery.TableDataInsertAllRequestRows{
-			// InsertId string `json:"insertId,omitempty"`
-
-			// Json: [Required] A JSON object that contains a row of data. The
-			// object's properties and values must match the destination table's
-			// schema.
-			Json: map[string]gbigquery.JsonValue{fieldName: fieldData}, //map[string]JsonValue `json:"json,omitempty"`
-		},
-		)
-	}
-
-	for _, derp := range result {
-		fmt.Printf("\nrows:%#v\n", derp.Json)
-	}
-	return
-}
-
-/*
-func formatData(field reflect.StructField, fieldValue interface{}) (fieldName string, fieldData interface{}, err error) {
-
-	marshalled := []byte{}
-	switch v := fieldValue.(type) {
-	case common.Time:
-		if marshalled, err = json.Marshal(v.Time); err != nil {
-			return
-		}
-	case utils.ByteString:
-		if marshalled, err = json.Marshal(string(v.Bytes)); err != nil {
-			return
-		}
-	case []byte:
-		encoded := ""
-		if encoded, err = base64.StdEncoding.EncodeToString(v); err != nil {
-			return
-		}
-		if marshalled, err = json.Marshal(encoded); err != nil {
-			return
-		}
-	default:
-		val := reflect.ValueOf(fieldValue)
-		for val.Kind() == reflect.Ptr {
-			val = val.Elem()
-		}
-		if val.Kind() == reflect.Struct {
-			typ := val.Type()
-			m := map[string]interface{}{}
-			for i := 0; i < typ.NumField(); i++ {
-
-			}
-			for i := 0; i < val.NumField(); i++ {
-				fieldData, err = formatData(field.Type.Field())
-			}
-		} else {
-			if marshalled, err = json.Marshal(fieldValue); err != nil {
-				return
-			}
-		}
-	}
-	if err = json.Unmarshal(marshalled, &fieldData); err != nil {
-		return
-	}
-	return
-}
-*/
