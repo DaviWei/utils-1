@@ -195,22 +195,31 @@ func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.Tabl
 	return
 }
 
+func (self *BigQuery) unionFields(fields1, fields2 []*gbigquery.TableFieldSchema) (result []*gbigquery.TableFieldSchema) {
+	unionFields := make(map[string]*gbigquery.TableFieldSchema)
+
+	for _, field := range fields2 {
+		unionFields[field.Name] = field
+	}
+	for index, field := range fields1 {
+		if len(field.Fields) == 0 {
+			unionFields[field.Name] = field
+		} else {
+			// Union the nested fields
+			unionFields[field.Name] = field
+			field.Fields = self.unionFields(fields1[index].Fields, fields1[index].Fields)
+		}
+	}
+	return
+}
+
 /*
 Makes a union of all the columns of given tables.
 If a field is present in both tables, table1's field is taken
 */
 func (self *BigQuery) unionTables(table1, table2 *gbigquery.Table) (result *gbigquery.Table) {
-	unionFields := make(map[string]*gbigquery.TableFieldSchema)
-
-	for _, field := range table2.Schema.Fields {
-		unionFields[field.Name] = field
-	}
-	for _, field := range table1.Schema.Fields {
-		unionFields[field.Name] = field
-	}
-
 	var resultFields []*gbigquery.TableFieldSchema
-	for _, field := range unionFields {
+	for _, field := range self.unionFields(table1.Schema.Fields, table2.Schema.Fields) {
 		resultFields = append(resultFields, field)
 	}
 
