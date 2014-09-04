@@ -16,6 +16,11 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
 
+const (
+	MinAPIVersion = 1
+	MaxAPIVersion = 5
+)
+
 type DefaultAccessToken struct {
 	Principal     key.Key   `json:"principal" jsonTo:"string"`
 	PrincipalKind string    `json:"principal_kind"`
@@ -55,11 +60,11 @@ type ServiceConnector interface {
 }
 
 type DefaultMeta struct {
-	Id        key.Key        `json:"id,omitempty"`
+	Id        key.Key    `json:"id,omitempty"`
 	CreatedAt utils.Time `json:"iso8601_created_at,omitempty"`
 	UpdatedAt utils.Time `json:"iso8601_updated_at,omitempty"`
-	CreatedBy key.Key        `json:"created_by,omitempty"`
-	UpdatedBy key.Key        `json:"updated_by,omitempty"`
+	CreatedBy key.Key    `json:"created_by,omitempty"`
+	UpdatedBy key.Key    `json:"updated_by,omitempty"`
 }
 
 type ScrobbleRequest struct {
@@ -68,7 +73,7 @@ type ScrobbleRequest struct {
 	PlaylistUri  string           `json:"playlist_uri"`
 	PlaylistName string           `json:"playlist_name"`
 	Skipped      bool             `json:"skipped"`
-	At           utils.Time   `json:"played_at"`
+	At           utils.Time       `json:"played_at"`
 	SongName     string           `json:"song_name"`
 	WasOffline   bool             `json:"offline"`
 	ChannelName  string           `json:"channel_name"`
@@ -131,20 +136,20 @@ type RemoteProductQueue struct {
 
 type RemoteVoucher struct {
 	DefaultMeta
-	Code                     string         `json:"code"`
-	Label                    string         `json:"label"`
+	Code                     string     `json:"code"`
+	Label                    string     `json:"label"`
 	ValidUntil               utils.Time `json:"iso8601_valid_until"`
-	ProductQueue             key.Key        `json:"product_queue"`
-	Email                    string         `json:"email"`
-	MaxAccounts              int            `json:"max_accounts"`
-	MaxActivationsPerAccount int            `json:"max_activations_per_account"`
+	ProductQueue             key.Key    `json:"product_queue"`
+	Email                    string     `json:"email"`
+	MaxAccounts              int        `json:"max_accounts"`
+	MaxActivationsPerAccount int        `json:"max_activations_per_account"`
 
 	DenormProductQueue *RemoteProductQueue `json:"denorm_product_queue,omitempty"`
 }
 
 type RemotePaymentMethod struct {
 	DefaultMeta
-	ValidUntil    utils.Time `json:"iso8601_valid_until"`
+	ValidUntil    utils.Time     `json:"iso8601_valid_until"`
 	MaskedCC      string         `json:"masked_cc"`
 	PaymentMethod string         `json:"payment_method"`
 	Voucher       string         `json:"voucher"`
@@ -176,24 +181,20 @@ type RemoteAccount struct {
 
 type RemoteSoundZone struct {
 	DefaultMeta
-	Account                   key.Key        `json:"account,omitempty"`
-	Address                   string         `json:"address,omitempty"`
-	City                      string         `json:"city,omitempty"`
-	Comment                   string         `json:"comment,omitempty"`
-	Email                     string         `json:"email,omitempty"`
-	ISOCountry                string         `json:"iso_country,omitempty"`
-	Name                      string         `json:"name,omitempty,omitempty"`
-	PostalCode                string         `json:"postal_code,omitempty"`
-	Serial                    string         `json:"serial,omitempty"`
-	SpotifyUsername           string         `json:"spotify_username,omitempty"`
-	SpotifyPassword           string         `json:"spotify_password,omitempty"`
+	Account                   key.Key    `json:"account,omitempty"`
+	Location                  key.Key    `json:"location,omitempty"`
+	Comment                   string     `json:"comment,omitempty"`
+	Email                     string     `json:"email,omitempty"`
+	Name                      string     `json:"name,omitempty,omitempty"`
+	Serial                    string     `json:"serial,omitempty"`
+	SpotifyUsername           string     `json:"spotify_username,omitempty"`
+	SpotifyPassword           string     `json:"spotify_password,omitempty"`
 	PaidUntil                 utils.Time `json:"iso8601_paid_until"`
 	BilledUntil               utils.Time `json:"iso8601_billed_until,omitempty"`
-	Locale                    string         `json:"locale,omitempty"`
-	Schedule                  key.Key        `json:"schedule,omitempty"`
-	Deactivated               bool           `json:"deactivated"`
-	SpotifyAccountDeactivated bool           `json:"spotify_account_deactivated"`
-	DeviceId                  string         `json:"device_id,omitempty"`
+	Schedule                  key.Key    `json:"schedule,omitempty"`
+	Deactivated               bool       `json:"deactivated"`
+	SpotifyAccountDeactivated bool       `json:"spotify_account_deactivated"`
+	DeviceId                  string     `json:"device_id,omitempty"`
 }
 
 type RemoteSoundZoneError struct {
@@ -218,15 +219,15 @@ type RemoteSlot struct {
 
 type RemoteSpotifyAccount struct {
 	DefaultMeta
-	SoundZone          key.Key        `json:"sound_zone" datastore:"-"`
+	SoundZone          key.Key    `json:"sound_zone" datastore:"-"`
 	PaidUntil          utils.Time `json:"iso8601_paid_until"`
-	ProductCode        string         `json:"current_product_code"`
-	IsRecurring        bool           `json:"is_recurring"`
-	LastAutoPayFailure bool           `json:"last_auto_pay_failure"`
-	Deactivated        bool           `json:"deactivated"`
-	Username           string         `json:"username"`
-	Account            key.Key        `json:"account" datastore:"-"`
-	ISOCountry         string         `json:"iso_country"`
+	ProductCode        string     `json:"current_product_code"`
+	IsRecurring        bool       `json:"is_recurring"`
+	LastAutoPayFailure bool       `json:"last_auto_pay_failure"`
+	Deactivated        bool       `json:"deactivated"`
+	Username           string     `json:"username"`
+	Account            key.Key    `json:"account" datastore:"-"`
+	ISOCountry         string     `json:"iso_country"`
 }
 
 func (self *RemoteSoundZone) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters) error {
@@ -270,7 +271,7 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 	}
 
 	//TODO, we should start using version 2!
-	request.Header.Add("X-API-Version", "1")
+	request.Header.Add("X-API-Version", fmt.Sprint(MaxAPIVersion))
 	response, err = c.Client().Do(request)
 	if err != nil {
 		return
@@ -504,8 +505,24 @@ func GetTelemarketingDropoutAccounts(c ServiceConnector, token AccessToken) (res
 	return
 }
 
+func CreateLocation(c ServiceConnector, token AccessToken, remoteLocation RemoteLocation) (result *RemoteLocation, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/locations", remoteLocation.Account.Encode()), token, remoteLocation)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 201 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteLocation{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
 func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone RemoteSoundZone) (result *RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/soundzones", remoteSoundZone.Account.Encode()), token, remoteSoundZone)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/sound_zones", remoteSoundZone.Location.Encode()), token, remoteSoundZone)
 	if err != nil {
 		return
 	}
@@ -521,7 +538,7 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 }
 
 func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
-	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("soundzones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("sound_zones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
 	if err != nil {
 		return
 	}
@@ -563,7 +580,7 @@ func CreateBusinessAccount(c ServiceConnector, token AccessToken, account Remote
 }
 
 func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("soundzones/%v", soundZone.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("sound_zones/%v", soundZone.Encode()), token, nil)
 	if err != nil {
 		return
 	}
@@ -578,7 +595,7 @@ func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (res
 }
 
 func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result []RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/soundzones", account_id.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/sound_zones", account_id.Encode()), token, nil)
 	if err != nil {
 		return
 	}
@@ -593,7 +610,7 @@ func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (r
 }
 
 func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (result *RemoteSpotifyAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("soundzones/%v/spotify_account", soundZone.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("sound_zones/%v/spotify_account", soundZone.Encode()), token, nil)
 	if err != nil {
 		return
 	}
