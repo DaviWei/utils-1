@@ -300,3 +300,24 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 
 	return
 }
+
+/*
+Create view of a table defined by a query.
+*/
+func (self *BigQuery) CreateView(viewName string, query string) (err error) {
+	viewTable := &gbigquery.Table{
+		TableReference: &gbigquery.TableReference{
+			DatasetId: self.datasetId,
+			ProjectId: self.projectId,
+			TableId:   viewName,
+		},
+		View: &gbigquery.ViewDefinition{
+			Query: query,
+		},
+	}
+	tablesService := gbigquery.NewTablesService(self.service)
+	if _, err = tablesService.Insert(self.projectId, self.datasetId, viewTable).Do(); err != nil {
+		return
+	}
+	return
+}
