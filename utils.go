@@ -464,11 +464,11 @@ const (
 	ISO8601DateFormat     = "20060102"
 )
 
-type JSONTime struct {
+type Time struct {
 	time.Time
 }
 
-func (self JSONTime) MarshalJSON(args ...interface{}) ([]byte, error) {
+func (self Time) MarshalJSON(args ...interface{}) ([]byte, error) {
 	if len(args) == 1 {
 		if s, ok := args[0].(string); ok && s == "bigquery" {
 			return json.Marshal(self.Time)
@@ -477,7 +477,7 @@ func (self JSONTime) MarshalJSON(args ...interface{}) ([]byte, error) {
 	return json.Marshal(self.Time.Format(ISO8601DateTimeFormat))
 }
 
-func (self *JSONTime) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
+func (self *Time) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
 	if len(args) == 1 {
 		if s, ok := args[0].(string); ok && s == "bigquery" {
 			t := time.Time{}
@@ -499,7 +499,7 @@ func (self *JSONTime) UnmarshalJSON(b []byte, args ...interface{}) (err error) {
 	return
 }
 
-func (self *JSONTime) String() string {
+func (self *Time) String() string {
 	return self.Time.Format(ISO8601DateTimeFormat)
 }
 

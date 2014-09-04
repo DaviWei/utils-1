@@ -13,7 +13,7 @@ import (
 )
 
 var timeType = reflect.TypeOf(time.Now())
-var jsonTimeType = reflect.TypeOf(utils.JSONTime{})
+var jsonTimeType = reflect.TypeOf(utils.Time{})
 var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
 
 const (
