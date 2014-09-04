@@ -181,14 +181,50 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 	return
 }
 
-func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, table *gbigquery.Table) (err error) {
-	table, err = self.buildTable(typ)
+func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, originalTable *gbigquery.Table) (err error) {
+
+	table, err := self.buildTable(typ)
 	if err != nil {
 		return
 	}
-	if _, err = tablesService.Patch(self.projectId, self.datasetId, table.TableReference.TableId, table).Do(); err != nil {
+
+	unionTable := self.unionTables(table, originalTable)
+	if _, err = tablesService.Patch(self.projectId, self.datasetId, originalTable.TableReference.TableId, unionTable).Do(); err != nil {
 		return
 	}
+	return
+}
+
+/*
+Makes a union of all the columns of given tables.
+If a field is present in both tables, table1's field is taken
+*/
+func (self *BigQuery) unionTables(table1, table2 *gbigquery.Table) (result *gbigquery.Table) {
+	unionFields := make(map[string]*gbigquery.TableFieldSchema)
+
+	for _, field := range table2.Schema.Fields {
+		unionFields[field.Name] = field
+	}
+	for _, field := range table1.Schema.Fields {
+		unionFields[field.Name] = field
+	}
+
+	var resultFields []*gbigquery.TableFieldSchema
+	for _, field := range unionFields {
+		resultFields = append(resultFields, field)
+	}
+
+	result = &gbigquery.Table{
+		TableReference: &gbigquery.TableReference{
+			DatasetId: self.datasetId,
+			ProjectId: self.projectId,
+			TableId:   table1.TableReference.TableId,
+		},
+		Schema: &gbigquery.TableSchema{
+			Fields: resultFields,
+		},
+	}
+
 	return
 }
 
