@@ -95,6 +95,7 @@ type RemoteLocation struct {
 	City         string  `json:"city"`
 	ISOCountry   string  `json:"iso_country"`
 	Locale       string  `json:"locale"`
+	Timezone     string  `json:"timezone"`
 	BillingGroup key.Key `json:"billing_group",omitempty`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
@@ -522,7 +523,7 @@ func CreateLocation(c ServiceConnector, token AccessToken, remoteLocation Remote
 }
 
 func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone RemoteSoundZone) (result *RemoteSoundZone, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/sound_zones", remoteSoundZone.Location.Encode()), token, remoteSoundZone)
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("locations/%v/sound_zones", remoteSoundZone.Location.Encode()), token, remoteSoundZone)
 	if err != nil {
 		return
 	}
