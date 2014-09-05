@@ -210,6 +210,9 @@ func (self *BigQuery) unionFields(fields1, fields2 []*gbigquery.TableFieldSchema
 			field.Fields = self.unionFields(fields1[index].Fields, fields1[index].Fields)
 		}
 	}
+	for _, field := range unionFields {
+		result = append(result, field)
+	}
 	return
 }
 
@@ -304,20 +307,25 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 /*
 Create view of a table defined by a query.
 */
-func (self *BigQuery) CreateView(viewName string, query string) (err error) {
-	viewTable := &gbigquery.Table{
-		TableReference: &gbigquery.TableReference{
-			DatasetId: self.datasetId,
-			ProjectId: self.projectId,
-			TableId:   viewName,
-		},
-		View: &gbigquery.ViewDefinition{
-			Query: query,
-		},
-	}
+func (self *BigQuery) AssertView(viewName string, query string) (err error) {
 	tablesService := gbigquery.NewTablesService(self.service)
-	if _, err = tablesService.Insert(self.projectId, self.datasetId, viewTable).Do(); err != nil {
-		return
+	_, err = tablesService.Get(self.projectId, self.datasetId, viewName).Do()
+	if err != nil {
+		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 404 {
+			viewTable := &gbigquery.Table{
+				TableReference: &gbigquery.TableReference{
+					DatasetId: self.datasetId,
+					ProjectId: self.projectId,
+					TableId:   viewName,
+				},
+				View: &gbigquery.ViewDefinition{
+					Query: query,
+				},
+			}
+			if _, err = tablesService.Insert(self.projectId, self.datasetId, viewTable).Do(); err != nil {
+				return
+			}
+		}
 	}
 	return
 }
