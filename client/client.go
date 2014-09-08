@@ -153,6 +153,7 @@ type RemotePaymentMethod struct {
 	ValidUntil    utils.Time     `json:"iso8601_valid_until"`
 	MaskedCC      string         `json:"masked_cc"`
 	PaymentMethod string         `json:"payment_method"`
+	PSP           string         `json:"psp"`
 	Voucher       string         `json:"voucher"`
 	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
 }
