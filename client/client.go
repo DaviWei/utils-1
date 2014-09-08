@@ -476,6 +476,19 @@ func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token Acce
 	return
 }
 
+func UpdateBillingGroup(c ServiceConnector, updateBillingGroup *RemoteBillingGroup, token AccessToken) (result *RemoteBillingGroup, err error) {
+	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("billing_groups/%v", updateBillingGroup.Id.Encode()), token, updateBillingGroup)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
 func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result *RemotePaymentMethod, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method", account.Encode()), token, nil)
 	if err != nil {
