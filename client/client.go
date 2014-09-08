@@ -157,6 +157,22 @@ type RemotePaymentMethod struct {
 	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
 }
 
+type RemoteBillingGroup struct {
+	DefaultMeta
+	Name                string `json:"name"`
+	CompanyName         string `json:"company_name"`
+	OrgNumber           string `json:"org_number"`
+	Email               string `json:"email"`
+	PurchaseOrderNumber string `json:"purchase_order_number"`
+	CostCenter          string `json:"cost_center"`
+
+	Deactivated bool `json:"deactivated"`
+
+	Default bool `json:"default"`
+}
+
+type RemoteBillingGroups []RemoteBillingGroup
+
 type RemoteAccount struct {
 	DefaultMeta
 	Address               string           `json:"address,omitempty"`
@@ -441,6 +457,22 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 	result.Encoded = strings.Join(response.Header["X-Access-Token-Issued"], "")
 	result.Encoded = strings.Replace(result.Encoded, ",", "", -1)
 	result.Encoded = strings.Replace(result.Encoded, " ", "", -1)
+	return
+}
+
+func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteBillingGroups, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/billing_groups", account.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteBillingGroups{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
 	return
 }
 
