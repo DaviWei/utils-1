@@ -460,8 +460,8 @@ func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token Acce
 	return
 }
 
-func ChangePaymentMethod(c ServiceConnector, token AccessToken, account key.Key, paymentMethod RemotePaymentMethod) (err error) {
-	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), fmt.Sprintf("/accounts/%v/payment_method/update", account.Encode()), token, paymentMethod)
+func UpdatePaymentMethodByAccountId(c ServiceConnector, account key.Key, paymentMethod RemotePaymentMethod, token AccessToken) (err error) {
+	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("/accounts/%v/payment_method", account.Encode()), token, paymentMethod)
 	if err != nil {
 		return
 	}
