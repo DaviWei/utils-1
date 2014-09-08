@@ -507,7 +507,7 @@ func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token Acce
 }
 
 func UpdatePaymentMethodByAccountId(c ServiceConnector, account key.Key, paymentMethod RemotePaymentMethod, token AccessToken) (err error) {
-	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("/accounts/%v/payment_method", account.Encode()), token, paymentMethod)
+	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method", account.Encode()), token, paymentMethod)
 	if err != nil {
 		return
 	}
