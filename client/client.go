@@ -461,7 +461,7 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 	return
 }
 
-func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteBillingGroups, err error) {
+func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result RemoteBillingGroups, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/billing_groups", account.Encode()), token, nil)
 	if err != nil {
 		return
@@ -471,8 +471,8 @@ func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token Acce
 		return
 	}
 
-	result = &RemoteBillingGroups{}
-	err = json.NewDecoder(response.Body).Decode(result)
+	result = RemoteBillingGroups{}
+	err = json.NewDecoder(response.Body).Decode(&result)
 
 	return
 }
