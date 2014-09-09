@@ -153,9 +153,26 @@ type RemotePaymentMethod struct {
 	ValidUntil    utils.Time     `json:"iso8601_valid_until"`
 	MaskedCC      string         `json:"masked_cc"`
 	PaymentMethod string         `json:"payment_method"`
+	PSP           string         `json:"psp"`
 	Voucher       string         `json:"voucher"`
 	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
 }
+
+type RemoteBillingGroup struct {
+	DefaultMeta
+	Name                string `json:"name"`
+	CompanyName         string `json:"company_name"`
+	OrgNumber           string `json:"org_number"`
+	Email               string `json:"email"`
+	PurchaseOrderNumber string `json:"purchase_order_number"`
+	CostCenter          string `json:"cost_center"`
+
+	Deactivated bool `json:"deactivated"`
+
+	Default bool `json:"default"`
+}
+
+type RemoteBillingGroups []RemoteBillingGroup
 
 type RemoteAccount struct {
 	DefaultMeta
@@ -444,6 +461,35 @@ func Auth(c ServiceConnector, auth_request AuthRequest) (result *DefaultAccessTo
 	return
 }
 
+func GetBillingGroupsByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result RemoteBillingGroups, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/billing_groups", account.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = RemoteBillingGroups{}
+	err = json.NewDecoder(response.Body).Decode(&result)
+
+	return
+}
+
+func UpdateBillingGroup(c ServiceConnector, updateBillingGroup *RemoteBillingGroup, token AccessToken) (result *RemoteBillingGroup, err error) {
+	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("billing_groups/%v", updateBillingGroup.Id.Encode()), token, updateBillingGroup)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
 func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result *RemotePaymentMethod, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method", account.Encode()), token, nil)
 	if err != nil {
@@ -456,6 +502,19 @@ func GetPaymentMethodByAccountId(c ServiceConnector, account key.Key, token Acce
 
 	result = &RemotePaymentMethod{}
 	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
+func UpdatePaymentMethodByAccountId(c ServiceConnector, account key.Key, paymentMethod RemotePaymentMethod, token AccessToken) (err error) {
+	request, response, err := DoRequest(c, "PUT", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method", account.Encode()), token, paymentMethod)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
 
 	return
 }
