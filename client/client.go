@@ -101,6 +101,8 @@ type RemoteLocation struct {
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
 
+type RemoteLocations []RemoteLocation
+
 type RemoteUser struct {
 	DefaultMeta
 	Name            string `json:"name,omitempty"`
@@ -203,7 +205,7 @@ type RemoteSoundZone struct {
 	Location                  key.Key    `json:"location,omitempty"`
 	Comment                   string     `json:"comment,omitempty"`
 	Email                     string     `json:"email,omitempty"`
-	Name                      string     `json:"name,omitempty,omitempty"`
+	Name                      string     `json:"name,omitempty"`
 	Serial                    string     `json:"serial,omitempty"`
 	SpotifyUsername           string     `json:"spotify_username,omitempty"`
 	SpotifyPassword           string     `json:"spotify_password,omitempty"`
@@ -214,6 +216,8 @@ type RemoteSoundZone struct {
 	SpotifyAccountDeactivated bool       `json:"spotify_account_deactivated"`
 	DeviceId                  string     `json:"device_id,omitempty"`
 }
+
+type RemoteSoundZones []RemoteSoundZone
 
 type RemoteSoundZoneError struct {
 	DefaultMeta
@@ -350,6 +354,37 @@ func ReplaceScheduleForSoundZones(c ServiceConnector, oldSchedule, newSchedule k
 
 func GetLocation(c ServiceConnector, location key.Key, token AccessToken) (result *RemoteLocation, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("locations/%v", location.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteLocation{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
+func GetLocationsByAccountId(c ServiceConnector, account key.Key, token AccessToken) (result RemoteLocations, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/locations", account.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+	result = RemoteLocations{}
+	err = json.NewDecoder(response.Body).Decode(&result)
+
+	return
+}
+
+func UpdateLocation(c ServiceConnector, location RemoteLocation, token AccessToken) (result *RemoteLocation, err error) {
+	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("locations/%v", location.Id.Encode()), token, location)
 	if err != nil {
 		return
 	}
@@ -597,7 +632,7 @@ func CreateSoundZone(c ServiceConnector, token AccessToken, remoteSoundZone Remo
 	return
 }
 
-func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (err error) {
+func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone RemoteSoundZone) (result *RemoteSoundZone, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("sound_zones/%v", updatedSoundZone.Id.Encode()), token, updatedSoundZone)
 	if err != nil {
 		return
@@ -607,6 +642,8 @@ func UpdateSoundZone(c ServiceConnector, token AccessToken, updatedSoundZone Rem
 		return
 	}
 
+	result = &RemoteSoundZone{}
+	err = json.NewDecoder(response.Body).Decode(result)
 	return
 }
 
@@ -654,7 +691,7 @@ func GetSoundZone(c ServiceConnector, soundZone key.Key, token AccessToken) (res
 	return
 }
 
-func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result []RemoteSoundZone, err error) {
+func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (result RemoteSoundZones, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/sound_zones", account_id.Encode()), token, nil)
 	if err != nil {
 		return
@@ -664,7 +701,7 @@ func GetSoundZones(c ServiceConnector, account_id key.Key, token AccessToken) (r
 		return
 	}
 
-	result = []RemoteSoundZone{}
+	result = RemoteSoundZones{}
 	err = json.NewDecoder(response.Body).Decode(&result)
 	return
 }
