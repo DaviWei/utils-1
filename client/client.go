@@ -18,7 +18,7 @@ import (
 
 const (
 	MinAPIVersion = 1
-	MaxAPIVersion = 5
+	MaxAPIVersion = 6
 )
 
 type DefaultAccessToken struct {
