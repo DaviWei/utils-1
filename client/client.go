@@ -270,9 +270,15 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 		}
 	}
 
-	request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
-	if err != nil {
-		return
+	waitTime := time.Millisecond * 500
+
+	for waitTime < 30*time.Second {
+		request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
+		if err == nil {
+			break
+		}
+		time.Sleep(waitTime)
+		waitTime = waitTime * 2
 	}
 
 	if token != nil {
