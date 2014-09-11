@@ -83,10 +83,28 @@ func Del(c TransactionContext, keys ...string) (err error) {
 	}
 	if c.InTransaction() {
 		return c.AfterTransaction(func(c TransactionContext) error {
-			return del(c, keys...)
+			return delWithRetry(c, keys...)
 		})
 	}
-	return del(c, keys...)
+	return delWithRetry(c, keys...)
+}
+
+/*
+delWithRetry will delete the keys from memcache. If it fails, it will retry a few times.
+*/
+func delWithRetry(c TransactionContext, keys ...string) (err error) {
+	waitTime := time.Millisecond * 10
+
+	for waitTime < 1*time.Second {
+		del(c, keys...)
+		if err == nil {
+			break
+		}
+		time.Sleep(waitTime)
+		waitTime = waitTime * 2
+	}
+
+	return
 }
 
 /*
@@ -184,14 +202,32 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 Put will put val under key.
 */
 func Put(c TransactionContext, key string, val interface{}) (err error) {
-	return putUntil(c, nil, key, val)
+	return putUntilWithRetry(c, nil, key, val)
 }
 
 /*
 PutUntil will put val under key for at most until.
 */
 func PutUntil(c TransactionContext, until time.Duration, key string, val interface{}) (err error) {
-	return putUntil(c, &until, key, val)
+	return putUntilWithRetry(c, &until, key, val)
+}
+
+/*
+putUntilWithRetry will put the key to memcache. If it fails, it will retry a few times.
+*/
+func putUntilWithRetry(c TransactionContext, until *time.Duration, key string, val interface{}) (err error) {
+	waitTime := time.Millisecond * 10
+
+	for waitTime < 1*time.Second {
+		err = putUntil(c, until, key, val)
+		if err == nil {
+			break
+		}
+		time.Sleep(waitTime)
+		waitTime = waitTime * 2
+	}
+
+	return
 }
 
 func putUntil(c TransactionContext, until *time.Duration, key string, val interface{}) (err error) {
