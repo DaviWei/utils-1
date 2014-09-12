@@ -66,23 +66,26 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 		for fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
-
+		var name string
+		if name = field.Tag.Get("json"); name == "" {
+			name = field.Name
+		}
 		switch fieldType.Kind() {
 		case reflect.Bool:
 			result = append(result, &gbigquery.TableFieldSchema{
-				Name: field.Name,
+				Name: name,
 				Type: dataTypeBool,
 			})
 		case reflect.Float32:
 			fallthrough
 		case reflect.Float64:
 			result = append(result, &gbigquery.TableFieldSchema{
-				Name: field.Name,
+				Name: name,
 				Type: dataTypeFloat,
 			})
 		case reflect.String:
 			result = append(result, &gbigquery.TableFieldSchema{
-				Name: field.Name,
+				Name: name,
 				Type: dataTypeString,
 			})
 		case reflect.Uint:
@@ -105,24 +108,24 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 			fallthrough
 		case reflect.Int64:
 			result = append(result, &gbigquery.TableFieldSchema{
-				Name: field.Name,
+				Name: name,
 				Type: dataTypeInteger,
 			})
 		case reflect.Struct:
 			switch fieldType {
 			case byteStringType:
 				result = append(result, &gbigquery.TableFieldSchema{
-					Name: field.Name,
+					Name: name,
 					Type: dataTypeString,
 				})
 			case timeType:
 				result = append(result, &gbigquery.TableFieldSchema{
-					Name: field.Name,
+					Name: name,
 					Type: dataTypeTimeStamp,
 				})
 			case jsonTimeType:
 				result = append(result, &gbigquery.TableFieldSchema{
-					Name: field.Name,
+					Name: name,
 					Type: dataTypeTimeStamp,
 				})
 			default:
@@ -131,7 +134,7 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 					return
 				}
 				result = append(result, &gbigquery.TableFieldSchema{
-					Name:   field.Name,
+					Name:   name,
 					Type:   dataTypeRecord,
 					Fields: fieldFields,
 				})
@@ -139,7 +142,7 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 		case reflect.Slice:
 			// Assume that slices are byte slices and base64 encoded
 			result = append(result, &gbigquery.TableFieldSchema{
-				Name: field.Name,
+				Name: name,
 				Type: dataTypeString,
 			})
 		default:
@@ -297,7 +300,8 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 
 	// Build insert errors error message
 	if len(tableDataList.InsertErrors) != 0 {
-		errorStrings := []string{"Error inserting into Bigquery:"}
+		prettyJ := utils.Prettify(j)
+		errorStrings := []string{fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name())}
 		for _, errors := range tableDataList.InsertErrors {
 			for _, errorProto := range errors.Errors {
 				errorStrings = append(errorStrings, fmt.Sprintf("\nReason:%v,\nMessage:%v,\nLocation:%v", errorProto.Reason, errorProto.Message, errorProto.Location))
