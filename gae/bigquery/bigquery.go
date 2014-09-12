@@ -28,10 +28,25 @@ const (
 	dataTypeTimeStamp = "TIMESTAMP"
 )
 
+type Logger interface {
+	Infof(f string, args ...interface{})
+}
+
 type BigQuery struct {
 	service   *gbigquery.Service
 	projectId string
 	datasetId string
+	logger    Logger
+}
+
+func (self *BigQuery) SetLogger(l Logger) {
+	self.logger = l
+}
+
+func (self *BigQuery) Infof(f string, args ...interface{}) {
+	if self.logger != nil {
+		self.logger.Infof(f, args...)
+	}
 }
 
 func (self *BigQuery) GetService() *gbigquery.Service {
@@ -176,6 +191,13 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 		return
 	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
+		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 409 {
+			self.Infof("Unable to create table for %v, someone else already did it", typ)
+			err = nil
+			return
+		} else {
+			return
+		}
 		return
 	}
 	return
@@ -323,7 +345,13 @@ func (self *BigQuery) AssertView(viewName string, query string) (err error) {
 				},
 			}
 			if _, err = tablesService.Insert(self.projectId, self.datasetId, viewTable).Do(); err != nil {
-				return
+				if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 409 {
+					self.Infof("Unable to create %v, someone else already did it", viewName)
+					err = nil
+					return
+				} else {
+					return
+				}
 			}
 		}
 	}
