@@ -284,8 +284,13 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 		},
 	}
 
+	typ := reflect.TypeOf(i)
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
 	tabledataService := gbigquery.NewTabledataService(self.GetService())
-	tableDataList, err := tabledataService.InsertAll(self.GetProjectId(), self.GetDatasetId(), "TestData", request).Do()
+	tableDataList, err := tabledataService.InsertAll(self.GetProjectId(), self.GetDatasetId(), typ.Name(), request).Do()
 	if err != nil {
 		return
 	}
