@@ -74,17 +74,24 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
-func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, err error) {
+func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (result []*gbigquery.TableFieldSchema, err error) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldType := field.Type
 		for fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
-		var name string
-		if name = field.Tag.Get("json"); name == "" {
-			name = field.Name
+		name := field.Name
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			name = strings.Split(jsonTag, ",")[0]
 		}
+		if name == "-" {
+			continue
+		}
+		if _, found := seenFieldNames[name]; found {
+			continue
+		}
+		seenFieldNames[name] = struct{}{}
 		switch fieldType.Kind() {
 		case reflect.Bool:
 			result = append(result, &gbigquery.TableFieldSchema{
@@ -145,14 +152,18 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 				})
 			default:
 				var fieldFields []*gbigquery.TableFieldSchema
-				if fieldFields, err = buildSchemaFields(fieldType); err != nil {
+				if fieldFields, err = buildSchemaFields(fieldType, seenFieldNames); err != nil {
 					return
 				}
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name:   name,
-					Type:   dataTypeRecord,
-					Fields: fieldFields,
-				})
+				if field.Anonymous {
+					result = append(result, fieldFields...)
+				} else {
+					result = append(result, &gbigquery.TableFieldSchema{
+						Name:   name,
+						Type:   dataTypeRecord,
+						Fields: fieldFields,
+					})
+				}
 			}
 		case reflect.Slice:
 			// Assume that slices are byte slices and base64 encoded
@@ -172,7 +183,7 @@ func buildSchemaFields(typ reflect.Type) (result []*gbigquery.TableFieldSchema, 
 
 func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err error) {
 	var fields []*gbigquery.TableFieldSchema
-	if fields, err = buildSchemaFields(typ); err != nil {
+	if fields, err = buildSchemaFields(typ, map[string]struct{}{}); err != nil {
 		return
 	}
 	result = &gbigquery.Table{
@@ -198,9 +209,8 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 			self.Infof("Unable to create table for %v, someone else already did it", typ)
 			err = nil
 			return
-		} else {
-			return
 		}
+		err = utils.Errorf("Unable to create table with\n%v\n%v", utils.Prettify(table), err)
 		return
 	}
 	return
