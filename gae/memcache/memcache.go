@@ -45,7 +45,7 @@ func Keyify(k string) (result string, err error) {
 	if err != nil {
 		return
 	} else if wrote != len(sum) {
-		err = fmt.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote)
+		err = utils.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote)
 		return
 	}
 	if err = enc.Close(); err != nil {
@@ -60,7 +60,11 @@ func Incr(c TransactionContext, key string, delta int64, initial uint64) (newVal
 	if err != nil {
 		return
 	}
-	return memcache.Increment(c, k, delta, initial)
+	if newValue, err = memcache.Increment(c, k, delta, initial); err != nil {
+		err = utils.Errorf("Error doing Increment %#v: %v", k, err)
+		return
+	}
+	return
 }
 
 func IncrExisting(c TransactionContext, key string, delta int64) (newValue uint64, err error) {
@@ -68,7 +72,11 @@ func IncrExisting(c TransactionContext, key string, delta int64) (newValue uint6
 	if err != nil {
 		return
 	}
-	return memcache.IncrementExisting(c, k, delta)
+	if newValue, err = memcache.IncrementExisting(c, k, delta); err != nil {
+		err = utils.Errorf("Error doing IncrementExisting %#v: %v", k, err)
+		return
+	}
+	return
 }
 
 /*
@@ -96,14 +104,13 @@ func delWithRetry(c TransactionContext, keys ...string) (err error) {
 	waitTime := time.Millisecond * 10
 
 	for waitTime < 1*time.Second {
-		del(c, keys...)
+		err = del(c, keys...)
 		if err == nil {
-			break
+			return
 		}
 		time.Sleep(waitTime)
 		waitTime = waitTime * 2
 	}
-
 	return
 }
 
@@ -120,18 +127,31 @@ func del(c TransactionContext, keys ...string) (err error) {
 		keys[index] = k
 	}
 	if err = memcache.DeleteMulti(c, keys); err != nil {
-		if multiError, ok := err.(appengine.MultiError); ok {
-			for _, singleError := range multiError {
-				if singleError != memcache.ErrCacheMiss {
-					err = singleError
-					return
+		if merr, ok := err.(appengine.MultiError); ok {
+			errors := make(appengine.MultiError, len(merr))
+			actualErrors := 0
+			for index, serr := range merr {
+				if serr != memcache.ErrCacheMiss {
+					errors[index] = utils.Errorf("Error doing DeleteMulti: %v", serr)
+					actualErrors++
 				}
 			}
+			if actualErrors > 0 {
+				err = errors
+				return
+			} else {
+				err = nil
+			}
 		} else {
-			return
+			if err == ErrCacheMiss {
+				err = nil
+			} else {
+				err = utils.Errorf("Error doing DeleteMulti: %v", err)
+				return
+			}
 		}
 	}
-	return nil
+	return
 }
 
 /*
@@ -150,15 +170,16 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 	if err != nil {
 		return
 	}
-	_, err = Codec.Get(c, k, val)
-	if err == memcache.ErrCacheMiss {
-		err = nil
-		found = false
-	} else if err == memcache.ErrServerError {
-		c.Errorf("Memcache error: %v", err)
-		err = nil
-		found = false
+	if _, err = Codec.Get(c, k, val); err != nil {
+		if err == memcache.ErrCacheMiss {
+			err = nil
+		} else  {
+			c.Errorf("Error doing Get %#v: %v", k, err)
+		}
+		return
 	}
+
+	found = true
 	return
 }
 
@@ -174,6 +195,8 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 	if item, err = memcache.Get(c, keyHash); err != nil {
 		if err == memcache.ErrCacheMiss {
 			err = nil
+		} else {
+			err = utils.Errorf("Error doing Get %#v: %v", keyHash, err)
 		}
 		return
 	}
@@ -189,12 +212,16 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 		return
 	}
 	item.Value = encoded
-	if err = memcache.CompareAndSwap(c, item); err != nil && err == memcache.ErrCASConflict {
-		success = false
-		err = nil
-	} else if err == nil {
-		success = true
+	if err = memcache.CompareAndSwap(c, item); err != nil {
+		if err == memcache.ErrCASConflict {
+			err = nil
+		} else {
+			marshalled, _ := Codec.Marshal(replacement)
+			err = utils.Errorf("Error doing CompareAndSwap %#v to %v bytes: %v", item.Key, len(marshalled), err)
+		}
+		return
 	}
+	success = true
 	return
 }
 
@@ -202,31 +229,29 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 Put will put val under key.
 */
 func Put(c TransactionContext, key string, val interface{}) (err error) {
-	return putUntilWithRetry(c, nil, key, val)
+	return putUntil(c, nil, key, val)
 }
 
 /*
 PutUntil will put val under key for at most until.
 */
 func PutUntil(c TransactionContext, until time.Duration, key string, val interface{}) (err error) {
-	return putUntilWithRetry(c, &until, key, val)
+	return putUntil(c, &until, key, val)
 }
 
-/*
-putUntilWithRetry will put the key to memcache. If it fails, it will retry a few times.
-*/
-func putUntilWithRetry(c TransactionContext, until *time.Duration, key string, val interface{}) (err error) {
+func codecSet(c TransactionContext, codec memcache.Codec, item *memcache.Item) (err error) {
 	waitTime := time.Millisecond * 10
 
 	for waitTime < 1*time.Second {
-		err = putUntil(c, until, key, val)
+		err = codec.Set(c, item)
 		if err == nil {
-			break
+			return
 		}
 		time.Sleep(waitTime)
-		waitTime = waitTime * 2
+		waitTime *= 2
 	}
-
+	marshalled, _ := codec.Marshal(item.Object)
+	err = utils.Errorf("Error doing Codec.Set %#v with %v bytes: %v", item.Key, len(marshalled), err)
 	return
 }
 
@@ -245,7 +270,7 @@ func putUntil(c TransactionContext, until *time.Duration, key string, val interf
 	if until != nil {
 		item.Expiration = *until
 	}
-	return Codec.Set(c, item)
+	return codecSet(c, Codec, item)
 }
 
 /*
@@ -265,7 +290,8 @@ func Memoize2(c TransactionContext, super, key string, destP interface{}, f func
 	var seed string
 	var item *memcache.Item
 	if item, err = memcache.Get(c, superH); err != nil && err != memcache.ErrCacheMiss {
-		return
+		c.Errorf("Error doing Get %#v: %v", superH, err)
+		err = memcache.ErrCacheMiss
 	}
 	if err == memcache.ErrCacheMiss {
 		seed = fmt.Sprint(rand.Int63())
@@ -274,6 +300,7 @@ func Memoize2(c TransactionContext, super, key string, destP interface{}, f func
 			Value: []byte(seed),
 		}
 		if err = memcache.Set(c, item); err != nil {
+			err = utils.Errorf("Error doing Set %#v with %v bytes: %v", item.Key, len(item.Value), err)
 			return
 		}
 	} else {
@@ -336,14 +363,11 @@ func memGetMulti(c TransactionContext, keys []string, destinationPointers []inte
 
 	itemHash, err := memcache.GetMulti(c, keys)
 	if err != nil {
-		if err == memcache.ErrServerError {
-			c.Errorf("Memcache server error: %v", err)
-			err = ErrCacheMiss
-		}
+		c.Errorf("Error doing GetMulti: %v", err)
 		for index, _ := range errors {
-			errors[index] = err
+			errors[index] = ErrCacheMiss
 		}
-		return
+		err = errors
 	}
 
 	var item *memcache.Item
@@ -452,7 +476,7 @@ func memoizeMulti(
 						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
 						flags = nilCache
 					}
-					if err2 := Codec.Set(c, &memcache.Item{
+					if err2 := codecSet(c, Codec, &memcache.Item{
 						Key:        keyHash,
 						Flags:      flags,
 						Object:     obj,
