@@ -170,15 +170,16 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 	if err != nil {
 		return
 	}
-	_, err = Codec.Get(c, k, val)
-	if err == memcache.ErrCacheMiss {
-		err = nil
-		found = false
-	} else {
-		c.Errorf("Error doing Get %#v: %v", err)
-		err = nil
-		found = false
+	if _, err = Codec.Get(c, k, val); err != nil {
+		if err == memcache.ErrCacheMiss {
+			err = nil
+		} else  {
+			c.Errorf("Error doing Get %#v: %v", k, err)
+		}
+		return
 	}
+
+	found = true
 	return
 }
 
