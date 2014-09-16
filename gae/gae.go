@@ -131,6 +131,10 @@ func getTypeAndId(model interface{}) (typ reflect.Type, id key.Key, err error) {
 		return
 	}
 	id = val.Elem().FieldByName(idFieldName).Interface().(key.Key)
+	if id.Kind() != typ.Name() && id.Kind() != typ.Name()+"Log" {
+		err = utils.Errorf("You can only write types to keys with the type name, or type name + 'Log'. You tried to write a %v to %v", typ, id)
+		return
+	}
 	return
 }
 
