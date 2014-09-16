@@ -28,10 +28,25 @@ const (
 	dataTypeTimeStamp = "TIMESTAMP"
 )
 
+type Logger interface {
+	Infof(f string, args ...interface{})
+}
+
 type BigQuery struct {
 	service   *gbigquery.Service
 	projectId string
 	datasetId string
+	logger    Logger
+}
+
+func (self *BigQuery) SetLogger(l Logger) {
+	self.logger = l
+}
+
+func (self *BigQuery) Infof(f string, args ...interface{}) {
+	if self.logger != nil {
+		self.logger.Infof(f, args...)
+	}
 }
 
 func (self *BigQuery) GetService() *gbigquery.Service {
@@ -176,19 +191,74 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 		return
 	}
 	if _, err = tablesService.Insert(self.projectId, self.datasetId, table).Do(); err != nil {
+		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 409 {
+			self.Infof("Unable to create table for %v, someone else already did it", typ)
+			err = nil
+			return
+		} else {
+			return
+		}
 		return
 	}
 	return
 }
 
-func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, table *gbigquery.Table) (err error) {
-	table, err = self.buildTable(typ)
+func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, originalTable *gbigquery.Table) (err error) {
+
+	table, err := self.buildTable(typ)
 	if err != nil {
 		return
 	}
-	if _, err = tablesService.Patch(self.projectId, self.datasetId, table.TableReference.TableId, table).Do(); err != nil {
+
+	unionTable := self.unionTables(table, originalTable)
+	if _, err = tablesService.Patch(self.projectId, self.datasetId, originalTable.TableReference.TableId, unionTable).Do(); err != nil {
 		return
 	}
+	return
+}
+
+func (self *BigQuery) unionFields(fields1, fields2 []*gbigquery.TableFieldSchema) (result []*gbigquery.TableFieldSchema) {
+	unionFields := make(map[string]*gbigquery.TableFieldSchema)
+
+	for _, field := range fields2 {
+		unionFields[field.Name] = field
+	}
+	for index, field := range fields1 {
+		if len(field.Fields) == 0 {
+			unionFields[field.Name] = field
+		} else {
+			// Union the nested fields
+			unionFields[field.Name] = field
+			field.Fields = self.unionFields(fields1[index].Fields, fields1[index].Fields)
+		}
+	}
+	for _, field := range unionFields {
+		result = append(result, field)
+	}
+	return
+}
+
+/*
+Makes a union of all the columns of given tables.
+If a field is present in both tables, table1's field is taken
+*/
+func (self *BigQuery) unionTables(table1, table2 *gbigquery.Table) (result *gbigquery.Table) {
+	var resultFields []*gbigquery.TableFieldSchema
+	for _, field := range self.unionFields(table1.Schema.Fields, table2.Schema.Fields) {
+		resultFields = append(resultFields, field)
+	}
+
+	result = &gbigquery.Table{
+		TableReference: &gbigquery.TableReference{
+			DatasetId: self.datasetId,
+			ProjectId: self.projectId,
+			TableId:   table1.TableReference.TableId,
+		},
+		Schema: &gbigquery.TableSchema{
+			Fields: resultFields,
+		},
+	}
+
 	return
 }
 
@@ -236,8 +306,13 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 		},
 	}
 
+	typ := reflect.TypeOf(i)
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
 	tabledataService := gbigquery.NewTabledataService(self.GetService())
-	tableDataList, err := tabledataService.InsertAll(self.GetProjectId(), self.GetDatasetId(), "TestData", request).Do()
+	tableDataList, err := tabledataService.InsertAll(self.GetProjectId(), self.GetDatasetId(), typ.Name(), request).Do()
 	if err != nil {
 		return
 	}
@@ -253,5 +328,37 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 		err = utils.Errorf(strings.Join(errorStrings, "\n"))
 	}
 
+	return
+}
+
+/*
+Create view of a table defined by a query.
+*/
+func (self *BigQuery) AssertView(viewName string, query string) (err error) {
+	tablesService := gbigquery.NewTablesService(self.service)
+	_, err = tablesService.Get(self.projectId, self.datasetId, viewName).Do()
+	if err != nil {
+		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 404 {
+			viewTable := &gbigquery.Table{
+				TableReference: &gbigquery.TableReference{
+					DatasetId: self.datasetId,
+					ProjectId: self.projectId,
+					TableId:   viewName,
+				},
+				View: &gbigquery.ViewDefinition{
+					Query: query,
+				},
+			}
+			if _, err = tablesService.Insert(self.projectId, self.datasetId, viewTable).Do(); err != nil {
+				if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 409 {
+					self.Infof("Unable to create %v, someone else already did it", viewName)
+					err = nil
+					return
+				} else {
+					return
+				}
+			}
+		}
+	}
 	return
 }

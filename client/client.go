@@ -18,7 +18,7 @@ import (
 
 const (
 	MinAPIVersion = 1
-	MaxAPIVersion = 5
+	MaxAPIVersion = 6
 )
 
 type DefaultAccessToken struct {
@@ -294,10 +294,20 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 
 	//TODO, we should start using version 2!
 	request.Header.Add("X-API-Version", fmt.Sprint(MaxAPIVersion))
-	response, err = c.Client().Do(request)
+
+	waitTime := time.Millisecond * 100
+	for waitTime < time.Second*10 {
+		response, err = c.Client().Do(request)
+		if err == nil && response.StatusCode < 500 {
+			break
+		}
+		time.Sleep(waitTime)
+		waitTime = waitTime * 2
+	}
 	if err != nil {
 		return
 	}
+
 	newBody := &bytes.Buffer{}
 	if _, err = io.Copy(newBody, response.Body); err != nil {
 		return

@@ -192,13 +192,18 @@ func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 }
 
 type Transport struct {
-	T urlfetch.Transport
+	T       urlfetch.Transport
+	Context *DefaultContext
+	Header  http.Header
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
 	cont := t.T.Context.(GAEContext)
 	if cont.InTransaction() && !cont.GetAllowHTTPDuringTransactions() {
 		return nil, fmt.Errorf("Avoid using Client() when in an transaction. %s %s", req.Method, req.URL.String())
+	}
+	for key, values := range t.Header {
+		req.Header[key] = values
 	}
 	start := time.Now()
 	resp, err := t.T.RoundTrip(req)
@@ -214,7 +219,10 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 }
 
 func (self *DefaultContext) Client() *http.Client {
-	trans := &Transport{}
+	trans := &Transport{
+		Context: self,
+		Header:  http.Header{},
+	}
 	trans.T.Context = self
 	if self.clientTimeout == 0 {
 		trans.T.Deadline = time.Second * 30
