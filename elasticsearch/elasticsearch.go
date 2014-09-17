@@ -401,6 +401,9 @@ func (self *SearchResponse) Copy(result interface{}) (err error) {
 		return
 	}
 	resultValue := reflect.ValueOf(result).Elem()
+	for resultValue.Kind() == reflect.Ptr {
+		resultValue = resultValue.Elem()
+	}
 	if err = json.Unmarshal(buf, resultValue.FieldByName("Items").Addr().Interface()); err != nil {
 		return
 	}
