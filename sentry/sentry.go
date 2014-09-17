@@ -42,20 +42,46 @@ const (
 
 type Packet struct {
 	// Required
-	EventId string `json:"event_id"` // Unique id, max 32 characters
+	eventId string `json:"event_id"` // Unique id, max 32 characters
 	//	Project   string    `json:"project"`
-	Timestamp time.Time `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
+	timestamp time.Time `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
 	Message   string    `json:"message"`   // Human-readable message, max length 100 characters
 	Level     Severity  `json:"level"`     // Defaults to "error"
 	Logger    string    `json:"logger"`    // Defaults to "root"
 
 	// Optional
 	Culprit    string `json:"culprit, omitempty"` // E.g. function name
-	Tags       Tags   `json:"tags,omitempty"`
+	tags       Tags   `json:"tags,omitempty"`
 	ServerName string `json:"server_name,omitempty"`
 }
 
-func New(client *http.Client, dsn string, tags map[string]string) (sentry *Sentry, err error) {
+type Error struct {
+	Dsn    string
+	Tags   map[string]string
+	Packet *Packet
+}
+
+/*
+Sends error to Sentry
+*/
+func SendError(client *http.Client, serr *Error) (err error) {
+	sentry, err := newSentry(client, serr.Dsn, serr.Tags)
+	if err != nil {
+		return
+	}
+
+	p := serr.Packet
+	if err = p.init(); err != nil {
+		return
+	}
+	if err = sentry.send(p); err != nil {
+		return
+	}
+
+	return
+}
+
+func newSentry(client *http.Client, dsn string, tags map[string]string) (sentry *Sentry, err error) {
 	if dsn == "" {
 		return
 	}
@@ -119,28 +145,13 @@ func (self *Sentry) send(body *Packet) (err error) {
 	return
 }
 
-/*
-Sends error to Sentry
-*/
-func (self *Sentry) CaptureError(vaError interface{}, tags Tags) (err error) {
-	packet := &Packet{}
-	if err = packet.Init(); err != nil {
+func (self *Packet) init() (err error) {
+	if self.eventId, err = uuid(); err != nil {
 		return
 	}
-	if err = self.send(packet); err != nil {
-		return
-	}
-
-	return
-}
-
-func (self *Packet) Init() (err error) {
-	if self.EventId, err = uuid(); err != nil {
-		return
-	}
-	self.Timestamp = time.Now()
+	self.timestamp = time.Now()
 	if self.Message == "" {
-		return utils.Errorf("Sentry: Packet.Message missing")
+		return utils.Errorf("Sentry: packet.Message missing")
 	}
 	if self.Level == "" {
 		self.Level = ERROR
@@ -150,7 +161,7 @@ func (self *Packet) Init() (err error) {
 		self.Level != WARNING &&
 		self.Level != ERROR &&
 		self.Level != FATAL {
-		return utils.Errorf("Sentry: Packet.Level value not valid")
+		return utils.Errorf("Sentry: packet.Level value not valid")
 	}
 	if self.Logger == "" {
 		self.Logger = "root"
