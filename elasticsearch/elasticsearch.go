@@ -214,6 +214,50 @@ func RemoveFromIndex(c ElasticConnector, index string, source interface{}) (err 
 	return
 }
 
+type UpdateRequest struct {
+	Script string                 `json:"script"`
+	Params map[string]interface{} `json:"params"`
+}
+
+func UpdateDoc(c ElasticConnector, index string, id key.Key, groovyCode string, params map[string]interface{}) (err error) {
+	index = processIndexName(index)
+
+	url := fmt.Sprintf("%s/%s/%s/%s/_update",
+		c.GetElasticService(),
+		index,
+		id.Kind(),
+		id.Encode())
+
+	json, err := json.Marshal(UpdateRequest{
+		Script: groovyCode,
+		Params: params,
+	})
+	if err != nil {
+		return
+	}
+
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(json))
+	if err != nil {
+		return
+	}
+
+	if c.GetElasticUsername() != "" {
+		request.SetBasicAuth(c.GetElasticUsername(), c.GetElasticPassword())
+	}
+	response, err := c.Client().Do(request)
+	if err != nil {
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(response.Body)
+		err = fmt.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
+		return
+	}
+	return
+}
+
 /*
 AddToIndex adds source to a search index.
 Source must have a field `Id *datastore.key`.
