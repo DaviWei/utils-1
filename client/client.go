@@ -752,8 +752,8 @@ func SetPassword(c ServiceConnector, user key.Key, password string, token Access
 type RemoteIsApplicableForInvoiceResponse struct {
 	Status bool `json:"status"`
 }
-func IsApplicableForInvoice(c ServiceConnector, token AccessToken) (result *RemoteIsApplicableForInvoiceResponse, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), "register/applicable_for_invoice", token, nil)
+func IsApplicableForInvoice(c ServiceConnector) (result *RemoteIsApplicableForInvoiceResponse, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), "register/applicable_for_invoice", nil, nil)
 	if err != nil {
 		return
 	}
