@@ -19,7 +19,7 @@ type Sentry struct {
 	projectId  string
 	url        string
 	authHeader string
-	client     http.Client
+	client     *http.Client
 }
 
 type Tag struct {
@@ -47,7 +47,7 @@ type Packet struct {
 	Timestamp time.Time `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
 	Message   string    `json:"message"`   // Human-readable message, max length 100 characters
 	Level     Severity  `json:"level"`     // Defaults to "error"
-	Logger    string    `json:"logger"`
+	Logger    string    `json:"logger"`    // Defaults to "root"
 
 	// Optional
 	Culprit    string `json:"culprit, omitempty"` // E.g. function name
@@ -55,10 +55,13 @@ type Packet struct {
 	ServerName string `json:"server_name,omitempty"`
 }
 
-func New(client *http.Client, dsn string, tags map[string]string) (result *Sentry, err error) {
+func New(client *http.Client, dsn string, tags map[string]string) (sentry *Sentry, err error) {
 	if dsn == "" {
 		return
 	}
+
+	sentry = &Sentry{}
+	sentry.client = client
 
 	uri, err := url.Parse(dsn)
 	if err != nil {
@@ -75,8 +78,6 @@ func New(client *http.Client, dsn string, tags map[string]string) (result *Sentr
 		return
 	}
 
-	sentry := &Sentry{}
-
 	if idx := strings.LastIndex(uri.Path, "/"); idx != -1 {
 		sentry.projectId = uri.Path[idx+1:]
 		uri.Path = uri.Path[:idx+1] + "api/" + sentry.projectId + "/store/"
@@ -86,14 +87,11 @@ func New(client *http.Client, dsn string, tags map[string]string) (result *Sentr
 		return
 	}
 
-	sentry.url = uri.String()
-
+	sentry.url = fmt.Sprintf("https://app.getsentry.com/api/%v/store/", sentry.projectId)
 	sentry.authHeader = fmt.Sprintf("Sentry sentry_version=4, sentry_key=%s, sentry_secret=%s", publicKey, secretKey)
 
 	return
 }
-
-// TODO: Have something less general than interface here
 
 func (self *Sentry) send(body *Packet) (err error) {
 	buf := new(bytes.Buffer)
@@ -108,13 +106,14 @@ func (self *Sentry) send(body *Packet) (err error) {
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := self.client.Do(request)
-	defer response.Body.Close()
 	if err != nil {
-		return err
+		return
 	}
 
+	defer response.Body.Close()
+
 	if response.StatusCode != 200 {
-		return utils.Errorf("Sentry: sent request %v and received response %v", utils.Prettify(request), utils.Prettify(response))
+		err = utils.Errorf("Sentry: sent request:\n%v\nto %v and received response:\n%v", utils.Prettify(request), self.url, utils.Prettify(response))
 	}
 
 	return
@@ -123,12 +122,11 @@ func (self *Sentry) send(body *Packet) (err error) {
 /*
 Sends error to Sentry
 */
-func (self *Sentry) CaptureError(serr error, tags Tags) (err error) {
+func (self *Sentry) CaptureError(vaError interface{}, tags Tags) (err error) {
 	packet := &Packet{}
 	if err = packet.Init(); err != nil {
 		return
 	}
-
 	if err = self.send(packet); err != nil {
 		return
 	}
