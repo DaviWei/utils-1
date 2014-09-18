@@ -22,13 +22,6 @@ type Sentry struct {
 	client     *http.Client
 }
 
-type Tag struct {
-	Key   string
-	Value string
-}
-
-type Tags []Tag
-
 type Severity string
 
 const (
@@ -41,23 +34,18 @@ const (
 )
 
 type Packet struct {
-	// Required
-	eventId string `json:"event_id"` // Unique id, max 32 characters
-	//	Project   string    `json:"project"`
-	timestamp time.Time `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
-	Message   string    `json:"message"`   // Human-readable message, max length 100 characters
-	Level     Severity  `json:"level"`     // Defaults to "error"
-	Logger    string    `json:"logger"`    // Defaults to "root"
-
-	// Optional
-	Culprit    string `json:"culprit, omitempty"` // E.g. function name
-	tags       Tags   `json:"tags,omitempty"`
-	ServerName string `json:"server_name,omitempty"`
+	eventId    string            `json:"event_id"`  // Unique id, max 32 characters
+	timestamp  time.Time         `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
+	Message    string            `json:"message"`   // Human-readable message, max length 1000 characters
+	Level      Severity          `json:"level"`     // Defaults to "error"
+	Logger     string            `json:"logger"`    // Defaults to "root"
+	Culprit    string            `json:"culprit"`   // Becomes main name in Sentry
+	ServerName string            `json:"server_name"`
+	Tags       map[string]string `json:"tags,omitempty"`
 }
 
 type Error struct {
 	Dsn    string
-	Tags   map[string]string
 	Packet *Packet
 }
 
@@ -65,7 +53,7 @@ type Error struct {
 Sends error to Sentry
 */
 func SendError(client *http.Client, serr *Error) (err error) {
-	sentry, err := newSentry(client, serr.Dsn, serr.Tags)
+	sentry, err := newSentry(client, serr.Dsn)
 	if err != nil {
 		return
 	}
@@ -81,7 +69,7 @@ func SendError(client *http.Client, serr *Error) (err error) {
 	return
 }
 
-func newSentry(client *http.Client, dsn string, tags map[string]string) (sentry *Sentry, err error) {
+func newSentry(client *http.Client, dsn string) (sentry *Sentry, err error) {
 	if dsn == "" {
 		return
 	}
@@ -119,12 +107,14 @@ func newSentry(client *http.Client, dsn string, tags map[string]string) (sentry 
 	return
 }
 
-func (self *Sentry) send(body *Packet) (err error) {
+func (self *Sentry) send(p *Packet) (err error) {
+	if p == nil { // Nothing to send
+		return
+	}
+
 	buf := new(bytes.Buffer)
-	if body != nil {
-		if err = json.NewEncoder(buf).Encode(body); err != nil {
-			return
-		}
+	if err = json.NewEncoder(buf).Encode(p); err != nil {
+		return
 	}
 
 	request, _ := http.NewRequest("POST", self.url, buf)
@@ -135,9 +125,7 @@ func (self *Sentry) send(body *Packet) (err error) {
 	if err != nil {
 		return
 	}
-
 	defer response.Body.Close()
-
 	if response.StatusCode != 200 {
 		err = utils.Errorf("Sentry: sent request:\n%v\nto %v and received response:\n%v", utils.Prettify(request), self.url, utils.Prettify(response))
 	}
@@ -149,10 +137,6 @@ func (self *Packet) init() (err error) {
 	if self.eventId, err = uuid(); err != nil {
 		return
 	}
-	self.timestamp = time.Now()
-	if self.Message == "" {
-		return utils.Errorf("Sentry: packet.Message missing")
-	}
 	if self.Level == "" {
 		self.Level = ERROR
 	}
@@ -163,15 +147,10 @@ func (self *Packet) init() (err error) {
 		self.Level != FATAL {
 		return utils.Errorf("Sentry: packet.Level value not valid")
 	}
-	if self.Logger == "" {
-		self.Logger = "root"
+	if self.Message == "" {
+		return utils.Errorf("Sentry: packet.Message missing")
 	}
-	/*
-		// Optional
-		Culprit    string `json:"culprit, omitempty"` // E.g. function name
-		Tags       Tags   `json:"tags,omitempty"`
-		ServerName string `json:"server_name,omitempty"`
-	*/
+	self.timestamp = time.Now()
 	return
 }
 
