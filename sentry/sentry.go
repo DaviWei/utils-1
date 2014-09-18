@@ -150,6 +150,9 @@ func (self *Packet) init() (err error) {
 	if self.Message == "" {
 		return utils.Errorf("Sentry: packet.Message missing")
 	}
+	if self.Logger == "" {
+		self.Logger = "golang"
+	}
 	self.timestamp = time.Now()
 	return
 }
