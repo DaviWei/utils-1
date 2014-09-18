@@ -59,8 +59,8 @@ func IsNil(i interface{}) bool {
 }
 
 func Stack() string {
-	buf := make([]byte, 1<<14)
-	generated := runtime.Stack(buf, true)
+	buf := make([]byte, 1<<11)
+	generated := runtime.Stack(buf, false)
 	return string(buf[:generated])
 }
 
