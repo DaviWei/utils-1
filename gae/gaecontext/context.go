@@ -192,9 +192,8 @@ func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 }
 
 type Transport struct {
-	T       urlfetch.Transport
-	Context *DefaultContext
-	Header  http.Header
+	T      urlfetch.Transport
+	Header http.Header
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error) {
@@ -206,22 +205,23 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 		req.Header[key] = values
 	}
 	start := time.Now()
+	curly := utils.ToCurl(req)
 	resp, err := t.T.RoundTrip(req)
 	if err != nil {
+		t.T.Context.Warningf("Error doing roundtrip for %+v: %v\n%v\nCURL to replicate:\n%v", req, resp, err, curly)
 		return nil, err
 	}
 	if resp.StatusCode >= 500 {
-		t.T.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("5xx doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	} else if time.Since(start) > (time.Second * 2) {
-		t.T.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("Slow response doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	}
 	return resp, err
 }
 
 func (self *DefaultContext) Client() *http.Client {
 	trans := &Transport{
-		Context: self,
-		Header:  http.Header{},
+		Header: http.Header{},
 	}
 	trans.T.Context = self
 	if self.clientTimeout == 0 {
