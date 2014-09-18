@@ -208,6 +208,7 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	start := time.Now()
 	resp, err := t.T.RoundTrip(req)
 	if err != nil {
+		t.Context.Warningf("Error doing roundtrip for %+v: %v\n%v\nTo replicate:\n%v", req, resp, err, utils.ToCurl(req))
 		return nil, err
 	}
 	if resp.StatusCode >= 500 {
