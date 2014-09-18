@@ -212,9 +212,9 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 		return nil, err
 	}
 	if resp.StatusCode >= 500 {
-		t.T.Context.Warningf("Request %s %s %v status %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("5xx doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	} else if time.Since(start) > (time.Second * 2) {
-		t.T.Context.Warningf("Request %s %s took %v to complete %s!\n", req.Method, req.URL.String(), time.Since(start), resp.Status)
+		t.T.Context.Warningf("Slow response doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	}
 	return resp, err
 }
