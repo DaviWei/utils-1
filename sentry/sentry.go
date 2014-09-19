@@ -34,14 +34,14 @@ const (
 )
 
 type Packet struct {
-	eventId    string            `json:"event_id"`  // Unique id, max 32 characters
-	timestamp  time.Time         `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
-	Message    string            `json:"message"`   // Human-readable message, max length 1000 characters
-	Level      Severity          `json:"level"`     // Defaults to "error"
-	Logger     string            `json:"logger"`    // Defaults to "root"
-	Culprit    string            `json:"culprit"`   // Becomes main name in Sentry
-	ServerName string            `json:"server_name"`
-	Tags       map[string]string `json:"tags,omitempty"`
+	eventId    string      `json:"event_id"`  // Unique id, max 32 characters
+	timestamp  time.Time   `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
+	Message    string      `json:"message"`   // Human-readable message, max length 1000 characters
+	Level      Severity    `json:"level"`     // Defaults to "error"
+	Logger     string      `json:"logger"`    // Defaults to "root"
+	Culprit    string      `json:"culprit"`   // Becomes main name in Sentry
+	ServerName string      `json:"server_name"`
+	Tags       interface{} `json:"tags,omitempty"` // Additional optional tags
 }
 
 type Error struct {
