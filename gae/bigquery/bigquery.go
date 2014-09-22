@@ -351,12 +351,13 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	// Build insert errors error message
 	if len(tableDataList.InsertErrors) != 0 {
 		prettyJ := utils.Prettify(j)
-		errorStrings := []string{fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name())}
+		errorStrings := []string{}
 		for _, errors := range tableDataList.InsertErrors {
 			for _, errorProto := range errors.Errors {
 				errorStrings = append(errorStrings, fmt.Sprintf("\nReason:%v,\nMessage:%v,\nLocation:%v", errorProto.Reason, errorProto.Message, errorProto.Location))
 			}
 		}
+		errorStrings = append(errorStrings, fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name()))
 		err = utils.Errorf(strings.Join(errorStrings, "\n"))
 	}
 
