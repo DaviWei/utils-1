@@ -301,7 +301,7 @@ func (self *BigQuery) AssertTable(i interface{}) (err error) {
 }
 
 const (
-	maxString = (1 << 16) - 1
+	maxString = 1 << 10
 )
 
 func cropStrings(m map[string]gbigquery.JsonValue) {
