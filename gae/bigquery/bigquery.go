@@ -186,6 +186,10 @@ func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err
 	if fields, err = buildSchemaFields(typ, map[string]struct{}{}); err != nil {
 		return
 	}
+	fields = append(fields, &gbigquery.TableFieldSchema{
+		Name: "_inserted_at",
+		Type: dataTypeTimeStamp,
+	})
 	result = &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
 			DatasetId: self.datasetId,
@@ -326,6 +330,7 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	if err = json.Unmarshal(b, &j); err != nil {
 		return
 	}
+	j["_inserted_at"] = time.Now()
 
 	cropStrings(j)
 
