@@ -247,6 +247,18 @@ type StackError interface {
 	Error() string
 }
 
+func StripStack(err error) (result error) {
+	if err == nil {
+		return
+	}
+	if deferr, ok := err.(DefaultStackError); ok {
+		err = deferr.Source
+	} else {
+		result = err
+	}
+	return
+}
+
 type DefaultStackError struct {
 	Source error
 	Stack  string
