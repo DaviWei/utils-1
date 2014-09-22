@@ -156,7 +156,9 @@ func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
 	if self.inTransaction {
 		self.afterTransaction = append(self.afterTransaction, afterFunc)
 	} else {
-		afterFunc(self)
+		if err = afterFunc(self); err != nil {
+			return
+		}
 	}
 	return
 }
