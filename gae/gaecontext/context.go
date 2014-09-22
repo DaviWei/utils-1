@@ -177,20 +177,38 @@ func (self *DefaultContext) Debugf(format string, i ...interface{}) {
 	self.Context.Debugf(format, i...)
 }
 
+func (self *DefaultContext) split(format string, i ...interface{}) (result []string) {
+	msg := fmt.Sprintf(format, i...)
+	for len(msg) > 8000 {
+		result = append(result, msg[:8000])
+		msg = msg[8000:]
+	}
+	result = append(result, msg)
+	return
+}
+
 func (self *DefaultContext) Infof(format string, i ...interface{}) {
-	self.Context.Infof(format, i...)
+	for _, m := range self.split(format, i...) {
+		self.Context.Infof("%v", m)
+	}
 }
 
 func (self *DefaultContext) Warningf(format string, i ...interface{}) {
-	self.Context.Warningf(format, i...)
+	for _, m := range self.split(format, i...) {
+		self.Context.Warningf("%v", m)
+	}
 }
 
 func (self *DefaultContext) Errorf(format string, i ...interface{}) {
-	self.Context.Errorf(format, i...)
+	for _, m := range self.split(format, i...) {
+		self.Context.Errorf("%v", m)
+	}
 }
 
 func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
-	self.Context.Criticalf(format, i...)
+	for _, m := range self.split(format, i...) {
+		self.Context.Criticalf("%v", m)
+	}
 }
 
 type Transport struct {

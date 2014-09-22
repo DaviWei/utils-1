@@ -186,6 +186,10 @@ func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err
 	if fields, err = buildSchemaFields(typ, map[string]struct{}{}); err != nil {
 		return
 	}
+	fields = append(fields, &gbigquery.TableFieldSchema{
+		Name: "_inserted_at",
+		Type: dataTypeTimeStamp,
+	})
 	result = &gbigquery.Table{
 		TableReference: &gbigquery.TableReference{
 			DatasetId: self.datasetId,
@@ -300,6 +304,22 @@ func (self *BigQuery) AssertTable(i interface{}) (err error) {
 	return self.patchTable(typ, tablesService, table)
 }
 
+const (
+	maxString = 1 << 10
+)
+
+func cropStrings(m map[string]gbigquery.JsonValue) {
+	for k, v := range m {
+		if s, ok := v.(string); ok {
+			if len(s) > maxString {
+				m[k] = s[:maxString]
+			}
+		} else if inner, ok := v.(map[string]gbigquery.JsonValue); ok {
+			cropStrings(inner)
+		}
+	}
+}
+
 func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	j := map[string]gbigquery.JsonValue{}
 
@@ -310,6 +330,9 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	if err = json.Unmarshal(b, &j); err != nil {
 		return
 	}
+	j["_inserted_at"] = time.Now()
+
+	cropStrings(j)
 
 	request := &gbigquery.TableDataInsertAllRequest{
 		Rows: []*gbigquery.TableDataInsertAllRequestRows{
@@ -333,12 +356,13 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	// Build insert errors error message
 	if len(tableDataList.InsertErrors) != 0 {
 		prettyJ := utils.Prettify(j)
-		errorStrings := []string{fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name())}
+		errorStrings := []string{}
 		for _, errors := range tableDataList.InsertErrors {
 			for _, errorProto := range errors.Errors {
 				errorStrings = append(errorStrings, fmt.Sprintf("\nReason:%v,\nMessage:%v,\nLocation:%v", errorProto.Reason, errorProto.Message, errorProto.Location))
 			}
 		}
+		errorStrings = append(errorStrings, fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name()))
 		err = utils.Errorf(strings.Join(errorStrings, "\n"))
 	}
 
