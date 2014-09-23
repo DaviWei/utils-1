@@ -34,8 +34,8 @@ const (
 )
 
 type Packet struct {
-	eventId    string      `json:"event_id"`  // Unique id, max 32 characters
-	timestamp  time.Time   `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
+	EventId    string      `json:"event_id"`  // Unique id, max 32 characters
+	Timestamp  time.Time   `json:"timestamp"` // Sentry assumes it is given in UTC. Use the ISO 8601 format
 	Message    string      `json:"message"`   // Human-readable message, max length 1000 characters
 	Level      Severity    `json:"level"`     // Defaults to "error"
 	Logger     string      `json:"logger"`    // Defaults to "root"
@@ -134,7 +134,7 @@ func (self *Sentry) send(p *Packet) (err error) {
 }
 
 func (self *Packet) init() (err error) {
-	if self.eventId, err = uuid(); err != nil {
+	if self.EventId, err = uuid(); err != nil {
 		return
 	}
 	if self.Level == "" {
@@ -153,7 +153,7 @@ func (self *Packet) init() (err error) {
 	if self.Logger == "" {
 		self.Logger = "golang"
 	}
-	self.timestamp = time.Now()
+	self.Timestamp = time.Now()
 	return
 }
 
