@@ -17,6 +17,7 @@ import (
 var timeType = reflect.TypeOf(time.Now())
 var jsonTimeType = reflect.TypeOf(utils.Time{})
 var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
+var stringSliceType = reflect.TypeOf([]string{})
 
 const (
 	BigqueryScope     = gbigquery.BigqueryScope
@@ -26,6 +27,10 @@ const (
 	dataTypeFloat     = "FLOAT"
 	dataTypeBool      = "BOOLEAN"
 	dataTypeTimeStamp = "TIMESTAMP"
+)
+
+const (
+	dataModeRepeated = "REPEATED"
 )
 
 type Logger interface {
@@ -166,11 +171,20 @@ func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (re
 				}
 			}
 		case reflect.Slice:
-			// Assume that slices are byte slices and base64 encoded
-			result = append(result, &gbigquery.TableFieldSchema{
-				Name: name,
-				Type: dataTypeString,
-			})
+			switch fieldType {
+			case stringSliceType:
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name:   name,
+					Type:   dataTypeString,
+					Mode:   dataModeRepeated,
+				})
+			default:
+				// Assume that slices are byte slices and base64 encoded
+				result = append(result, &gbigquery.TableFieldSchema{
+					Name: name,
+					Type: dataTypeString,
+				})
+			}
 		default:
 			err = utils.Errorf("Unsupported kind for schema field: %v", field)
 			return
