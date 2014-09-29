@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 	"time"
+	"math/rand"
 
 	"github.com/gorilla/mux"
 	"github.com/mjibson/appstats"
@@ -278,7 +279,25 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 		}, &datastore.TransactionOptions{XG: crossGroup})
 
 		/* Dont fail on concurrent transaction.. Continue trying... */
-		if err != datastore.ErrConcurrentTransaction {
+		if dserr, ok := err.(utils.DefaultStackError); ok {
+			hasConcErr := false
+			if dserr.Source == datastore.ErrConcurrentTransaction {
+				hasConcErr = true
+			} else {
+				if merr, ok := dserr.Source.(appengine.MultiError); ok {
+					for _, e := range merr {
+						if e == datastore.ErrConcurrentTransaction {
+							hasConcErr = true
+							break
+						}
+					}
+				}
+			}
+			if hasConcErr {
+				self.Debugf("Failed to run %v in transaction due to %v, retrying...", f, err)
+				time.Sleep(time.Millisecond * time.Duration(rand.Int63() % 500))
+			}
+		} else {
 			break
 		}
 	}
