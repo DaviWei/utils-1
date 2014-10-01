@@ -20,7 +20,6 @@ var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
 var stringSliceType = reflect.TypeOf([]string{})
 
 const (
-	BigqueryScope     = gbigquery.BigqueryScope
 	dataTypeString    = "STRING"
 	dataTypeInteger   = "INTEGER"
 	dataTypeRecord    = "RECORD"
