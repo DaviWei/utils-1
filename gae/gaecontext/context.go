@@ -17,6 +17,7 @@ import (
 
 	"appengine"
 	"appengine/datastore"
+	"strings"
 	"appengine/urlfetch"
 )
 
@@ -270,21 +271,33 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 	 * get transaction working waiting for max 20 seconds.
 	 */
 	start := time.Now()
+	tries := 0
 	for time.Since(start) < (time.Second * 20) {
+		hasConcErr := false
 		err = datastore.RunInTransaction(self, func(c appengine.Context) error {
 			newContext = *self
 			newContext.Context = c
 			newContext.inTransaction = true
 			return CallTransactionFunction(&newContext, f)
 		}, &datastore.TransactionOptions{XG: crossGroup})
-
+		if err == nil {
+			break
+		}
 		/* Dont fail on concurrent transaction.. Continue trying... */
 		if dserr, ok := err.(utils.DefaultStackError); ok {
-			hasConcErr := false
+			// our own stack errors, based on a concurrent transaction error
 			if dserr.Source == datastore.ErrConcurrentTransaction {
 				hasConcErr = true
 			} else {
+				// if they are based on appengine or utils multierrors, check for concurrency errors inside
 				if merr, ok := dserr.Source.(appengine.MultiError); ok {
+					for _, e := range merr {
+						if e == datastore.ErrConcurrentTransaction {
+							hasConcErr = true
+							break
+						}
+					}
+				} else if merr, ok := dserr.Source.(utils.MultiError); ok {
 					for _, e := range merr {
 						if e == datastore.ErrConcurrentTransaction {
 							hasConcErr = true
@@ -293,10 +306,22 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 					}
 				}
 			}
-			if hasConcErr {
-				self.Debugf("Failed to run %v in transaction due to %v, retrying...", f, err)
-				time.Sleep(time.Millisecond * time.Duration(rand.Int63() % 500))
-			}
+		} else if err == datastore.ErrConcurrentTransaction {
+			// or if they ARE concurrency errors!
+			hasConcErr = true
+		}
+		if !hasConcErr && strings.Contains(strings.ToLower(err.Error()), "concurrent") {
+			// or, if they are the special black ops concurrency errors that google never talk openly about
+			hasConcErr = true
+		}
+		if !hasConcErr && strings.Contains(strings.ToLower(err.Error()), "transaction closed") {
+			// or, they are the even more magical "transaction closed" errors that don't even know about the cause why it was closed
+			hasConcErr = true
+		}
+		if hasConcErr {
+			self.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DANGER ! Failed to run %v in transaction due to %v, retrying... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", f, err)
+			tries+= 1
+			time.Sleep(time.Millisecond * time.Duration(rand.Int63() % int64(500* tries)))
 		} else {
 			break
 		}
