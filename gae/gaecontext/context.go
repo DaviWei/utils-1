@@ -323,7 +323,6 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 			tries+= 1
 			time.Sleep(time.Millisecond * time.Duration(rand.Int63() % int64(500* tries)))
 		} else {
-			self.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DANGER ! Failed to run %v in transaction due to %#v BAMDFFF !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  %v", f, err, err.Error())
 			break
 		}
 	}
