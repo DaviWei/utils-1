@@ -22,6 +22,8 @@ type ElasticConnector interface {
 	GetElasticPassword() string
 }
 
+var UpdateConflictRetries = 10
+
 var IndexNameProcessor = func(s string) string {
 	return s
 }
@@ -222,11 +224,12 @@ type UpdateRequest struct {
 func UpdateDoc(c ElasticConnector, index string, id key.Key, groovyCode string, params map[string]interface{}) (err error) {
 	index = processIndexName(index)
 
-	url := fmt.Sprintf("%s/%s/%s/%s/_update",
+	url := fmt.Sprintf("%s/%s/%s/%s/_update?retry_on_conflict=%v",
 		c.GetElasticService(),
 		index,
 		id.Kind(),
-		id.Encode())
+		id.Encode(),
+		UpdateConflictRetries)
 
 	json, err := json.Marshal(UpdateRequest{
 		Script: groovyCode,
