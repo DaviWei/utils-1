@@ -3,6 +3,7 @@ package gae
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/soundtrackyourbrand/utils/json"
@@ -497,6 +498,19 @@ func findById(c PersistenceContext, dst interface{}) (err error) {
 	return
 }
 
+func clear(c PersistenceContext, val reflect.Value) {
+	typ := val.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		if typ.Field(i).Type.Kind() == reflect.Struct {
+			clear(c, val.FieldByName(typ.Field(i).Name))
+		} else {
+			if typ.Field(i).Name != idFieldName && typ.Field(i).Name[0] == strings.ToUpper(typ.Field(i).Name)[0] {
+				val.FieldByName(typ.Field(i).Name).Set(reflect.New(typ.Field(i).Type).Elem())
+			}
+		}
+	}
+}
+
 /*
 GetById will find memoize finding dst in the datastore, setting its id and running its AfterLoad function, if any.
 */
@@ -505,6 +519,11 @@ func GetById(c PersistenceContext, dst interface{}) (err error) {
 	if err != nil {
 		return
 	}
+	val := reflect.ValueOf(dst).Elem()
+	// we need to clear this crap, because datastore.Get does NOT overwrite all fields - it APPENDS to some of them (notably slices)
+	// which will create a shitstorm if we try to reload an object we already have, that includes slices, in that it will append
+	// all datastore values to the current slice instead of resetting the slice to what is in datastore
+	clear(c, val)
 	if err = memcache.Memoize(c, k, dst, func() (result interface{}, err error) {
 		err = findById(c, dst)
 		if _, ok := err.(ErrNoSuchEntity); ok {
