@@ -606,13 +606,17 @@ func ToCurl(req *http.Request) string {
 		req.Body = ioutil.NopCloser(bytes.NewBuffer(b))
 		bodyPart = fmt.Sprintf(" -d %#v", string(b))
 	}
-	curl := fmt.Sprintf("curl -v -X%s %q%v", req.Method, req.URL, bodyPart)
+	headers := []string{}
 	for header, vals := range req.Header {
 		for _, val := range vals {
-			curl = fmt.Sprintf(`%s -H "%s: %+v"`, curl, header, val)
+			headers = append(headers, fmt.Sprintf("-H \"%s: %s\"", header, val))
 		}
 	}
-	return curl
+	headerPart := ""
+	if len(headers) > 0 {
+		headerPart = fmt.Sprintf(" %v", strings.Join(headers, " "))
+	}
+	return fmt.Sprintf("curl -v -X%s %q%v%v", req.Method, req.URL, bodyPart, headerPart)
 }
 
 func GenerateFlags(i interface{}) (result []string, err error) {
