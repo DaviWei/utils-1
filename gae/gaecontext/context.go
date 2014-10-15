@@ -2,10 +2,10 @@ package gaecontext
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"reflect"
 	"time"
-	"math/rand"
 
 	"github.com/gorilla/mux"
 	"github.com/mjibson/appstats"
@@ -15,9 +15,10 @@ import (
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 
+	"strings"
+
 	"appengine"
 	"appengine/datastore"
-	"strings"
 	"appengine/urlfetch"
 )
 
@@ -320,8 +321,8 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 		}
 		if hasConcErr {
 			self.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DANGER ! Failed to run %v in transaction due to %v, retrying... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", f, err)
-			tries+= 1
-			time.Sleep(time.Millisecond * time.Duration(rand.Int63() % int64(500* tries)))
+			tries += 1
+			time.Sleep(time.Millisecond * time.Duration(rand.Int63()%int64(500*tries)))
 		} else {
 			break
 		}
