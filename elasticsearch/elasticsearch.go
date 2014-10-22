@@ -22,6 +22,11 @@ type ElasticConnector interface {
 	GetElasticPassword() string
 }
 
+type ElasticSearchContext interface {
+	ElasticConnector
+	Debugf(format string, args ...interface{})
+}
+
 var UpdateConflictRetries = 10
 
 var IndexNameProcessor = func(s string) string {
@@ -514,7 +519,7 @@ type RangeDef struct {
 	Boost string `json:"boost,omitempty"`
 }
 
-func SearchAndCopy(c ElasticConnector, query *SearchRequest, index string, result interface{}) (err error) {
+func SearchAndCopy(c ElasticSearchContext, query *SearchRequest, index string, result interface{}) (err error) {
 	name := reflect.ValueOf(result).Elem().FieldByName("Items").Type().Elem().Name()
 	response, err := Search(c, query, index, name)
 	if err != nil {
@@ -532,7 +537,7 @@ Search will run the queryString (a query string parseable by http://www.elastics
 sorting it using the specified sort (a JSON string describing a sort according to http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-sort.html),
 and limiting/offsetting it using the provided limit and offset.
 */
-func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result *SearchResponse, err error) {
+func Search(c ElasticSearchContext, query *SearchRequest, index, typ string) (result *SearchResponse, err error) {
 	if query.Size == 0 {
 		query.Size = 10
 	}
@@ -588,6 +593,7 @@ func Search(c ElasticConnector, query *SearchRequest, index, typ string) (result
 		return
 	}
 
+	c.Debugf("Elasticsearch took %v, url:%s", result.Took, url)
 	result.Page = 1 + (query.From / query.Size)
 	result.PerPage = query.Size
 	return
