@@ -13,7 +13,9 @@ import (
 	"github.com/soundtrackyourbrand/utils"
 
 	"appengine"
+	"appengine/delay"
 	"appengine/memcache"
+	"appengine/taskqueue"
 )
 
 var MemcacheEnabled = true
@@ -31,6 +33,12 @@ const (
 
 var Codec = memcache.Gob
 var ErrCacheMiss = memcache.ErrCacheMiss
+
+var deleteFunc = delay.Func("github.com/soundtrackyourbrand/utils/gae/memcache.delayedDelete", delayedDelete)
+
+func delayedDelete(c appengine.Context, keys []string) (err error) {
+	return del(c, keys...)
+}
 
 /*
 Keyify will create a memcache-safe key from k by hashing and base64-encoding it.
@@ -98,18 +106,28 @@ func Del(c TransactionContext, keys ...string) (err error) {
 }
 
 /*
-delWithRetry will delete the keys from memcache. If it fails, it will retry a few times.
+delWithRetry will delete the keys from memcache. If it fails, it will retry.
 */
 func delWithRetry(c TransactionContext, keys ...string) (err error) {
 	waitTime := time.Millisecond * 10
+	deadline := time.Now().Add(time.Second * 2)
 
-	for waitTime < 1*time.Second {
+	for time.Now().Before(deadline) {
 		err = del(c, keys...)
 		if err == nil {
-			return
+			break
 		}
 		time.Sleep(waitTime)
 		waitTime = waitTime * 2
+	}
+	if err != nil {
+		var task *taskqueue.Task
+		if task, err = deleteFunc.Task(keys); err != nil {
+			return
+		}
+		if _, err = taskqueue.Add(c, task, "delayed-memcache-invalidate"); err != nil {
+			return
+		}
 	}
 	return
 }
@@ -117,7 +135,7 @@ func delWithRetry(c TransactionContext, keys ...string) (err error) {
 /*
 del will delete the keys from memcache.
 */
-func del(c TransactionContext, keys ...string) (err error) {
+func del(c appengine.Context, keys ...string) (err error) {
 	for index, key := range keys {
 		var k string
 		k, err = Keyify(key)
@@ -173,7 +191,7 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 	if _, err = Codec.Get(c, k, val); err != nil {
 		if err == memcache.ErrCacheMiss {
 			err = nil
-		} else  {
+		} else {
 			c.Errorf("Error doing Get %#v: %v", k, err)
 		}
 		return
@@ -239,19 +257,25 @@ func PutUntil(c TransactionContext, until time.Duration, key string, val interfa
 	return putUntil(c, &until, key, val)
 }
 
-func codecSet(c TransactionContext, codec memcache.Codec, item *memcache.Item) (err error) {
+/*
+codecSetWithRetry will try to use codec.Set to set the value. If it fails it will retry.
+*/
+func codecSetWithRetry(c TransactionContext, codec memcache.Codec, item *memcache.Item) (err error) {
 	waitTime := time.Millisecond * 10
+	deadline := time.Now().Add(time.Second * 2)
 
-	for waitTime < 1*time.Second {
+	for time.Now().Before(deadline) {
 		err = codec.Set(c, item)
 		if err == nil {
-			return
+			break
 		}
 		time.Sleep(waitTime)
 		waitTime *= 2
 	}
-	marshalled, _ := codec.Marshal(item.Object)
-	err = utils.Errorf("Error doing Codec.Set %#v with %v bytes: %v", item.Key, len(marshalled), err)
+	if err != nil {
+		marshalled, _ := codec.Marshal(item.Object)
+		err = utils.Errorf("Error doing Codec.Set %#v with %v bytes: %v", item.Key, len(marshalled), err)
+	}
 	return
 }
 
@@ -270,7 +294,7 @@ func putUntil(c TransactionContext, until *time.Duration, key string, val interf
 	if until != nil {
 		item.Expiration = *until
 	}
-	return codecSet(c, Codec, item)
+	return codecSetWithRetry(c, Codec, item)
 }
 
 /*
@@ -476,7 +500,7 @@ func memoizeMulti(
 						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
 						flags = nilCache
 					}
-					if err2 := codecSet(c, Codec, &memcache.Item{
+					if err2 := codecSetWithRetry(c, Codec, &memcache.Item{
 						Key:        keyHash,
 						Flags:      flags,
 						Object:     obj,
