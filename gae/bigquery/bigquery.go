@@ -78,7 +78,7 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
-func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (result []*gbigquery.TableFieldSchema, err error) {
+func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (result []*gbigquery.TableFieldSchema, err error) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldType := field.Type
@@ -156,7 +156,7 @@ func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (re
 				})
 			default:
 				var fieldFields []*gbigquery.TableFieldSchema
-				if fieldFields, err = buildSchemaFields(fieldType, seenFieldNames); err != nil {
+				if fieldFields, err = self.buildSchemaFields(fieldType, seenFieldNames); err != nil {
 					return
 				}
 				if field.Anonymous {
@@ -173,9 +173,9 @@ func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (re
 			switch fieldType {
 			case stringSliceType:
 				result = append(result, &gbigquery.TableFieldSchema{
-					Name:   name,
-					Type:   dataTypeString,
-					Mode:   dataModeRepeated,
+					Name: name,
+					Type: dataTypeString,
+					Mode: dataModeRepeated,
 				})
 			default:
 				// Assume that slices are byte slices and base64 encoded
@@ -184,6 +184,9 @@ func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (re
 					Type: dataTypeString,
 				})
 			}
+		case reflect.Map:
+			self.Infof("Ignoring field %v of type map", field.Name)
+			return
 		default:
 			err = utils.Errorf("Unsupported kind for schema field: %v", field)
 			return
@@ -196,7 +199,7 @@ func buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (re
 
 func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err error) {
 	var fields []*gbigquery.TableFieldSchema
-	if fields, err = buildSchemaFields(typ, map[string]struct{}{}); err != nil {
+	if fields, err = self.buildSchemaFields(typ, map[string]struct{}{}); err != nil {
 		return
 	}
 	fields = append(fields, &gbigquery.TableFieldSchema{
