@@ -320,7 +320,8 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 			hasConcErr = true
 		}
 		if hasConcErr {
-			self.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DANGER ! Failed to run %v in transaction due to %v, retrying... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", f, err)
+			lines := strings.Split(utils.Stack(), "\n")
+			self.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DANGER ! Failed to run %v in transaction due to %v, retrying... !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", lines[9:11], err)
 			tries += 1
 			time.Sleep(time.Millisecond * time.Duration(rand.Int63()%int64(500*tries)))
 		} else {
