@@ -240,7 +240,7 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 			err = nil
 			return
 		}
-		err = utils.Errorf("Unable to create table with\n%v\n%v", utils.Prettify(table), err)
+		err = utils.Errorf("Unable to create %#v with\n%v\n%v", typ.Name(), utils.Prettify(table), err)
 		return
 	}
 	return
@@ -255,6 +255,7 @@ func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.Tabl
 
 	unionTable := self.unionTables(table, originalTable)
 	if _, err = tablesService.Patch(self.projectId, self.datasetId, originalTable.TableReference.TableId, unionTable).Do(); err != nil {
+		err = utils.Errorf("Error trying to patch %#v with\n%v\n%v", typ.Name(), utils.Prettify(unionTable), err)
 		return
 	}
 	return
