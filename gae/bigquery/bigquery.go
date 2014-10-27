@@ -17,7 +17,6 @@ import (
 var timeType = reflect.TypeOf(time.Now())
 var jsonTimeType = reflect.TypeOf(utils.Time{})
 var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
-var stringSliceType = reflect.TypeOf([]string{})
 
 const (
 	dataTypeString    = "STRING"
@@ -78,6 +77,102 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
+func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seenFieldNames map[string]struct{}) (result *gbigquery.TableFieldSchema, err error) {
+	for fieldType.Kind() == reflect.Ptr {
+		fieldType = fieldType.Elem()
+	}
+	switch fieldType.Kind() {
+	case reflect.Bool:
+		result = &gbigquery.TableFieldSchema{
+			Name: name,
+			Type: dataTypeBool,
+		}
+	case reflect.Float32:
+		fallthrough
+	case reflect.Float64:
+		result = &gbigquery.TableFieldSchema{
+			Name: name,
+			Type: dataTypeFloat,
+		}
+	case reflect.String:
+		result = &gbigquery.TableFieldSchema{
+			Name: name,
+			Type: dataTypeString,
+		}
+	case reflect.Uint:
+		fallthrough
+	case reflect.Uint8:
+		fallthrough
+	case reflect.Uint16:
+		fallthrough
+	case reflect.Uint32:
+		fallthrough
+	case reflect.Uint64:
+		fallthrough
+	case reflect.Int:
+		fallthrough
+	case reflect.Int8:
+		fallthrough
+	case reflect.Int16:
+		fallthrough
+	case reflect.Int32:
+		fallthrough
+	case reflect.Int64:
+		result = &gbigquery.TableFieldSchema{
+			Name: name,
+			Type: dataTypeInteger,
+		}
+	case reflect.Struct:
+		switch fieldType {
+		case byteStringType:
+			result = &gbigquery.TableFieldSchema{
+				Name: name,
+				Type: dataTypeString,
+			}
+		case timeType:
+			result = &gbigquery.TableFieldSchema{
+				Name: name,
+				Type: dataTypeTimeStamp,
+			}
+		case jsonTimeType:
+			result = &gbigquery.TableFieldSchema{
+				Name: name,
+				Type: dataTypeTimeStamp,
+			}
+		default:
+			var fieldFields []*gbigquery.TableFieldSchema
+			if fieldFields, err = self.buildSchemaFields(fieldType, seenFieldNames); err != nil {
+				return
+			}
+			result = &gbigquery.TableFieldSchema{
+				Name:   name,
+				Type:   dataTypeRecord,
+				Fields: fieldFields,
+			}
+		}
+	case reflect.Slice:
+		switch fieldType {
+		case byteStringType:
+			result = &gbigquery.TableFieldSchema{
+				Name: name,
+				Type: dataTypeString,
+			}
+		default:
+			if result, err = self.buildSchemaField(fieldType.Elem(), name, seenFieldNames); err != nil {
+				return
+			}
+			result.Mode = dataModeRepeated
+		}
+	case reflect.Map:
+		self.Infof("Ignoring field %v of type map", name)
+		return
+	default:
+		err = utils.Errorf("Unsupported kind for schema field: %v", fieldType)
+		return
+	}
+	return
+}
+
 func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (result []*gbigquery.TableFieldSchema, err error) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -96,102 +191,17 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 			continue
 		}
 		seenFieldNames[name] = struct{}{}
-		switch fieldType.Kind() {
-		case reflect.Bool:
-			result = append(result, &gbigquery.TableFieldSchema{
-				Name: name,
-				Type: dataTypeBool,
-			})
-		case reflect.Float32:
-			fallthrough
-		case reflect.Float64:
-			result = append(result, &gbigquery.TableFieldSchema{
-				Name: name,
-				Type: dataTypeFloat,
-			})
-		case reflect.String:
-			result = append(result, &gbigquery.TableFieldSchema{
-				Name: name,
-				Type: dataTypeString,
-			})
-		case reflect.Uint:
-			fallthrough
-		case reflect.Uint8:
-			fallthrough
-		case reflect.Uint16:
-			fallthrough
-		case reflect.Uint32:
-			fallthrough
-		case reflect.Uint64:
-			fallthrough
-		case reflect.Int:
-			fallthrough
-		case reflect.Int8:
-			fallthrough
-		case reflect.Int16:
-			fallthrough
-		case reflect.Int32:
-			fallthrough
-		case reflect.Int64:
-			result = append(result, &gbigquery.TableFieldSchema{
-				Name: name,
-				Type: dataTypeInteger,
-			})
-		case reflect.Struct:
-			switch fieldType {
-			case byteStringType:
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name: name,
-					Type: dataTypeString,
-				})
-			case timeType:
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name: name,
-					Type: dataTypeTimeStamp,
-				})
-			case jsonTimeType:
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name: name,
-					Type: dataTypeTimeStamp,
-				})
-			default:
-				var fieldFields []*gbigquery.TableFieldSchema
-				if fieldFields, err = self.buildSchemaFields(fieldType, seenFieldNames); err != nil {
-					return
-				}
-				if field.Anonymous {
-					result = append(result, fieldFields...)
-				} else {
-					result = append(result, &gbigquery.TableFieldSchema{
-						Name:   name,
-						Type:   dataTypeRecord,
-						Fields: fieldFields,
-					})
-				}
-			}
-		case reflect.Slice:
-			switch fieldType {
-			case stringSliceType:
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name: name,
-					Type: dataTypeString,
-					Mode: dataModeRepeated,
-				})
-			default:
-				// Assume that slices are byte slices and base64 encoded
-				result = append(result, &gbigquery.TableFieldSchema{
-					Name: name,
-					Type: dataTypeString,
-				})
-			}
-		case reflect.Map:
-			self.Infof("Ignoring field %v of type map", field.Name)
-			return
-		default:
-			err = utils.Errorf("Unsupported kind for schema field: %v", field)
+		var thisField *gbigquery.TableFieldSchema
+		if thisField, err = self.buildSchemaField(fieldType, name, seenFieldNames); err != nil {
 			return
 		}
-
+		if thisField != nil {
+			if field.Anonymous {
+				result = append(result, thisField.Fields...)
+			} else {
+				result = append(result, thisField)
+			}
+		}
 	}
 
 	return
