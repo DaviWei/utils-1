@@ -182,17 +182,27 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 		}
 		name := field.Name
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
-			name = strings.Split(jsonTag, ",")[0]
+			if splitTag := strings.Split(jsonTag, ","); splitTag[0] != "" {
+				name = splitTag[0]
+			}
 		}
 		if name == "-" {
+			continue
+		}
+		if bigqueryTag := field.Tag.Get("bigquery"); bigqueryTag == "-" {
 			continue
 		}
 		if _, found := seenFieldNames[name]; found {
 			continue
 		}
 		seenFieldNames[name] = struct{}{}
+
 		var thisField *gbigquery.TableFieldSchema
-		if thisField, err = self.buildSchemaField(fieldType, name, seenFieldNames); err != nil {
+		seenFieldNamesToSend := seenFieldNames
+		if !field.Anonymous {
+			seenFieldNamesToSend = map[string]struct{}{}
+		}
+		if thisField, err = self.buildSchemaField(fieldType, name, seenFieldNamesToSend); err != nil {
 			return
 		}
 		if thisField != nil {
@@ -357,9 +367,15 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	if err = json.Unmarshal(b, &j); err != nil {
 		return
 	}
-	j["_inserted_at"] = time.Now()
-
 	cropStrings(j)
+	if b, err = time.Now().MarshalJSON(); err != nil {
+		return
+	}
+	s := ""
+	if err = json.Unmarshal(b, &s); err != nil {
+		return
+	}
+	j["_inserted_at"] = s
 
 	request := &gbigquery.TableDataInsertAllRequest{
 		Rows: []*gbigquery.TableDataInsertAllRequestRows{
@@ -372,6 +388,18 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	typ := reflect.TypeOf(i)
 	for typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
+	}
+
+	for i := 0; i < typ.NumField(); i++ {
+		if typ.Field(i).Tag.Get("bigquery") == "-" {
+			name := typ.Field(i).Name
+			if jsonTag := typ.Field(i).Tag.Get("json"); jsonTag != "" {
+				if splitTag := strings.Split(jsonTag, ","); splitTag[0] != "" {
+					name = splitTag[0]
+				}
+			}
+			delete(j, name)
+		}
 	}
 
 	tabledataService := gbigquery.NewTabledataService(self.GetService())
@@ -420,10 +448,63 @@ func (self *BigQuery) AssertView(viewName string, query string) (err error) {
 					err = nil
 					return
 				} else {
+					err = utils.Errorf("Unable to create %#v with\n%v\n%v", viewName, utils.Prettify(viewTable), err)
 					return
 				}
 			}
 		}
+	}
+	return
+}
+
+func (self *BigQuery) addFieldNames(fields []*gbigquery.TableFieldSchema, prefix string, dst *[]string) {
+	for _, field := range fields {
+		if field.Type == dataTypeRecord {
+			self.addFieldNames(field.Fields, prefix+field.Name+".", dst)
+		} else {
+			*dst = append(*dst, fmt.Sprintf("%v%v AS %v%v", prefix, field.Name, prefix, field.Name))
+		}
+	}
+}
+
+func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
+	latestVersionTableName := fmt.Sprintf("LatestVersionOf%v", tableName)
+	if err = self.DropTable(latestVersionTableName); err != nil {
+		return
+	}
+	versionTableQuery := fmt.Sprintf("SELECT id, MAX(iso8601_updated_at) AS iso8601_updated_at, FIRST(_inserted_at) AS _inserted_at FROM [warehouse.%v] GROUP BY id", tableName)
+	if err = self.AssertView(latestVersionTableName, versionTableQuery); err != nil {
+		return
+	}
+
+	tablesService := gbigquery.NewTablesService(self.service)
+	table, err := tablesService.Get(self.projectId, self.datasetId, tableName).Do()
+	if err != nil {
+		return
+	}
+	cols := []string{}
+	self.addFieldNames(table.Schema.Fields, "data.", &cols)
+
+	currentTableQuery := fmt.Sprintf("SELECT %v FROM [warehouse.LatestVersionOf%v] AS key "+
+		"INNER JOIN [warehouse.%v] AS data ON "+
+		"key.id = data.id AND "+
+		"key._inserted_at = data._inserted_at AND "+
+		"key.iso8601_updated_at = data.iso8601_updated_at", strings.Join(cols, ","), tableName, tableName)
+
+	currentTableName := fmt.Sprintf("Current%v", tableName)
+	if err = self.DropTable(currentTableName); err != nil {
+		return
+	}
+	if err = self.AssertView(currentTableName, currentTableQuery); err != nil {
+		return
+	}
+	return
+}
+
+func (self *BigQuery) DropTable(tableName string) (err error) {
+	tablesService := gbigquery.NewTablesService(self.service)
+	if err = tablesService.Delete(self.projectId, self.datasetId, tableName).Do(); err != nil {
+		return
 	}
 	return
 }
