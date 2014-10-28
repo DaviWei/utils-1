@@ -469,9 +469,6 @@ func (self *BigQuery) addFieldNames(fields []*gbigquery.TableFieldSchema, prefix
 
 func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 	latestVersionTableName := fmt.Sprintf("LatestVersionOf%v", tableName)
-	if err = self.DropTable(latestVersionTableName); err != nil {
-		return
-	}
 	versionTableQuery := fmt.Sprintf("SELECT id, MAX(iso8601_updated_at) AS iso8601_updated_at, FIRST(_inserted_at) AS _inserted_at FROM [warehouse.%v] GROUP BY id", tableName)
 	if err = self.AssertView(latestVersionTableName, versionTableQuery); err != nil {
 		return
@@ -492,9 +489,6 @@ func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 		"key.iso8601_updated_at = data.iso8601_updated_at", strings.Join(cols, ","), tableName, tableName)
 
 	currentTableName := fmt.Sprintf("Current%v", tableName)
-	if err = self.DropTable(currentTableName); err != nil {
-		return
-	}
 	if err = self.AssertView(currentTableName, currentTableQuery); err != nil {
 		return
 	}
