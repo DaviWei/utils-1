@@ -504,7 +504,12 @@ func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 func (self *BigQuery) DropTable(tableName string) (err error) {
 	tablesService := gbigquery.NewTablesService(self.service)
 	if err = tablesService.Delete(self.projectId, self.datasetId, tableName).Do(); err != nil {
-		return
+		if gapiErr, ok := err.(*googleapi.Error); ok && gapiErr.Code == 404 {
+			self.Infof("Unable to delete %v, someone else already did it", tableName)
+			err = nil
+		} else {
+			return
+		}
 	}
 	return
 }
