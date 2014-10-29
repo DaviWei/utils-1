@@ -184,25 +184,29 @@ func keyById(dst interface{}) (result string, err error) {
 /*
 FilterOkErrors will return nil if the provided error is a FieldMismatch, one of the accepted errors, or an appengine.MultiError combination thereof, Otherwise it will return err.
 */
-func FilterOkErrors(err error, accepted ...error) error {
+func FilterOkErrors(err error, accepted ...error) (result error) {
 	acceptedMap := map[string]bool{}
 	for _, e := range accepted {
 		acceptedMap[e.Error()] = true
 	}
 	if err != nil {
 		if merr, ok := err.(appengine.MultiError); ok {
+			newMultiError := appengine.MultiError{}
 			for _, serr := range merr {
 				if serr != nil {
 					if _, ok := serr.(*datastore.ErrFieldMismatch); !ok && !acceptedMap[serr.Error()] {
-						return err
+						newMultiError = append(newMultiError, err)
 					}
 				}
 			}
+			if len(newMultiError) > 0 {
+				result = newMultiError
+			}
 		} else if _, ok := err.(*datastore.ErrFieldMismatch); !ok && !acceptedMap[err.Error()] {
-			return err
+			result = err
 		}
 	}
-	return nil
+	return
 }
 
 /*
@@ -560,16 +564,24 @@ func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) 
 	for index, id := range ids {
 		dsIds[index] = gaekey.ToGAE(c, id)
 	}
-	if err = FilterOkErrors(datastore.GetMulti(c, dsIds, src)); err != nil {
+	getErr := datastore.GetMulti(c, dsIds, src)
+	merr, isMerr := getErr.(appengine.MultiError)
+	if !isMerr && getErr != nil {
+		err = getErr
 		return
 	}
 	srcVal := reflect.ValueOf(src)
 	for index, id := range ids {
-		el := srcVal.Index(index)
-		el.FieldByName("Id").Set(reflect.ValueOf(id))
-		if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
-			return
+		if !isMerr || merr[index] == nil {
+			el := srcVal.Index(index)
+			el.FieldByName("Id").Set(reflect.ValueOf(id))
+			if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
+				return
+			}
 		}
+	}
+	if isMerr && merr != nil {
+		err = merr
 	}
 	return
 }

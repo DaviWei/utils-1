@@ -113,7 +113,7 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, accountId *key.Key) error {
+func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, accountId key.Key) error {
 	ep.To = self.Email
 	ep.Locale = self.Locale
 	return sender.SendEmailTemplate(ep, accountId)
@@ -254,7 +254,7 @@ type RemoteSpotifyAccount struct {
 
 func (self *RemoteSoundZone) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters) error {
 	accountId := self.Id.Parent().Parent()
-	return sender.SendEmailTemplate(ep, &accountId)
+	return sender.SendEmailTemplate(ep, accountId)
 }
 
 func errorFor(request *http.Request, response *http.Response) (err error) {
@@ -752,6 +752,7 @@ func SetPassword(c ServiceConnector, user key.Key, password string, token Access
 type RemoteIsApplicableForInvoiceResponse struct {
 	Status bool `json:"status"`
 }
+
 func IsApplicableForInvoice(c ServiceConnector) (result *RemoteIsApplicableForInvoiceResponse, err error) {
 	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), "register/applicable_for_invoice", nil, nil)
 	if err != nil {

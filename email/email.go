@@ -24,5 +24,5 @@ type EmailParameters struct {
 }
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(ep *EmailParameters, accountId *key.Key) error
+	SendEmailTemplate(ep *EmailParameters, accountId key.Key) error
 }
