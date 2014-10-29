@@ -13,6 +13,7 @@ import (
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 )
 
 type genealogyAssertion struct {
@@ -253,6 +254,17 @@ func (self Key) Parent() (result Key) {
 
 func (self Key) Encode() (result string) {
 	return strings.Replace(base64.URLEncoding.EncodeToString([]byte(self)), "=", ".", -1)
+}
+
+func DecodeKind(kind string, s string) (result Key, err error) {
+	if result, err = Decode(s); err != nil {
+		return
+	}
+	if result.Kind() != kind {
+		err = jsoncontext.NewError(417, fmt.Sprintf("Expected a key of kind %#v, but got %#v", kind, result.Kind()), "", nil)
+		return
+	}
+	return
 }
 
 func Decode(s string) (result Key, err error) {
