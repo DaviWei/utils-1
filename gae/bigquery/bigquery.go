@@ -468,12 +468,6 @@ func (self *BigQuery) addFieldNames(fields []*gbigquery.TableFieldSchema, prefix
 }
 
 func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
-	latestVersionTableName := fmt.Sprintf("LatestVersionOf%v", tableName)
-	versionTableQuery := fmt.Sprintf("SELECT id, MAX(iso8601_updated_at) AS iso8601_updated_at, FIRST(_inserted_at) AS _inserted_at FROM [warehouse.%v] GROUP BY id", tableName)
-	if err = self.AssertView(latestVersionTableName, versionTableQuery); err != nil {
-		return
-	}
-
 	tablesService := gbigquery.NewTablesService(self.service)
 	table, err := tablesService.Get(self.projectId, self.datasetId, tableName).Do()
 	if err != nil {
@@ -482,11 +476,27 @@ func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 	cols := []string{}
 	self.addFieldNames(table.Schema.Fields, "data.", &cols)
 
-	currentTableQuery := fmt.Sprintf("SELECT %v FROM [warehouse.LatestVersionOf%v] AS key "+
-		"INNER JOIN [warehouse.%v] AS data ON "+
-		"key.id = data.id AND "+
-		"key._inserted_at = data._inserted_at AND "+
-		"key.iso8601_updated_at = data.iso8601_updated_at", strings.Join(cols, ","), tableName, tableName)
+	currentTableQuery := fmt.Sprintf(`
+SELECT 
+  %v FROM [%v.%v] AS data 
+INNER JOIN (
+  SELECT 
+    latest.id AS id, 
+    latest.iso8601_updated_at AS iso8601_updated_at, 
+    MAX(latest._inserted_at) AS _inserted_at
+  FROM [%v.%v] AS latest INNER JOIN (
+    SELECT 
+      id AS id, 
+      MAX(iso8601_updated_at) AS iso8601_updated_at 
+    FROM [%v.%v] GROUP BY id
+  ) AS current ON 
+    current.id = latest.id AND 
+    current.iso8601_updated_at = latest.iso8601_updated_at 
+  GROUP BY id, iso8601_updated_at
+) AS key ON 
+  key.id = data.id AND 
+  key.iso8601_updated_at = data.iso8601_updated_at AND 
+  key._inserted_at = data._inserted_at`, strings.Join(cols, ", "), self.datasetId, tableName, self.datasetId, tableName, self.datasetId, tableName)
 
 	currentTableName := fmt.Sprintf("Current%v", tableName)
 	if err = self.AssertView(currentTableName, currentTableQuery); err != nil {
