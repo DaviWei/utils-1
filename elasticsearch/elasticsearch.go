@@ -531,12 +531,6 @@ func SearchAndCopy(c ElasticSearchContext, query *SearchRequest, index string, r
 	return
 }
 
-/*
-Search will run the queryString (a query string parseable by http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html)
-(or elasticQuery if provided, a JSON string describing a request body according to http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-body.html)
-sorting it using the specified sort (a JSON string describing a sort according to http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-sort.html),
-and limiting/offsetting it using the provided limit and offset.
-*/
 func Search(c ElasticSearchContext, query *SearchRequest, index, typ string) (result *SearchResponse, err error) {
 	if query.Size == 0 {
 		query.Size = 10
