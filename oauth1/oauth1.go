@@ -94,7 +94,8 @@ func SignRequest(r *http.Request, secret string) (result string, err error) {
 				kv := strings.Split(part, "=")
 				key := strings.TrimSpace(kv[0])
 				value := strings.TrimSpace(kv[1])
-				if key != "realm" {
+				value = strings.Replace(value, `"`, "", -1) // No fnuts for you
+				if key != "realm" && key != "oauth_signature" {
 					params.Add(&Pair{Key: key, Value: value})
 				}
 			}
