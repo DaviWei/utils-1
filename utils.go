@@ -38,8 +38,8 @@ func init() {
 }
 
 const (
-	randomChars            = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	NonConfusingCharacters = "356789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
+	randomChars                    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	NonConfusingCharacters         = "356789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
 	NonConfusingCharactersSoftPair = "ABCDEFGHJLMNOPRSTUVWYZ"
 )
 
