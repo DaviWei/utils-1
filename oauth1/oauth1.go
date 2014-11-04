@@ -75,7 +75,7 @@ func Encode(s string) string {
 
 var headerReg = regexp.MustCompile("^(?i)oauth\\s*(.*=.*(,.*=.*)*)$")
 
-func SignRequest(r *http.Request, secret string) (result string, err error) {
+func GetParams(r *http.Request) (result Params) {
 	params := Params{}
 	for key, values := range r.URL.Query() {
 		if key != "oauth_signature" {
@@ -95,16 +95,22 @@ func SignRequest(r *http.Request, secret string) (result string, err error) {
 				key := strings.TrimSpace(kv[0])
 				value := strings.TrimSpace(kv[1])
 				value = strings.Replace(value, `"`, "", -1) // No fnuts for you
-				if key != "realm" && key != "oauth_signature" {
-					params.Add(&Pair{Key: key, Value: value})
-				}
+				params.Add(&Pair{Key: key, Value: value})
 			}
 		}
 	}
+	result = params
+	return
+}
+
+func SignRequest(r *http.Request, secret string) (result string, err error) {
+	params := GetParams(r)
 	sort.Sort(params)
 	sigBaseCol := []string{}
 	for _, param := range params {
-		sigBaseCol = append(sigBaseCol, Encode(param.Key)+"="+Encode(param.Value))
+		if param.Key != "realm" && param.Key != "oauth_signature" {
+			sigBaseCol = append(sigBaseCol, Encode(param.Key)+"="+Encode(param.Value))
+		}
 	}
 	if r.URL.Path == "" {
 		r.URL.Path = "/"
