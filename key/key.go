@@ -130,8 +130,13 @@ func For(i interface{}, StringId string, IntId int64, parent Key) (result Key, e
 
 type Key string
 
-func New(kind string, stringID string, intID int64, parent Key) (result Key, err error) {
+func NewWithoutValidate(kind string, stringID string, intID int64, parent Key) (result Key) {
 	result = Key(fmt.Sprintf("%v,%v,%v/%v", escape(kind), escape(stringID), escape(strconv.FormatInt(intID, 36)), string(parent)))
+	return
+}
+
+func New(kind string, stringID string, intID int64, parent Key) (result Key, err error) {
+	result = NewWithoutValidate(kind, stringID, intID, parent)
 	err = result.validate()
 	return
 }
