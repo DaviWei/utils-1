@@ -4,10 +4,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
+	"math/rand"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Pair struct {
@@ -103,7 +106,7 @@ func GetParams(r *http.Request) (result Params) {
 	return
 }
 
-func SignRequest(r *http.Request, secret string) (result string, err error) {
+func GenerateSignature(r *http.Request, secret string) (result string, err error) {
 	params := GetParams(r)
 	sort.Sort(params)
 	sigBaseCol := []string{}
@@ -129,4 +132,12 @@ func SignRequest(r *http.Request, secret string) (result string, err error) {
 	h.Write([]byte(sigBaseStr))
 	result = base64.StdEncoding.EncodeToString(h.Sum(nil))
 	return
+}
+
+func GenerateNonce() string {
+	return strconv.FormatInt(rand.New(rand.NewSource(time.Now().UnixNano())).Int63(), 10)
+}
+
+func GenerateTimestamp() string {
+	return strconv.FormatInt(time.Now().Unix(), 10)
 }
