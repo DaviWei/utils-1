@@ -1,9 +1,10 @@
 package gaekey
 
 import (
+	"github.com/soundtrackyourbrand/utils/key"
+
 	"appengine"
 	"appengine/datastore"
-	"github.com/soundtrackyourbrand/utils/key"
 )
 
 func FromGAErr(k *datastore.Key, err error) (result key.Key, err2 error) {
@@ -11,6 +12,14 @@ func FromGAErr(k *datastore.Key, err error) (result key.Key, err2 error) {
 	if err2 == nil {
 		return FromGAE(k)
 	}
+	return
+}
+
+func FromGAEWithoutValidate(k *datastore.Key) (result key.Key) {
+	if k == nil {
+		return key.Key("")
+	}
+	result = key.NewWithoutValidate(k.Kind(), k.StringID(), k.IntID(), FromGAEWithoutValidate(k.Parent()))
 	return
 }
 
