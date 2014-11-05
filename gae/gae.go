@@ -574,6 +574,9 @@ func GetMulti(c PersistenceContext, ids []key.Key, src interface{}) (err error) 
 	for index, id := range ids {
 		if !isMerr || merr[index] == nil {
 			el := srcVal.Index(index)
+			for el.Kind() == reflect.Ptr {
+				el = el.Elem()
+			}
 			el.FieldByName("Id").Set(reflect.ValueOf(id))
 			if err = runProcess(c, el.Addr().Interface(), AfterLoadName, nil); err != nil {
 				return
