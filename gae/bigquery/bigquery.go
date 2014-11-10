@@ -488,11 +488,11 @@ INNER JOIN EACH (
     SELECT 
       id AS id, 
       MAX(iso8601_updated_at) AS iso8601_updated_at 
-    FROM [%v.%v] GROUP BY id
+    FROM [%v.%v] GROUP EACH BY id
   ) AS current ON 
     current.id = latest.id AND 
     current.iso8601_updated_at = latest.iso8601_updated_at 
-  GROUP BY id, iso8601_updated_at
+  GROUP EACH BY id, iso8601_updated_at
 ) AS key ON 
   key.id = data.id AND 
   key.iso8601_updated_at = data.iso8601_updated_at AND 
