@@ -479,12 +479,12 @@ func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 	currentTableQuery := fmt.Sprintf(`
 SELECT 
   %v FROM [%v.%v] AS data 
-INNER JOIN (
+INNER JOIN EACH (
   SELECT 
     latest.id AS id, 
     latest.iso8601_updated_at AS iso8601_updated_at, 
     MAX(latest._inserted_at) AS _inserted_at
-  FROM [%v.%v] AS latest INNER JOIN (
+  FROM [%v.%v] AS latest INNER JOIN EACH (
     SELECT 
       id AS id, 
       MAX(iso8601_updated_at) AS iso8601_updated_at 
