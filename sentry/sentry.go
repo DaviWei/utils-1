@@ -121,13 +121,16 @@ func (self *Sentry) send(p *Packet) (err error) {
 	request.Header.Set("X-Sentry-Auth", self.authHeader)
 	request.Header.Set("Content-Type", "application/json")
 
+	curl := utils.ToCurl(request)
+
 	response, err := self.client.Do(request)
 	if err != nil {
+		err = utils.Errorf("Sentry: tried \n%v\nerr: %v", curl, err)
 		return
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		err = utils.Errorf("Sentry: sent request:\n%v\nto %v and received response:\n%v", utils.Prettify(request), self.url, utils.Prettify(response))
+		err = utils.Errorf("Sentry: did \n%v\n and received response:\n%v", curl, utils.Prettify(response))
 	}
 
 	return
