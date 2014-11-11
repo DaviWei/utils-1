@@ -1,10 +1,8 @@
 package sentry
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +11,9 @@ import (
 	"time"
 
 	"github.com/soundtrackyourbrand/utils"
+
+	"bytes"
+	"encoding/json"
 )
 
 type Sentry struct {
@@ -107,15 +108,22 @@ func newSentry(client *http.Client, dsn string) (sentry *Sentry, err error) {
 	return
 }
 
+type SentryRateLimitError string
+
+func (self SentryRateLimitError) Error() string {
+	return string(self)
+}
+
 func (self *Sentry) send(p *Packet) (err error) {
 	if p == nil { // Nothing to send
 		return
 	}
 
-	buf := new(bytes.Buffer)
-	if err = json.NewEncoder(buf).Encode(p); err != nil {
+	b, err := json.Marshal(p)
+	if err != nil {
 		return
 	}
+	buf := bytes.NewBufferString(strings.TrimSpace(string(b)))
 
 	request, _ := http.NewRequest("POST", self.url, buf)
 	request.Header.Set("X-Sentry-Auth", self.authHeader)
@@ -130,7 +138,11 @@ func (self *Sentry) send(p *Packet) (err error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		err = utils.Errorf("Sentry: did \n%v\n and received response:\n%v", curl, utils.Prettify(response))
+		if response.StatusCode == 429 {
+			err = SentryRateLimitError(fmt.Sprintf("%+v", response))
+		} else {
+			err = utils.Errorf("Sentry: did \n%v\n and received response:\n%v", curl, utils.Prettify(response))
+		}
 	}
 
 	return
