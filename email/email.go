@@ -24,7 +24,7 @@ type EmailParameters struct {
 }
 
 type EmailBlocker interface {
-	SendsThisEmail() bool
+	SendsThisEmail(mailType MailType) bool
 }
 
 type EmailTemplateSender interface {
