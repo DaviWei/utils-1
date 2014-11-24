@@ -23,6 +23,10 @@ type EmailParameters struct {
 	MailContext  map[string]interface{}
 }
 
+type EmailBlocker interface {
+	SendsThisEmail() bool
+}
+
 type EmailTemplateSender interface {
-	SendEmailTemplate(ep *EmailParameters, accountId key.Key) error
+	SendEmailTemplate(ep *EmailParameters, accountId key.Key, emailBlocker EmailBlocker) error
 }
