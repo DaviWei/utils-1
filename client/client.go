@@ -252,11 +252,6 @@ type RemoteSpotifyAccount struct {
 	ISOCountry         string     `json:"iso_country"`
 }
 
-func (self *RemoteSoundZone) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, emailBlocker email.EmailBlocker) error {
-	accountId := self.Id.Parent().Parent()
-	return sender.SendEmailTemplate(ep, accountId, emailBlocker)
-}
-
 func errorFor(request *http.Request, response *http.Response) (err error) {
 	var b []byte
 	if b, err = ioutil.ReadAll(response.Body); err != nil {
