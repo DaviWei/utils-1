@@ -590,21 +590,6 @@ func GetAccounts(c ServiceConnector, user key.Key, token AccessToken) (result []
 	return
 }
 
-func GetTelemarketingDropoutAccounts(c ServiceConnector, token AccessToken) (result []RemoteAccount, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetAuthService(), "telemarketing_dropout_accounts", token, nil)
-	if err != nil {
-		return
-	}
-	if response.StatusCode != 200 {
-		err = errorFor(request, response)
-		return
-	}
-
-	result = []RemoteAccount{}
-	err = json.NewDecoder(response.Body).Decode(&result)
-	return
-}
-
 func CreateLocation(c ServiceConnector, token AccessToken, remoteLocation RemoteLocation) (result *RemoteLocation, err error) {
 	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/locations", remoteLocation.Account.Encode()), token, remoteLocation)
 	if err != nil {

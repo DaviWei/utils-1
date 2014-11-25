@@ -519,20 +519,28 @@ const (
 AcquireSequenceNo will return the next number in the named sequence.
 */
 func AcquireSequenceNo(c GAEContext, name string) (result int64, err error) {
-	result = 0
+	result, err = AcquireSequence(c, name, 1)
+	return
+}
+
+func AcquireSequence(c GAEContext, name string, size int) (first int64, err error) {
+	if size <= 0 {
+		err = fmt.Errorf("can't get a sequence of size < 1")
+		return
+	}
+	first = 0
 	key := datastore.NewKey(c, GAEContextCounterKind, name, 0, nil)
 	for {
 		err = c.Transaction(func(c GAEContext) (err error) {
-
 			var x Counter
 			if err = datastore.Get(c, key, &x); err != nil && err != datastore.ErrNoSuchEntity {
 				return
 			}
-			x.Count++
+			x.Count += int64(size)
 			if _, err = datastore.Put(c, key, &x); err != nil {
 				return
 			}
-			result = x.Count
+			first = x.Count - int64(size) + 1
 			return
 
 		}, false)
