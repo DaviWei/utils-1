@@ -118,9 +118,13 @@ func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, f fu
 	if err != nil {
 		return err
 	}
-	ep.To = self.Email
-	ep.Locale = self.Locale
-	return sender.SendEmailTemplate(f, accountId, emailBlocker)
+	userF := func() (userEp *email.EmailParameters, err error) {
+		userEp = ep
+		userEp.To = self.Email
+		userEp.Locale = self.Locale
+		return
+	}
+	return sender.SendEmailTemplate(userF, accountId, emailBlocker)
 }
 
 type SoundZoneSettings struct {
