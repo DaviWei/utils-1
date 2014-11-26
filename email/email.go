@@ -28,5 +28,5 @@ type EmailBlocker interface {
 }
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(ep *EmailParameters, accountId key.Key, emailBlocker EmailBlocker) error
+	SendEmailTemplate(f func() (ep *EmailParameters, err error), accountId key.Key, emailBlocker EmailBlocker) error
 }

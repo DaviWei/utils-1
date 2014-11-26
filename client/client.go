@@ -113,10 +113,14 @@ type RemoteUser struct {
 	FreshdeskAPIKey string `json:"freshdesk_api_key,omitempty"`
 }
 
-func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, ep *email.EmailParameters, accountId key.Key, emailBlocker email.EmailBlocker) error {
+func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, f func() (ep *email.EmailParameters, err error), accountId key.Key, emailBlocker email.EmailBlocker) error {
+	ep, err := f()
+	if err != nil {
+		return err
+	}
 	ep.To = self.Email
 	ep.Locale = self.Locale
-	return sender.SendEmailTemplate(ep, accountId, emailBlocker)
+	return sender.SendEmailTemplate(f, accountId, emailBlocker)
 }
 
 type SoundZoneSettings struct {
