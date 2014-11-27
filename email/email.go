@@ -13,14 +13,13 @@ type Attachment struct {
 type MailType string
 
 type EmailParameters struct {
-	To           string
-	Cc           string
-	Bcc          string
-	Sender       string
-	Attachments  []Attachment
-	Locale       string
-	TemplateName MailType
-	MailContext  map[string]interface{}
+	To          string
+	Cc          string
+	Bcc         string
+	Sender      string
+	Attachments []Attachment
+	Locale      string
+	MailContext map[string]interface{}
 }
 
 type EmailBlocker interface {
@@ -28,5 +27,5 @@ type EmailBlocker interface {
 }
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(f func() (ep *EmailParameters, err error), accountId key.Key, emailBlocker EmailBlocker) error
+	SendEmailTemplate(mailType MailType, f func() (ep *EmailParameters, err error), accountId key.Key, emailBlocker EmailBlocker) error
 }
