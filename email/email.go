@@ -22,10 +22,10 @@ type EmailParameters struct {
 	MailContext map[string]interface{}
 }
 
-type EmailBlocker interface {
-	SendsThisEmail(mailType MailType) bool
+type Filterer interface {
+	Filter(mailType MailType) bool
 }
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(mailType MailType, f func() (ep *EmailParameters, err error), accountId key.Key, emailBlocker EmailBlocker) error
+	SendEmailTemplate(mailType MailType, f func() (ep *EmailParameters, err error), accountId key.Key, filterer Filterer) error
 }
