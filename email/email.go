@@ -13,16 +13,19 @@ type Attachment struct {
 type MailType string
 
 type EmailParameters struct {
-	To           string
-	Cc           string
-	Bcc          string
-	Sender       string
-	Attachments  []Attachment
-	Locale       string
-	TemplateName MailType
-	MailContext  map[string]interface{}
+	To          string
+	Cc          string
+	Bcc         string
+	Sender      string
+	Attachments []Attachment
+	Locale      string
+	MailContext map[string]interface{}
+}
+
+type Filterer interface {
+	Filter(mailType MailType) bool
 }
 
 type EmailTemplateSender interface {
-	SendEmailTemplate(ep *EmailParameters, accountId key.Key) error
+	SendEmailTemplate(mailType MailType, f func() (ep *EmailParameters, err error), accountId key.Key, filterer Filterer) error
 }
