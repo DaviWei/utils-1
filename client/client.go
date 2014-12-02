@@ -718,7 +718,7 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 }
 
 func GetSpotifyAccounts(c ServiceConnector, account key.Key, token AccessToken) (result RemoteSpotifyAccounts, err error) {
-	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v/payment_method/spotify_accounts", account.Encode()), token, nil)
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method/spotify_accounts", account.Encode()), token, nil)
 	if err != nil {
 		return
 	}
