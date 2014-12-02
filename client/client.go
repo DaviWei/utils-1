@@ -247,6 +247,8 @@ type RemoteSlot struct {
 	Schedule key.Key `json:"-"`
 }
 
+type RemoteSpotifyAccounts []RemoteSpotifyAccount
+
 type RemoteSpotifyAccount struct {
 	DefaultMeta
 	SoundZone          key.Key    `json:"sound_zone" datastore:"-"`
@@ -295,7 +297,6 @@ func DoRequest(c ServiceConnector, method, service, path string, token AccessTok
 		request.Header.Add("Content-Type", "application/json")
 	}
 
-	//TODO, we should start using version 2!
 	request.Header.Add("X-API-Version", fmt.Sprint(MaxAPIVersion))
 
 	waitTime := time.Millisecond * 100
@@ -716,6 +717,34 @@ func GetSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken)
 
 	result = &RemoteSpotifyAccount{}
 	err = json.NewDecoder(response.Body).Decode(result)
+	return
+}
+
+func GetSpotifyAccounts(c ServiceConnector, account key.Key, token AccessToken) (result RemoteSpotifyAccounts, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method/spotify_accounts", account.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = RemoteSpotifyAccounts{}
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
+func ActivateSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), fmt.Sprintf("sound_zones/%v/spotify_account/activate", soundZone.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
 	return
 }
 
