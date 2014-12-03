@@ -25,7 +25,7 @@ func assertEnc(t *testing.T, chars string, i int64, res string) {
 	bI := big.NewInt(i)
 	b := EncodeBigInt(chars, bI)
 	if b != res {
-		t.Errorf("Encoding %v in #%v should give %# but gave %#v", bI, chars, res, b)
+		t.Errorf("Encoding %v in #%v should give %#v but gave %#v", bI, chars, res, b)
 	}
 	j := DecodeBigInt(chars, b)
 	if j.Cmp(bI) != 0 {

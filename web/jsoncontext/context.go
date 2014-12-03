@@ -172,7 +172,6 @@ func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg
 				return nil
 			}
 			return runRecursive(val.Elem(), stack)
-			break
 
 		case reflect.Slice:
 			for i := 0; i < val.Len(); i++ {
@@ -313,7 +312,6 @@ func (self ValidationError) Respond(c httpcontext.HTTPContextLogger) error {
 		c.Resp().WriteHeader(self.Status)
 	}
 	return json.NewEncoder(c.Resp()).Encode(self)
-	return nil
 }
 
 func Handle(c JSONContextLogger, f func() (Resp, error), minAPIVersion, maxAPIVersion int, scopes ...string) {

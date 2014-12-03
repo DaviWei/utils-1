@@ -273,11 +273,11 @@ Source must have a field `Id *datastore.key`.
 func AddToIndex(c ElasticConnector, index string, source interface{}) (err error) {
 	sourceVal := reflect.ValueOf(source)
 	if sourceVal.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%v is not a pointer")
+		err = fmt.Errorf("%#v is not a pointer", source)
 		return
 	}
 	if sourceVal.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%v is not a pointer to a struct")
+		err = fmt.Errorf("%#v is not a pointer to a struct", source)
 		return
 	}
 	index = processIndexName(index)

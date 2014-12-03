@@ -253,7 +253,7 @@ func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filt
 					result.Fields[field.Name] = &JSONType{
 						In:          in,
 						ReflectType: field.Type,
-						Type:        fmt.Sprintf("Don't know how to describe anonymous field that isn't struct or pointer to struct", field.Type.Name()),
+						Type:        fmt.Sprintf("Don't know how to describe anonymous field %#v that isn't struct or pointer to struct", field.Type.Name()),
 					}
 				}
 			} else {

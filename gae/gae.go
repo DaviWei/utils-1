@@ -318,7 +318,7 @@ func PutMulti(c PersistenceContext, src interface{}) (err error) {
 			return
 		}
 		if id == "" {
-			err = utils.Errorf("%+v doesn't have an id")
+			err = utils.Errorf("%+v doesn't have an id", srcVal.Index(i))
 			return
 		}
 		ids[i] = id

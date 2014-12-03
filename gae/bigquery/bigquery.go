@@ -16,7 +16,7 @@ import (
 
 var timeType = reflect.TypeOf(time.Now())
 var jsonTimeType = reflect.TypeOf(utils.Time{})
-var byteStringType = reflect.TypeOf(utils.ByteString{[]byte{0}})
+var byteStringType = reflect.TypeOf(utils.ByteString{Bytes: []byte{0}})
 
 const (
 	dataTypeString    = "STRING"

@@ -80,7 +80,7 @@ func getProcess(model interface{}, name string, arg interface{}) (process reflec
 			}
 		} else if processType.NumIn() == 1 {
 			if !processType.In(0).Implements(reflect.TypeOf((*PersistenceContext)(nil)).Elem()) {
-				err = fmt.Errorf("%+v#%v takes a %v, not a %v as argument", model, name, processType.In(0))
+				err = fmt.Errorf("%+v#%v takes a %v, not a gae.PersistenceContext as argument", model, name, processType.In(0))
 				return
 			}
 		} else {

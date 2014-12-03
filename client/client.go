@@ -96,7 +96,7 @@ type RemoteLocation struct {
 	ISOCountry   string  `json:"iso_country"`
 	Locale       string  `json:"locale"`
 	Timezone     string  `json:"timezone"`
-	BillingGroup key.Key `json:"billing_group",omitempty`
+	BillingGroup key.Key `json:"billing_group"`
 
 	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
 }
