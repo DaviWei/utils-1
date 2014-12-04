@@ -197,6 +197,7 @@ type RemoteBillingGroups []RemoteBillingGroup
 
 type RemoteAccount struct {
 	DefaultMeta
+	AccountType           string           `json:"account_type"`
 	Address               string           `json:"address,omitempty"`
 	BusinessName          string           `json:"business_name,omitempty"`
 	BusinessType          string           `json:"business_type,omitempty"`
