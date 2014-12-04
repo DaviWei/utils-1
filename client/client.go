@@ -127,9 +127,20 @@ func (self *RemoteUser) SendEmailTemplate(sender email.EmailTemplateSender, mail
 	return sender.SendEmailTemplate(mailType, userF, accountId, emailFilterer)
 }
 
+var validBitrates = map[string]bool{
+	"normal":  true,
+	"high":    true,
+	"extreme": true,
+}
+
+func (self *SoundZoneSettings) ValidBitrate() bool {
+	return validBitrates[self.Bitrate]
+}
+
 type SoundZoneSettings struct {
-	Mono    bool `json:"mono"`
-	Offline bool `json:"offline"`
+	Mono    bool   `json:"mono"`
+	Offline bool   `json:"offline"`
+	Bitrate string `json:"bitrate"`
 }
 
 type ScheduleSettings struct {
