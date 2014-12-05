@@ -242,9 +242,11 @@ type RemoteSoundZones []RemoteSoundZone
 type RemoteSoundZoneError struct {
 	DefaultMeta
 	Type     string           `json:"type"`
-	Cause    utils.ByteString `json:"cause"`
-	Info     string           `json:"info"`
+	Cause    string           `json:"cause"`
+	Info     utils.ByteString `json:"info"`
 	Resolved bool             `json:"resolved"`
+	Origin   string           `json:"origin"`
+	Severity string           `json:"severity"`
 	Unique   bool             `json:"unique"`
 }
 
@@ -453,6 +455,22 @@ func GetUser(c ServiceConnector, user key.Key, token AccessToken) (result *Remot
 	}
 
 	result = &RemoteUser{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
+	return
+}
+
+func CreateSoundZoneError(c ServiceConnector, token AccessToken, e RemoteSoundZoneError, soundZoneId key.Key) (result *RemoteSoundZoneError, err error) {
+	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("sound_zones/%v/sound_zone_errors", soundZoneId.Encode()), token, e)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteSoundZoneError{}
 	err = json.NewDecoder(response.Body).Decode(result)
 
 	return
