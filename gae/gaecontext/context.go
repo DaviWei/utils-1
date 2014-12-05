@@ -92,6 +92,11 @@ type JSONContext interface {
 	jsoncontext.JSONContext
 }
 
+/*
+CallTransactionFunction will validate that f takes something that implements a GAEContext,
+and that it returns an error.
+Then it will call f with c and return the error.
+*/
 func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 	if err = utils.ValidateFuncInput(f, []reflect.Type{
 		reflect.TypeOf((*GAEContext)(nil)).Elem(),
@@ -132,8 +137,12 @@ func (self *DefaultContext) ClientTimeout(d time.Duration) {
 	self.clientTimeout = d
 }
 
+/*
+AfterTransaction will call f directly if self is not currently running a transaction,
+otherwise it will be appended to a slice of funcs run after every transaction is finished.
+*/
 func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
-	// validate that f take one argument of whatever type and returns nothing
+	// validate that f take one argument of whatever type and returns an error
 	if err = utils.ValidateFuncInput(f, []reflect.Type{
 		reflect.TypeOf((*interface{})(nil)).Elem(),
 	}); err != nil {
@@ -166,6 +175,9 @@ func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
 	return
 }
 
+/*
+Implement all the hook functions required by Context
+*/
 func (self *DefaultContext) AfterSave(i interface{}) error    { return nil }
 func (self *DefaultContext) AfterCreate(i interface{}) error  { return nil }
 func (self *DefaultContext) AfterUpdate(i interface{}) error  { return nil }
@@ -177,9 +189,14 @@ func (self *DefaultContext) BeforeCreate(i interface{}) error { return nil }
 func (self *DefaultContext) BeforeUpdate(i interface{}) error { return nil }
 
 func (self *DefaultContext) Debugf(format string, i ...interface{}) {
-	self.Context.Debugf(format, i...)
+	for _, m := range self.split(format, i...) {
+		self.Context.Debugf("%v", m)
+	}
 }
 
+/*
+split will Sprintf(format, i...) and return chunks no longer than 8k of the resulting string.
+*/
 func (self *DefaultContext) split(format string, i ...interface{}) (result []string) {
 	msg := fmt.Sprintf(format, i...)
 	for len(msg) > 8000 {
@@ -214,6 +231,11 @@ func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 	}
 }
 
+/*
+Transport is a wrapper around another transport, that adds headers, refuses to
+function inside transactions (unless explicitly told so) and warns if the response is
+too slow or produces a 5xx status
+*/
 type Transport struct {
 	T      urlfetch.Transport
 	Header http.Header
@@ -242,6 +264,9 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	return resp, err
 }
 
+/*
+Client will return an *http.Client with a nice Transport wrapper.
+*/
 func (self *DefaultContext) Client() *http.Client {
 	trans := &Transport{
 		Header: http.Header{},
@@ -262,6 +287,11 @@ func (self *DefaultContext) InTransaction() bool {
 	return self.inTransaction
 }
 
+/*
+Transaction will run f inside a transaction, optionally crossGroup (more than 1 but LESS THAN FIVE entity groups involved).
+
+If it fails due to other concurrent transactions, it will retry this transaction up until 20 seconds have passed.
+*/
 func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err error) {
 	if self.inTransaction {
 		return CallTransactionFunction(self, f)
@@ -332,7 +362,7 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 		return
 	}
 
-	// After transaction sucessfull stuff.
+	// After transaction sucessfull, run all the AfterTransaction registered callbacks.
 	var multiErr appengine.MultiError
 	for _, cb := range newContext.afterTransaction {
 		if err := cb(self); err != nil {
@@ -395,6 +425,13 @@ func NewJSONContext(gaeCont appengine.Context, jsonCont jsoncontext.JSONContextL
 	return
 }
 
+/*
+HTTPHandlerFunc creates an http.Handler out of a function that takes a HTTPContext.
+
+Requests without tokens, or with tokens without one of the provided scopes, will receive a 401 status unless the scopes slice is empty.
+
+For all your basic HTTP needs.
+*/
 func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
@@ -404,6 +441,13 @@ func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler
 	})
 }
 
+/*
+JSONHandlerFunc creates an http.Handler out of a function that takes a JSONContext.
+
+Requests without tokens, or with tokens without one of the provided scopes, will receive a 401 status unless the scopes slice is empty.
+
+For all your JSON API needs.
+*/
 func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion, maxAPIVersion int, scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
@@ -413,6 +457,13 @@ func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), m
 	})
 }
 
+/*
+DataHandlerFunc creates an http.Handler out of a function that takes an HTTPContext and returns a *httpcontext.DataResp.
+
+Requests without tokens, or with tokens without one of the provided scopes, will receive a 401 status unless the scopes slice is empty.
+
+For all your tabular data generation needs.
+*/
 func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
 	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
@@ -422,6 +473,11 @@ func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err erro
 	})
 }
 
+/*
+DocHandle registeres a path/method/api version route in the provided router, handled by the provided f, wrapping it in appstats.NewHandler,
+registering the f-function and its route with jsoncontext.Document and then using jsoncontext.Handle to do something that acts like
+JSONHandlerFunc.
+*/
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
@@ -433,8 +489,13 @@ func DocHandle(router *mux.Router, f interface{}, path string, method string, mi
 	}))
 }
 
+/*
+KeyLock is a generic way of locking certain values for entities without needing the entities have that value in their key.
+*/
 type KeyLock struct {
-	Id     key.Key `datastore:"-"`
+	// Id must be created based on the value you want to lock.
+	Id key.Key `datastore:"-"`
+	// Entity is the id of the holder of the lock.
 	Entity key.Key
 }
 
@@ -452,6 +513,9 @@ func (self ErrLockTaken) Error() string {
 	return fmt.Sprintf("%v is already taken by %v", self.Key, self.Entity)
 }
 
+/*
+LockedBy will return whether this KeyLock is actually locked in the database and who holds it now.
+*/
 func (self *KeyLock) LockedBy(c GAEContext) (isLocked bool, lockedBy key.Key, err error) {
 	existingLock := &KeyLock{Id: self.Id}
 	if err = gae.GetById(c, existingLock); err != nil {
@@ -467,6 +531,9 @@ func (self *KeyLock) LockedBy(c GAEContext) (isLocked bool, lockedBy key.Key, er
 	return
 }
 
+/*
+Lock will try to lock this KeyLock and make its Id (and the value it is based on) unavailable for other locks.
+*/
 func (self *KeyLock) Lock(c GAEContext) error {
 	snapshot := *self
 	return c.Transaction(func(c GAEContext) (err error) {
@@ -490,6 +557,9 @@ func (self *KeyLock) Lock(c GAEContext) error {
 	}, false)
 }
 
+/*
+Unlock will unlock this KeyLock and make its Id (and the value it is based on) available for other locks.
+*/
 func (self *KeyLock) Unlock(c GAEContext) (err error) {
 	snapshot := *self
 	return c.Transaction(func(c GAEContext) (err error) {

@@ -77,6 +77,10 @@ func New(client *http.Client, projectId, datasetId string) (result *BigQuery, er
 	return
 }
 
+/*
+buildSchemaField returns the schema for the fieldType, giving it the provided name, and avoids letting further recursions add more fields of the same name by
+sending seenFieldNames along.
+*/
 func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seenFieldNames map[string]struct{}) (result *gbigquery.TableFieldSchema, err error) {
 	for fieldType.Kind() == reflect.Ptr {
 		fieldType = fieldType.Elem()
@@ -123,6 +127,9 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 			Type: dataTypeInteger,
 		}
 	case reflect.Struct:
+		/*
+			We have special cases for our special types describing stringblobs, regular time.Time and the ISO8601-JSON-encode friendly time.Time wrapper utils.Time
+		*/
 		switch fieldType {
 		case byteStringType:
 			result = &gbigquery.TableFieldSchema{
@@ -141,6 +148,9 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 			}
 		default:
 			var fieldFields []*gbigquery.TableFieldSchema
+			/*
+				Create a new field with the fields inside this nested struct as nested fields. Pass along seenFieldNames to avoid adding the same names again.
+			*/
 			if fieldFields, err = self.buildSchemaFields(fieldType, seenFieldNames); err != nil {
 				return
 			}
@@ -151,6 +161,10 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 			}
 		}
 	case reflect.Slice:
+		/*
+			We have a special case for our own special type describing stringBlobs (should probably not be here, since it is A STRUCT not A SLICE, but this is a documentation effort
+			so I won't change it now)
+		*/
 		switch fieldType {
 		case byteStringType:
 			result = &gbigquery.TableFieldSchema{
@@ -158,6 +172,9 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 				Type: dataTypeString,
 			}
 		default:
+			/*
+				Make this field a 'repeated' field of the type inside the slice.
+			*/
 			if result, err = self.buildSchemaField(fieldType.Elem(), name, seenFieldNames); err != nil {
 				return
 			}
@@ -173,6 +190,9 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 	return
 }
 
+/*
+buildSchemaFields will return a slice of schemas for the provided type, while avoiding adding any more fields from the provided seenFieldNames to avoid name clashes in BigQuery.
+*/
 func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[string]struct{}) (result []*gbigquery.TableFieldSchema, err error) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -180,6 +200,9 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 		for fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
+		/*
+			The name will default to the field name, but if a json tag is provided it will be used.
+		*/
 		name := field.Name
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 			if splitTag := strings.Split(jsonTag, ","); splitTag[0] != "" {
@@ -189,6 +212,9 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 		if name == "-" {
 			continue
 		}
+		/*
+			A bigquery tag of "-" will, just like if the field has been seen before, result in the field being skipped.
+		*/
 		if bigqueryTag := field.Tag.Get("bigquery"); bigqueryTag == "-" {
 			continue
 		}
@@ -200,12 +226,19 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 		var thisField *gbigquery.TableFieldSchema
 		seenFieldNamesToSend := seenFieldNames
 		if !field.Anonymous {
+			/*
+				Non anonymous fields can be added no matter their names, since they will be 'name spaced' inside the nested fields (records) of the BigQuery table.
+			*/
 			seenFieldNamesToSend = map[string]struct{}{}
 		}
 		if thisField, err = self.buildSchemaField(fieldType, name, seenFieldNamesToSend); err != nil {
 			return
 		}
 		if thisField != nil {
+			/*
+				Anonymous fields (which we assume are structs) will get their fields (the fields of the nested struct) added flat to the result
+				while regular fields will be added as is.
+			*/
 			if field.Anonymous {
 				result = append(result, thisField.Fields...)
 			} else {
@@ -217,6 +250,10 @@ func (self *BigQuery) buildSchemaFields(typ reflect.Type, seenFieldNames map[str
 	return
 }
 
+/*
+buildTable will return a table definition for the provided type, and also include the helper field _inserted_at that helps us
+determine which version (if there are multiple) of the same UpdatedAt row to display.
+*/
 func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err error) {
 	var fields []*gbigquery.TableFieldSchema
 	if fields, err = self.buildSchemaFields(typ, map[string]struct{}{}); err != nil {
@@ -239,6 +276,9 @@ func (self *BigQuery) buildTable(typ reflect.Type) (result *gbigquery.Table, err
 	return
 }
 
+/*
+createTable will create a table for the provided type inside BigQuery
+*/
 func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.TablesService) (err error) {
 	table, err := self.buildTable(typ)
 	if err != nil {
@@ -256,6 +296,9 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 	return
 }
 
+/*
+patchTable will add any fields in the provided type that happen to be missing from the originalTable
+*/
 func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.TablesService, originalTable *gbigquery.Table) (err error) {
 
 	table, err := self.buildTable(typ)
@@ -271,6 +314,9 @@ func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.Tabl
 	return
 }
 
+/*
+unionFields will merge the fields into one table schema
+*/
 func (self *BigQuery) unionFields(fields1, fields2 []*gbigquery.TableFieldSchema) (result []*gbigquery.TableFieldSchema) {
 	unionFields := make(map[string]*gbigquery.TableFieldSchema)
 
@@ -345,6 +391,9 @@ const (
 	maxString = 1 << 10
 )
 
+/*
+cropStrings will recurse down the provided map and make sure no strings nested in it are longer than maxString
+*/
 func cropStrings(m map[string]gbigquery.JsonValue) {
 	for k, v := range m {
 		if s, ok := v.(string); ok {
@@ -357,6 +406,10 @@ func cropStrings(m map[string]gbigquery.JsonValue) {
 	}
 }
 
+/*
+InsertTable data will assume that AssertTable for the type of the provided interface{} has been called beforehand, and
+push this particular instance into BigQuery.
+*/
 func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 	j := map[string]gbigquery.JsonValue{}
 
@@ -457,6 +510,10 @@ func (self *BigQuery) AssertView(viewName string, query string) (err error) {
 	return
 }
 
+/*
+addFieldNames will recursively add the field names of the provided fields to the dst slice, prepending them with
+the provided prefix if needed, to avoid name clashes between top level and nested fields in BigQuery
+*/
 func (self *BigQuery) addFieldNames(fields []*gbigquery.TableFieldSchema, prefix string, dst *[]string) {
 	for _, field := range fields {
 		if field.Type == dataTypeRecord {
@@ -467,6 +524,11 @@ func (self *BigQuery) addFieldNames(fields []*gbigquery.TableFieldSchema, prefix
 	}
 }
 
+/*
+AssertCurrentVersionView will create a 'Current[tableName]' view by nesting a series of joins
+that result in a view consisting of only the most recent (as in UpdatedAt, and then _inserted_at)
+version of each 'id' present in the tableName table.
+*/
 func (self *BigQuery) AssertCurrentVersionView(tableName string) (err error) {
 	tablesService := gbigquery.NewTablesService(self.service)
 	table, err := tablesService.Get(self.projectId, self.datasetId, tableName).Do()

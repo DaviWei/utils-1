@@ -206,6 +206,9 @@ func (a DocumentedRoutes) Len() int           { return len(a) }
 func (a DocumentedRoutes) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a DocumentedRoutes) Less(i, j int) bool { return a[i].GetSortString() < a[j].GetSortString() }
 
+/*
+JSONType handles the rendering of input and output types in the generated documentation
+*/
 type JSONType struct {
 	In          bool
 	ReflectType reflect.Type
@@ -220,11 +223,16 @@ func newJSONType(in bool, t reflect.Type, filterOnScopes bool, scopeContexts []s
 	return newJSONTypeLoopProtector(nil, in, t, filterOnScopes, scopeContexts, relevantScopes...)
 }
 
+/*
+newJSONTypeLoopProtector is used by newJSONType to ensure that we don't cause eternal recursion when creating the structures necessary to render
+the type descriptions and examples
+*/
 func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filterOnScopes bool, scopeContexts []string, relevantScopes ...string) (result *JSONType) {
 	result = &JSONType{
 		In:          in,
 		ReflectType: t,
 	}
+	// if we have already seen this type, just return a dummy value
 	for _, seenType := range seen {
 		if t == seenType {
 			result.Type = "[loop protector enabled]"
@@ -238,18 +246,22 @@ func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filt
 	case reflect.Struct:
 		result.Type = t.Name()
 		result.Fields = map[string]*JSONType{}
+		// for structs, iterate over their fields
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
+			// fields with non-empty package paths are non-exported. skip them.
 			if field.PkgPath != "" {
 				continue
 			}
 			if field.Anonymous {
 				if field.Type.Kind() == reflect.Struct || (field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
+					// add the fields of anonymous struct fields flat into this JSONType
 					anonType := newJSONTypeLoopProtector(append(seen, t), in, field.Type, filterOnScopes, scopeContexts, relevantScopes...)
 					for name, typ := range anonType.Fields {
 						result.Fields[name] = typ
 					}
 				} else {
+					// anonymous fields that aren't structs, if they are even possible, are problematic
 					result.Fields[field.Name] = &JSONType{
 						In:          in,
 						ReflectType: field.Type,
@@ -257,11 +269,13 @@ func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filt
 					}
 				}
 			} else {
+				// and pick up their doc, name and encoding tags
 				jsonToTag := field.Tag.Get("jsonTo")
 				jsonTag := field.Tag.Get("json")
 				docTag := field.Tag.Get("jsonDoc")
 				name := field.Name
 				updateScopes := []string{}
+				// and check what scopes are allowed to update them
 				if jsonTag != "-" {
 					if jsonTag != "" {
 						parts := strings.Split(jsonTag, ",")
@@ -279,6 +293,7 @@ func newJSONTypeLoopProtector(seen []reflect.Type, in bool, t reflect.Type, filt
 							}
 						}
 					}
+					// fields without update scopes should never be displayed in the input type description
 					if !filterOnScopes || len(updateScopes) > 0 {
 						if jsonToTag == "" && knownEncodings[field.Type] != "" {
 							jsonToTag = knownEncodings[field.Type]
@@ -351,10 +366,15 @@ func Remember(doc DocumentedRoute) {
 	routes = append(routes, doc)
 }
 
+/*
+CreateResponseFunc will take a function type and value, and return a handler function
+*/
 func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONContextLogger) (response Resp, err error) {
 	return func(c JSONContextLogger) (response Resp, err error) {
+		// create the arguments, first of which is the context
 		args := make([]reflect.Value, fType.NumIn())
 		args[0] = reflect.ValueOf(c)
+		// if there is a second argument then instantiate it and JSON decode into it from the request body
 		if fType.NumIn() == 2 {
 			if fType.In(1).Kind() == reflect.Ptr {
 				in := reflect.New(fType.In(1).Elem())
@@ -374,14 +394,18 @@ func CreateResponseFunc(fType reflect.Type, fVal reflect.Value) func(c JSONConte
 				args[1] = in.Elem()
 			}
 		}
+		// then run the handler function
 		results := fVal.Call(args)
+		// if there was en error, then return it
 		if !results[len(results)-1].IsNil() {
 			err = results[len(results)-1].Interface().(error)
 			return
 		}
+		// if there was a status returned, use it
 		if status := int(results[0].Int()); status != 0 {
 			response.Status = status
 		}
+		// if there was a result instance returned by the handler, put it in the body for later encoding
 		if len(results) == 3 && (results[1].Kind() != reflect.Ptr || !results[1].IsNil()) {
 			response.Body = results[1].Interface()
 		}
@@ -401,6 +425,7 @@ One extra input argument after context is allowed, and will be JSON decoded from
 One extra return value between status and error is allowed, and will be JSON encoded to the response body, and used in the documentation struct.
 */
 func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAPIVersion int, scopes ...string) (docRoute *DefaultDocumentedRoute, fOut func(JSONContextLogger) (Resp, error)) {
+	// first validate that the handler takes either a context, or a context and a decoded JSON body as argument
 	if errs := utils.ValidateFuncInputs(fIn, []reflect.Type{
 		reflect.TypeOf((*JSONContextLogger)(nil)).Elem(),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -409,6 +434,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 	}); len(errs) == 2 {
 		panic(fmt.Errorf("%v does not conform. Fix one of %+v", runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name(), errs))
 	}
+	// then validate that it returns either status, responde body object for JSON encoding and error, or just status and error
 	if errs := utils.ValidateFuncOutputs(fIn, []reflect.Type{
 		reflect.TypeOf(0),
 		reflect.TypeOf((*interface{})(nil)).Elem(),
@@ -420,6 +446,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 		panic(fmt.Errorf("%v does not conform. Fix one of %+v", runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name(), errs))
 	}
 
+	// then create the route object that we store for documentation purposes
 	methodNames := strings.Split(methods, "|")
 	docRoute = &DefaultDocumentedRoute{
 		Path:          path,
@@ -428,6 +455,7 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 		MaxAPIVersion: maxAPIVersion,
 		Scopes:        scopes,
 	}
+	// calculate the name of the function
 	fName := runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name()
 	if match := fNameReg.FindStringSubmatch(fName); match != nil {
 		docRoute.Comment = fmt.Sprintf("%#v", match)
@@ -437,9 +465,12 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 	}
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
+	// if the handler takes two arguments (that is, one decoded JSON body), add an input param type to document with.
+	// also send in the scopes, because the input type fields must be filtered so that those without scopes are ignored
 	if fType.NumIn() == 2 {
 		docRoute.In = newJSONType(true, fType.In(1), true, methodNames, scopes...)
 	}
+	// if the handler provides three return values (that is, one decoded JSON body), add an output param type to document with.
 	if fType.NumOut() == 3 {
 		docRoute.Out = newJSONType(false, fType.Out(1), false, methodNames)
 	}
@@ -448,10 +479,16 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 	return
 }
 
+/*
+DocHandler will render the documentation for all routes registerd with DocHandle
+*/
 func DocHandler(templ *template.Template) http.Handler {
 	return httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
 		c.Resp().Header().Set("Content-Type", "text/html; charset=UTF-8")
+		// we define a func to render a type
 		renderType := func(t JSONType, stack []string) (result string, err error) {
+			// if the type is already mentioned in one of the parents we have already mentioned,
+			// bail
 			for _, parent := range stack {
 				if parent != "" && parent == t.ReflectType.Name() {
 					result = fmt.Sprintf("[loop protector enabled, render stack: %v]", stack)
@@ -460,6 +497,7 @@ func DocHandler(templ *template.Template) http.Handler {
 			}
 			stack = append(stack, t.ReflectType.Name())
 			buf := &bytes.Buffer{}
+			// then execute the TypeTemplate with this type and this stack
 			if err = templ.ExecuteTemplate(buf, "TypeTemplate", map[string]interface{}{
 				"Type":  t,
 				"Stack": stack,
@@ -470,7 +508,9 @@ func DocHandler(templ *template.Template) http.Handler {
 			return
 		}
 
+		// routes are documented alphabetically
 		sort.Sort(routes)
+		// define all the functions that we left empty earlier
 		err = templ.Funcs(map[string]interface{}{
 			"RenderEndpoint": func(r DocumentedRoute) (string, error) {
 				return r.Render(templ.Lookup("EndpointTemplate"))
@@ -483,6 +523,7 @@ func DocHandler(templ *template.Template) http.Handler {
 			},
 			"First": first,
 			"Example": func(r JSONType) (result string, err error) {
+				// this will render an example of the provided JSONType
 				defer func() {
 					if e := recover(); e != nil {
 						result = fmt.Sprintf("%v\n%s", e, utils.Stack())
@@ -520,6 +561,9 @@ func DocHandler(templ *template.Template) http.Handler {
 	})
 }
 
+/*
+DocHandle will register f as handler for path, method, api versions and scopes in router.
+*/
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	Remember(doc)

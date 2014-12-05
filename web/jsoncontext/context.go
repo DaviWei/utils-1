@@ -120,19 +120,29 @@ func (self Resp) Error() string {
 	return fmt.Sprint(self.Body)
 }
 
+/*
+MarshalJSON will recursively run any found `BeforeMarshal` functions on the content with arg and a stack of container instances, and then json marshal it.
+
+It will not recurse down further after a BeforeMarshal function has been found, but it will run all top level BeforeMarshal functions that it finds.
+*/
 func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg interface{}) (result []byte, err error) {
+	// declare a function that recursively will run itself
 	var runRecursive func(reflect.Value, reflect.Value) error
 
 	cVal := reflect.ValueOf(c)
 	contextType := reflect.TypeOf((*JSONContextLogger)(nil)).Elem()
+	// initialize an empty container stack
 	stackType := reflect.TypeOf([]interface{}{})
 
+	// implement the function
 	runRecursive = func(val reflect.Value, stack reflect.Value) error {
+		// push this instance to the stack
 		stack = reflect.Append(stack, val)
 
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
 		if fun.IsValid() {
+			// make sure we don't run BeforeMarshal on any other things at the same time, at least in this context.
 			return self.marshalSyncLock.Sync(val.Interface(), func() (err error) {
 				// Validate BeforeMarshal takes something that implements JSONContextLogger
 				if err = utils.ValidateFuncInput(fun.Interface(), []reflect.Type{contextType, stackType}); err != nil {
@@ -152,6 +162,7 @@ func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg
 				}
 				timer := time.Now()
 
+				// run the actual BeforeMarshal
 				res := fun.Call(args)
 
 				if time.Now().Sub(timer) > (500 * time.Millisecond) {
@@ -165,7 +176,7 @@ func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg
 			})
 		}
 
-		// Try do recursion on these types.
+		// Try do recursion on these types, if we didn't find a BeforeMarshal func on the val itself
 		switch val.Kind() {
 		case reflect.Ptr, reflect.Interface:
 			if val.IsNil() {

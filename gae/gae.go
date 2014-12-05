@@ -247,6 +247,9 @@ func newErrNoSuchEntity(dst interface{}, cause error) (err error) {
 
 /*
 Del will delete src from datastore and invalidate it from memcache.
+
+It will also load any old entities with the same id from datastore
+and run Before/AfterDelete on them
 */
 func Del(c PersistenceContext, src interface{}) (err error) {
 	var typ reflect.Type

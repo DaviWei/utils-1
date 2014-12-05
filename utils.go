@@ -620,6 +620,11 @@ func ToCurl(req *http.Request) string {
 	return fmt.Sprintf("curl -v -X%s %q%v%v", req.Method, req.URL, bodyPart, headerPart)
 }
 
+/*
+GenerateFlags will generate command line flags matching the fields of the provided interface (being a struct pointer).
+
+Any fields tagged with `flag` will be named like the value of the `flag` tag.
+*/
 func GenerateFlags(i interface{}) (result []string, err error) {
 	v := reflect.ValueOf(i)
 	t := v.Type()
@@ -649,6 +654,13 @@ func GenerateFlags(i interface{}) (result []string, err error) {
 	return
 }
 
+/*
+ParseFlags will parse command line flags according the fields of the provided interface (being a struct pointer).
+
+It supports bool, int and string fields, and the flag name will be taken from the field name (or the `flag` tag if present).
+
+`flag_default` tags will provide default values if no flag is provided.
+*/
 func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 	v := reflect.ValueOf(i)
 	t := v.Type()

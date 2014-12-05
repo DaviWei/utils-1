@@ -442,6 +442,7 @@ func memoizeMulti(
 	destinationPointers []interface{},
 	generatorFunctions []func() (interface{}, time.Duration, error)) (errors appengine.MultiError) {
 
+	// First generate memcache friendly key hashes from all the provided keys.
 	keyHashes := make([]string, len(keys))
 	for index, key := range keys {
 		k, err := Keyify(key)
@@ -452,6 +453,7 @@ func memoizeMulti(
 		keyHashes[index] = k
 	}
 
+	// Then, run a memGetMulti using these keys, and warn if it is slow.
 	t := time.Now()
 	var items []*memcache.Item
 	items, errors = memGetMulti(c, keyHashes, destinationPointers)
@@ -459,44 +461,56 @@ func memoizeMulti(
 		c.Debugf("SLOW memGetMulti(%v): %v", keys, d)
 	}
 
+	// Create a channel to handle any panics produced by the concurrent code.
 	panicChan := make(chan interface{}, len(items))
 
+	// For all the items we tried to fetch...
 	for i, item := range items {
 
+		// set up variables to use in the iteration
 		index := i
 		err := errors[index]
 		keyHash := keyHashes[index]
 		destinationPointer := destinationPointers[index]
 		if err == memcache.ErrCacheMiss {
+			// for cache misses, background do..
 			go func() (err error) {
+				// defer fetching any panics and sending them to the panic channel
 				defer func() {
 					errors[index] = err
 					if e := recover(); e != nil {
 						c.Infof("Panic: %v", e)
 						panicChan <- fmt.Errorf("%v\n%v", e, utils.Stack())
 					} else {
+						// no panics will send a nil, which is necessary since we wait for all goroutines to send SOMETHING on the channel
 						panicChan <- nil
 					}
 				}()
 				var result interface{}
 				var duration time.Duration
 				found := true
+				// try to run the generator function
 				if result, duration, err = generatorFunctions[index](); err != nil {
 					if err != memcache.ErrCacheMiss {
 						return
 					} else {
+						// ErrCacheMiss from the generator function means that we want the caller to think there is no data to return
 						found = false
 					}
 				} else {
+					// if there is no error, check if we got a nil
 					found = !utils.IsNil(result)
 					if !found {
+						// if we did, we fake an ErrCacheMiss
 						err = memcache.ErrCacheMiss
 					}
 				}
+				// If we are not inside a transaction, we have to store the result in memcache
 				if !c.InTransaction() && (found || cacheNil) {
 					obj := result
 					var flags uint32
 					if !found {
+						// if the generator responded with nil or a cache miss, flag this cache entry as a cache miss for future reference
 						obj = reflect.Indirect(reflect.ValueOf(destinationPointer)).Interface()
 						flags = nilCache
 					}
@@ -511,13 +525,16 @@ func memoizeMulti(
 					}
 				}
 				if found {
+					// if we actually found something, copy the result to the destination
 					utils.ReflectCopy(result, destinationPointer)
 				}
 				return
 			}()
 		} else if err != nil {
+			// any errors will bubble up the panic channel
 			panicChan <- nil
 		} else {
+			// if we FOUND something, but it was flagged as a cache miss, fake a cache miss
 			if item.Flags&nilCache == nilCache {
 				errors[index] = memcache.ErrCacheMiss
 			}
@@ -525,6 +542,7 @@ func memoizeMulti(
 		}
 	}
 
+	// collect any panics, and raise them if we found any
 	panics := []interface{}{}
 	for _, _ = range items {
 		if e := <-panicChan; e != nil {
