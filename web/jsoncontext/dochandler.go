@@ -480,12 +480,18 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 }
 
 /*
-DocHandler will render the documentation for all routes registerd with DocHandle
+DocHandler will return a handler that renders the documentation for all routes registerd with DocHandle.
+
+The resulting func will do this by going through each route in DocumentedRoutes and render the endpoint
+using the provided template, providing it template functions to render separate endpoints, types, sub types
+and examples of types.
 */
 func DocHandler(templ *template.Template) http.Handler {
 	return httpcontext.HandlerFunc(func(c httpcontext.HTTPContextLogger) (err error) {
 		c.Resp().Header().Set("Content-Type", "text/html; charset=UTF-8")
 		// we define a func to render a type
+		// it basically just executes the "TypeTemplate" with the provided
+		// stack to avoid infinite recursion
 		renderType := func(t JSONType, stack []string) (result string, err error) {
 			// if the type is already mentioned in one of the parents we have already mentioned,
 			// bail
@@ -563,6 +569,9 @@ func DocHandler(templ *template.Template) http.Handler {
 
 /*
 DocHandle will register f as handler for path, method, api versions and scopes in router.
+
+It will also reflectively go through the parameters and return values of f, and register those in
+the DocumentedRoutes variable.
 */
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
