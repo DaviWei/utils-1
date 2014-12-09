@@ -779,6 +779,19 @@ func ActivateSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessT
 	return
 }
 
+func DeactivateSpotifyAccount(c ServiceConnector, soundZone key.Key, token AccessToken) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), fmt.Sprintf("sound_zones/%v/spotify_account/deactivate", soundZone.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
 func SetPassword(c ServiceConnector, user key.Key, password string, token AccessToken) (result *RemoteUser, err error) {
 	request, response, err := DoRequest(c, "PUT", c.GetAuthService(), fmt.Sprintf("users/%s/password", user.Encode()), token, map[string]string{
 		"password": password,
