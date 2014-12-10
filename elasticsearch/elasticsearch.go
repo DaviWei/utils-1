@@ -331,10 +331,10 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 }
 
 type PageableItems struct {
-	Items   []interface{}
-	Total   int
-	Page    int
-	PerPage int
+	Items   []interface{} `json:"items"`
+	Total   int           `json:"total"`
+	Page    int           `json:"page"`
+	PerPage int           `json:"per_page"`
 }
 
 type SimpleStringQuery StringQuery
