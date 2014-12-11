@@ -303,7 +303,7 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 		updatedAtUnixNano := updatedAtField.MethodByName("UnixNano")
 		if updatedAtUnixNano.IsValid() {
 			if unixNano, ok := updatedAtUnixNano.Call(nil)[0].Interface().(int64); ok && unixNano > 0 {
-				url = fmt.Sprintf("%v?version_type=external&version=%v", url, updatedAtUnixNano.Call(nil)[0].Interface())
+				url = fmt.Sprintf("%v?version_type=external_gte&version=%v", url, updatedAtUnixNano.Call(nil)[0].Interface())
 			}
 		}
 	}
@@ -331,10 +331,10 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 }
 
 type PageableItems struct {
-	Items   []interface{}
-	Total   int
-	Page    int
-	PerPage int
+	Items   []interface{} `json:"items"`
+	Total   int           `json:"total"`
+	Page    int           `json:"page"`
+	PerPage int           `json:"per_page"`
 }
 
 type SimpleStringQuery StringQuery
