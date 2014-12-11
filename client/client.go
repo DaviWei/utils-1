@@ -217,6 +217,7 @@ type RemoteAccount struct {
 	TrackSeparation       int              `json:"track_separation,omitempty"`
 	ArtistSeparation      int              `json:"artist_separation,omitempty"`
 	AlbumSeparation       int              `json:"album_separation,omitempty"`
+	ExternalId            string           `json:"external_id,omitempty"`
 }
 
 type RemoteSoundZone struct {
@@ -275,6 +276,11 @@ type RemoteSpotifyAccount struct {
 	Username           string     `json:"username"`
 	Account            key.Key    `json:"account" datastore:"-"`
 	ISOCountry         string     `json:"iso_country"`
+}
+
+type RemotePending struct {
+	DefaultMeta
+	ProductQueue []string `json:product_queue`
 }
 
 func errorFor(request *http.Request, response *http.Response) (err error) {
@@ -827,5 +833,20 @@ func IsApplicableForInvoice(c ServiceConnector) (result *RemoteIsApplicableForIn
 	result = &RemoteIsApplicableForInvoiceResponse{}
 	err = json.NewDecoder(response.Body).Decode(result)
 
+	return
+}
+
+func GetPendingByExternalId(c ServiceConnector, externalId string, token AccessToken) (result *RemotePending, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("pending/%v", externalId), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemotePending{}
+	err = json.NewDecoder(response.Body).Decode(&result)
 	return
 }
