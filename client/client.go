@@ -280,7 +280,7 @@ type RemoteSpotifyAccount struct {
 
 type RemotePending struct {
 	DefaultMeta
-	ProductQueue []string `json:product_queue`
+	ProductQueue []string `json:"product_queue"`
 }
 
 func errorFor(request *http.Request, response *http.Response) (err error) {
