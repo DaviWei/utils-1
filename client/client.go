@@ -97,12 +97,12 @@ type RemoteDevice struct {
 	DeviceId        string  `json:"device_id"`
 	PairingCode     string  `json:"pairing_code"`
 	VendorId        string  `json:"vendor_id"`
-	DeviceType      string  `json:"device_type" PUT_scopes:"backoffice,Device_privileged"`
+	DeviceType      string  `json:"device_type"`
 	SoundZone       key.Key `json:"sound_zone"`
-	Label           string  `json:"label" PUT_scopes:"backoffice"`
-	Name            string  `json:"name" PUT_scopes:"Device_privileged"`
-	SoftwareVersion string  `json:"software_version" PUT_scopes:"Device_privileged"`
-	Platform        string  `json:"platform" PUT_scopes:"Device_privileged"`
+	Label           string  `json:"label"`
+	Name            string  `json:"name"`
+	SoftwareVersion string  `json:"software_version"`
+	Platform        string  `json:"platform"`
 	PairingState    string  `json:"pairing_state"`
 	SoftPair        bool    `json:"soft_pair"`
 }
@@ -121,7 +121,7 @@ type RemoteLocation struct {
 	Timezone     string  `json:"timezone"`
 	BillingGroup key.Key `json:"billing_group"`
 
-	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
+	Deactivated bool `json:"deactivated"`
 }
 
 type RemoteLocations []RemoteLocation
