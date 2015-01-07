@@ -84,6 +84,29 @@ type ScrobbleArtist struct {
 	Uri  string `json:"uri"`
 }
 
+type DeviceHierarchy struct {
+	Device    *RemoteDevice    `json:"device"`
+	SoundZone *RemoteSoundZone `json:"sound_zone"`
+	Location  *RemoteLocation  `json:"location"`
+	Account   *RemoteAccount   `json:"account"`
+}
+
+type RemoteDevice struct {
+	DefaultMeta
+
+	DeviceId        string  `json:"device_id"`
+	PairingCode     string  `json:"pairing_code"`
+	VendorId        string  `json:"vendor_id"`
+	DeviceType      string  `json:"device_type"`
+	SoundZone       key.Key `json:"sound_zone"`
+	Label           string  `json:"label"`
+	Name            string  `json:"name"`
+	SoftwareVersion string  `json:"software_version"`
+	Platform        string  `json:"platform"`
+	PairingState    string  `json:"pairing_state"`
+	SoftPair        bool    `json:"soft_pair"`
+}
+
 type RemoteLocation struct {
 	DefaultMeta
 
@@ -98,7 +121,7 @@ type RemoteLocation struct {
 	Timezone     string  `json:"timezone"`
 	BillingGroup key.Key `json:"billing_group"`
 
-	Deactivated bool `json:"deactivated" PUT_scopes:"Location_privileged" POST_scopes:"Account_privileged"`
+	Deactivated bool `json:"deactivated"`
 }
 
 type RemoteLocations []RemoteLocation
@@ -847,6 +870,26 @@ func GetPendingByExternalId(c ServiceConnector, externalId string, token AccessT
 	}
 
 	result = &RemotePending{}
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
+func GetDeviceHierarchy(c ServiceConnector, deviceId key.Key, token AccessToken) (result *DeviceHierarchy, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("/device_hierarchy/device/%v", deviceId.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &DeviceHierarchy{
+		Device:    &RemoteDevice{},
+		SoundZone: &RemoteSoundZone{},
+		Location:  &RemoteLocation{},
+		Account:   &RemoteAccount{},
+	}
 	err = json.NewDecoder(response.Body).Decode(&result)
 	return
 }
