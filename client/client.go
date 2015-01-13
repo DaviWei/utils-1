@@ -316,35 +316,35 @@ func errorFor(request *http.Request, response *http.Response) (err error) {
 }
 
 func DoRequest(c ServiceConnector, method, service, path string, token AccessToken, body interface{}) (request *http.Request, response *http.Response, err error) {
-	buf := new(bytes.Buffer)
-	if body != nil {
-		if err = json.NewEncoder(buf).Encode(body); err != nil {
-			return
+	waitTime := time.Millisecond * 100
+	for waitTime < time.Second*10 {
+		buf := new(bytes.Buffer)
+		if body != nil {
+			if err = json.NewEncoder(buf).Encode(body); err != nil {
+				return
+			}
 		}
-	}
 
-	request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
-	if err != nil {
-		return
-	}
-
-	if token != nil {
-		var encoded string
-		encoded, err = token.EncodeSelf()
+		request, err = http.NewRequest(method, fmt.Sprintf("%v/%v", service, path), buf)
 		if err != nil {
 			return
 		}
-		request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
-	}
 
-	if method == "POST" || method == "PUT" {
-		request.Header.Add("Content-Type", "application/json")
-	}
+		if token != nil {
+			var encoded string
+			encoded, err = token.EncodeSelf()
+			if err != nil {
+				return
+			}
+			request.Header.Add("Authorization", fmt.Sprintf("Bearer %v", encoded))
+		}
 
-	request.Header.Add("X-API-Version", fmt.Sprint(MaxAPIVersion))
+		if method == "POST" || method == "PUT" {
+			request.Header.Add("Content-Type", "application/json")
+		}
 
-	waitTime := time.Millisecond * 100
-	for waitTime < time.Second*10 {
+		request.Header.Add("X-API-Version", fmt.Sprint(MaxAPIVersion))
+
 		response, err = c.Client().Do(request)
 		if err == nil && response.StatusCode < 500 {
 			break
