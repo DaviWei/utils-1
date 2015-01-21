@@ -14,16 +14,17 @@ import (
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 
-	"appengine"
-	"appengine/datastore"
-	"appengine/log"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/log"
 )
 
 const (
 	idFieldName = "Id"
 )
 
-func GetKinds(c appengine.Context) (result []string, err error) {
+func GetKinds(c context.Context) (result []string, err error) {
 	ids, err := datastore.NewQuery("__Stat_Kind__").KeysOnly().GetAll(c, nil)
 	if err != nil {
 		return
@@ -71,7 +72,7 @@ type LogStats struct {
 	MinCost      float64
 }
 
-func GetLogStats(c appengine.Context, from, to time.Time, max int, includeDelayTasks bool) (result *LogStats) {
+func GetLogStats(c context.Context, from, to time.Time, max int, includeDelayTasks bool) (result *LogStats) {
 	result = &LogStats{
 		Statuses: StatusMap{},
 		From:     from,

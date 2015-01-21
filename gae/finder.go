@@ -9,8 +9,8 @@ import (
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
 
-	"appengine"
-	"appengine/datastore"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
 )
 
 // finder encapsulates the knowledge that a model type is findable by a given set of fields.

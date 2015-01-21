@@ -1,16 +1,17 @@
 package web
 
 import (
-	"appengine/datastore"
 	"fmt"
-	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
-	"github.com/soundtrackyourbrand/utils/gae/key"
-	"github.com/soundtrackyourbrand/utils/gae/memcache"
-	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
 	"net/http"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
+	"github.com/soundtrackyourbrand/utils/gae/key"
+	"github.com/soundtrackyourbrand/utils/gae/memcache"
+	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
+	"google.golang.org/appengine/datastore"
 )
 
 type Bench struct {

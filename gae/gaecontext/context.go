@@ -17,9 +17,10 @@ import (
 
 	"strings"
 
-	"appengine"
-	"appengine/datastore"
-	"appengine/urlfetch"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/urlfetch"
 )
 
 func KindsRenderer(c JSONContext) (status int, result []string, err error) {
@@ -118,7 +119,7 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 }
 
 type DefaultContext struct {
-	appengine.Context
+	context.Context
 	allowHTTPDuringTransactions bool
 	inTransaction               bool
 	afterTransaction            []func(GAEContext) error
@@ -305,7 +306,7 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 	tries := 0
 	for time.Since(start) < (time.Second * 20) {
 		hasConcErr := false
-		err = datastore.RunInTransaction(self, func(c appengine.Context) error {
+		err = datastore.RunInTransaction(self, func(c context.Context) error {
 			newContext = *self
 			newContext.Context = c
 			newContext.inTransaction = true
@@ -401,13 +402,13 @@ func (self *DefaultJSONContext) Transaction(f interface{}, crossGroup bool) erro
 	}, crossGroup)
 }
 
-func NewContext(gaeCont appengine.Context) (result *DefaultContext) {
+func NewContext(gaeCont context.Context) (result *DefaultContext) {
 	return &DefaultContext{
 		Context: gaeCont,
 	}
 }
 
-func NewHTTPContext(gaeCont appengine.Context, httpCont httpcontext.HTTPContextLogger) (result *DefaultHTTPContext) {
+func NewHTTPContext(gaeCont context.Context, httpCont httpcontext.HTTPContextLogger) (result *DefaultHTTPContext) {
 	result = &DefaultHTTPContext{
 		GAEContext:  NewContext(gaeCont),
 		HTTPContext: httpCont,
@@ -416,7 +417,7 @@ func NewHTTPContext(gaeCont appengine.Context, httpCont httpcontext.HTTPContextL
 	return
 }
 
-func NewJSONContext(gaeCont appengine.Context, jsonCont jsoncontext.JSONContextLogger) (result *DefaultJSONContext) {
+func NewJSONContext(gaeCont context.Context, jsonCont jsoncontext.JSONContextLogger) (result *DefaultJSONContext) {
 	result = &DefaultJSONContext{
 		GAEContext:  NewContext(gaeCont),
 		JSONContext: jsonCont,
@@ -433,7 +434,7 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your basic HTTP needs.
 */
 func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
 		httpcontext.Handle(c, func() error {
 			return f(c)
@@ -449,7 +450,7 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your JSON API needs.
 */
 func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion, maxAPIVersion int, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (jsoncontext.Resp, error) {
 			return f(c)
@@ -465,7 +466,7 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your tabular data generation needs.
 */
 func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
 		httpcontext.DataHandle(c, func() (*httpcontext.DataResp, error) {
 			return f(c)
@@ -481,7 +482,7 @@ JSONHandlerFunc.
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
-	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
 		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (resp jsoncontext.Resp, err error) {
 			return fu(c)

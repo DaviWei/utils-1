@@ -3,8 +3,8 @@ package gaekey
 import (
 	"github.com/soundtrackyourbrand/utils/key"
 
-	"appengine"
-	"appengine/datastore"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine/datastore"
 )
 
 func FromGAErr(k *datastore.Key, err error) (result key.Key, err2 error) {
@@ -34,7 +34,7 @@ func FromGAE(k *datastore.Key) (result key.Key, err error) {
 	return key.New(k.Kind(), k.StringID(), k.IntID(), parent)
 }
 
-func ToGAE(c appengine.Context, k key.Key) *datastore.Key {
+func ToGAE(c context.Context, k key.Key) *datastore.Key {
 	if len(k) < 1 {
 		return nil
 	}

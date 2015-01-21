@@ -5,8 +5,8 @@ import (
 
 	"github.com/soundtrackyourbrand/utils/gae"
 
-	"appengine"
-	"appengine/datastore"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine/datastore"
 )
 
 const (
@@ -26,7 +26,7 @@ type Backup struct {
 
 type Backups []*Backup
 
-func GetBackups(c appengine.Context) (result Backups, err error) {
+func GetBackups(c context.Context) (result Backups, err error) {
 	ids, err := datastore.NewQuery(AEBackupInformationKind).GetAll(c, &result)
 	err = gae.FilterOkErrors(err)
 	if err != nil {

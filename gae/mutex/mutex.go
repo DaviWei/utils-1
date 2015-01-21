@@ -1,11 +1,12 @@
 package mutex
 
 import (
-	"appengine/datastore"
 	"fmt"
+	"time"
+
 	"github.com/soundtrackyourbrand/utils/gae/gaecontext"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
-	"time"
+	"google.golang.org/appengine/datastore"
 )
 
 const (

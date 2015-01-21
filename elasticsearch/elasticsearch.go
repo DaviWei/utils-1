@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/soundtrackyourbrand/utils/json"
+	"google.golang.org/appengine/log"
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -587,7 +588,7 @@ func Search(c ElasticSearchContext, query *SearchRequest, index, typ string) (re
 		return
 	}
 
-	c.Debugf("Elasticsearch took %v, url:%s", result.Took, url)
+	log.Debugf(c, "Elasticsearch took %v, url:%s", result.Took, url)
 	result.Page = 1 + (query.From / query.Size)
 	result.PerPage = query.Size
 	return

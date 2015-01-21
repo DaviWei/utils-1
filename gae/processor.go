@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"google.golang.org/appengine/log"
 )
 
 const (
@@ -59,13 +61,13 @@ func runProcess(c PersistenceContext, model interface{}, name string, arg interf
 		if !results[len(results)-1].IsNil() {
 			// if the processor returned an error as the last return value, return the error
 			if time.Now().Sub(timer) > (500 * time.Millisecond) {
-				c.Infof("%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
+				log.Infof(c, "%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
 			}
 			return results[len(results)-1].Interface().(error)
 		}
 	}
 	if time.Now().Sub(timer) > (500 * time.Millisecond) {
-		c.Infof("%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
+		log.Infof(c, "%v for %s is slow, took: %v", name, typ, time.Now().Sub(timer))
 	}
 	return nil
 }

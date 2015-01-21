@@ -12,16 +12,18 @@ import (
 
 	"github.com/soundtrackyourbrand/utils"
 
-	"appengine"
-	"appengine/delay"
-	"appengine/memcache"
-	"appengine/taskqueue"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/delay"
+	"google.golang.org/appengine/log"
+	"google.golang.org/appengine/memcache"
+	"google.golang.org/appengine/taskqueue"
 )
 
 var MemcacheEnabled = true
 
 type TransactionContext interface {
-	appengine.Context
+	context.Context
 	InTransaction() bool
 	AfterTransaction(interface{}) error
 }
@@ -36,7 +38,7 @@ var ErrCacheMiss = memcache.ErrCacheMiss
 
 var deleteFunc = delay.Func("github.com/soundtrackyourbrand/utils/gae/memcache.delayedDelete", delayedDelete)
 
-func delayedDelete(c appengine.Context, keys []string) (err error) {
+func delayedDelete(c context.Context, keys []string) (err error) {
 	return del(c, keys...)
 }
 
@@ -135,7 +137,7 @@ func delWithRetry(c TransactionContext, keys ...string) (err error) {
 /*
 del will delete the keys from memcache.
 */
-func del(c appengine.Context, keys ...string) (err error) {
+func del(c context.Context, keys ...string) (err error) {
 	for index, key := range keys {
 		var k string
 		k, err = Keyify(key)
@@ -192,7 +194,7 @@ func Get(c TransactionContext, key string, val interface{}) (found bool, err err
 		if err == memcache.ErrCacheMiss {
 			err = nil
 		} else {
-			c.Errorf("Error doing Get %#v: %v", k, err)
+			log.Errorf(c, "Error doing Get %#v: %v", k, err)
 		}
 		return
 	}
@@ -314,7 +316,7 @@ func Memoize2(c TransactionContext, super, key string, destP interface{}, f func
 	var seed string
 	var item *memcache.Item
 	if item, err = memcache.Get(c, superH); err != nil && err != memcache.ErrCacheMiss {
-		c.Errorf("Error doing Get %#v: %v", superH, err)
+		log.Errorf(c, "Error doing Get %#v: %v", superH, err)
 		err = memcache.ErrCacheMiss
 	}
 	if err == memcache.ErrCacheMiss {
@@ -387,7 +389,7 @@ func memGetMulti(c TransactionContext, keys []string, destinationPointers []inte
 
 	itemHash, err := memcache.GetMulti(c, keys)
 	if err != nil {
-		c.Errorf("Error doing GetMulti: %v", err)
+		log.Errorf(c, "Error doing GetMulti: %v", err)
 		for index, _ := range errors {
 			errors[index] = ErrCacheMiss
 		}
@@ -458,7 +460,7 @@ func memoizeMulti(
 	var items []*memcache.Item
 	items, errors = memGetMulti(c, keyHashes, destinationPointers)
 	if d := time.Now().Sub(t); d > time.Millisecond*10 {
-		c.Debugf("SLOW memGetMulti(%v): %v", keys, d)
+		log.Debugf(c, "SLOW memGetMulti(%v): %v", keys, d)
 	}
 
 	// Create a channel to handle any panics produced by the concurrent code.
@@ -479,7 +481,7 @@ func memoizeMulti(
 				defer func() {
 					errors[index] = err
 					if e := recover(); e != nil {
-						c.Infof("Panic: %v", e)
+						log.Infof(c, "Panic: %v", e)
 						panicChan <- fmt.Errorf("%v\n%v", e, utils.Stack())
 					} else {
 						// no panics will send a nil, which is necessary since we wait for all goroutines to send SOMETHING on the channel

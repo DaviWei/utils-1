@@ -16,6 +16,7 @@ import (
 	"github.com/soundtrackyourbrand/utils/gae/mutex"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
+	"google.golang.org/appengine/log"
 )
 
 type Token struct {
@@ -695,7 +696,7 @@ func testMemcacheMulti(c gaecontext.HTTPContext) {
 		}); err != nil {
 			if err[0] != nil || err[1] != nil || err[2] != memcache.ErrCacheMiss {
 				for _, serr := range err {
-					c.Infof("Error: %v", serr)
+					log.Infof(c, "Error: %v", serr)
 				}
 				panic(err)
 			}
@@ -777,14 +778,14 @@ func run(c gaecontext.HTTPContext, f func(c gaecontext.HTTPContext)) {
 	defer func() {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Failed: %v\n%s", e, utils.Stack())
-			c.Infof("%v", msg)
+			log.Infof(c, "%v", msg)
 			c.Resp().WriteHeader(500)
 			fmt.Fprintln(c.Resp(), msg)
 		}
 	}()
-	c.Infof("Running %v", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name())
+	log.Infof(c, "Running %v", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name())
 	f(c)
-	c.Infof("Pass")
+	log.Infof(c, "Pass")
 }
 
 func test(c gaecontext.HTTPContext) error {
