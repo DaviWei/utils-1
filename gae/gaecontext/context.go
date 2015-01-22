@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/mjibson/appstats"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -20,6 +19,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/urlfetch"
 )
 
@@ -85,11 +85,13 @@ type GAEContext interface {
 
 type HTTPContext interface {
 	GAEContext
+	httpcontext.Logger
 	httpcontext.HTTPContext
 }
 
 type JSONContext interface {
 	GAEContext
+	httpcontext.Logger
 	jsoncontext.JSONContext
 }
 
@@ -191,7 +193,7 @@ func (self *DefaultContext) BeforeUpdate(i interface{}) error { return nil }
 
 func (self *DefaultContext) Debugf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		self.Context.Debugf("%v", m)
+		log.Debugf(self.Context, "%v", m)
 	}
 }
 
@@ -210,25 +212,25 @@ func (self *DefaultContext) split(format string, i ...interface{}) (result []str
 
 func (self *DefaultContext) Infof(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		self.Context.Infof("%v", m)
+		log.Infof(self.Context, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Warningf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		self.Context.Warningf("%v", m)
+		log.Warningf(self.Context, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Errorf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		self.Context.Errorf("%v", m)
+		log.Errorf(self.Context, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		self.Context.Criticalf("%v", m)
+		log.Criticalf(self.Context, "%v", m)
 	}
 }
 
@@ -254,13 +256,13 @@ func (t *Transport) RoundTrip(req *http.Request) (res *http.Response, err error)
 	curly := utils.ToCurl(req)
 	resp, err := t.T.RoundTrip(req)
 	if err != nil {
-		t.T.Context.Warningf("Error doing roundtrip for %+v: %v\n%v\nCURL to replicate:\n%v", req, resp, err, curly)
+		log.Warningf(t.T.Context, "Error doing roundtrip for %+v: %v\n%v\nCURL to replicate:\n%v", req, resp, err, curly)
 		return nil, err
 	}
 	if resp.StatusCode >= 500 {
-		t.T.Context.Warningf("5xx doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
+		log.Warningf(t.T.Context, "5xx doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	} else if time.Since(start) > (time.Second * 2) {
-		t.T.Context.Warningf("Slow response doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
+		log.Warningf(t.T.Context, "Slow response doing roundtrip for %+v: %v\nCURL to replicate:\n%v", req, resp, curly)
 	}
 	return resp, err
 }
@@ -378,7 +380,28 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 
 type DefaultHTTPContext struct {
 	GAEContext
+	LoggingContext
 	httpcontext.HTTPContext
+}
+
+type LoggingContext struct {
+	context.Context
+}
+
+func (c LoggingContext) Debugf(format string, args ...interface{}) {
+	log.Debugf(c, format, args)
+}
+func (c LoggingContext) Infof(format string, args ...interface{}) {
+	log.Infof(c, format, args)
+}
+func (c LoggingContext) Warningf(format string, args ...interface{}) {
+	log.Warningf(c, format, args)
+}
+func (c LoggingContext) Errorf(format string, args ...interface{}) {
+	log.Errorf(c, format, args)
+}
+func (c LoggingContext) Criticalf(format string, args ...interface{}) {
+	log.Criticalf(c, format, args)
 }
 
 func (self *DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) error {
@@ -391,6 +414,7 @@ func (self *DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) erro
 
 type DefaultJSONContext struct {
 	GAEContext
+	LoggingContext
 	jsoncontext.JSONContext
 }
 
@@ -413,7 +437,7 @@ func NewHTTPContext(gaeCont context.Context, httpCont httpcontext.HTTPContextLog
 		GAEContext:  NewContext(gaeCont),
 		HTTPContext: httpCont,
 	}
-	result.SetLogger(gaeCont)
+	result.SetLogger(LoggingContext{gaeCont})
 	return
 }
 
@@ -422,7 +446,7 @@ func NewJSONContext(gaeCont context.Context, jsonCont jsoncontext.JSONContextLog
 		GAEContext:  NewContext(gaeCont),
 		JSONContext: jsonCont,
 	}
-	result.SetLogger(gaeCont)
+	result.SetLogger(LoggingContext{gaeCont})
 	return
 }
 
@@ -434,8 +458,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your basic HTTP needs.
 */
 func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
-		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewHTTPContext(appengine.NewContext(r), httpcontext.NewHTTPContext(w, r))
 		httpcontext.Handle(c, func() error {
 			return f(c)
 		}, scopes...)
@@ -450,8 +474,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your JSON API needs.
 */
 func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion, maxAPIVersion int, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
-		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewJSONContext(appengine.NewContext(r), jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (jsoncontext.Resp, error) {
 			return f(c)
 		}, minAPIVersion, maxAPIVersion, scopes...)
@@ -466,8 +490,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your tabular data generation needs.
 */
 func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
-		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewHTTPContext(appengine.NewContext(r), httpcontext.NewHTTPContext(w, r))
 		httpcontext.DataHandle(c, func() (*httpcontext.DataResp, error) {
 			return f(c)
 		}, scopes...)
@@ -475,15 +499,15 @@ func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err erro
 }
 
 /*
-DocHandle registeres a path/method/api version route in the provided router, handled by the provided f, wrapping it in appstats.NewHandler,
+DocHandle registeres a path/method/api version route in the provided router, handled by the provided f, wrapping it in http.HandlerFunc,
 registering the f-function and its route with jsoncontext.Document and then using jsoncontext.Handle to do something that acts like
 JSONHandlerFunc.
 */
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
-	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont context.Context, w http.ResponseWriter, r *http.Request) {
-		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
+	router.Path(path).Methods(method).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := NewJSONContext(appengine.NewContext(r), jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (resp jsoncontext.Resp, err error) {
 			return fu(c)
 		}, minAPIVersion, maxAPIVersion, scopes...)
