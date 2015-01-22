@@ -212,25 +212,25 @@ func (self *DefaultContext) split(format string, i ...interface{}) (result []str
 
 func (self *DefaultContext) Infof(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		log.Infof(self.Context, "%v", m)
+		log.Infof(self, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Warningf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		log.Warningf(self.Context, "%v", m)
+		log.Warningf(self, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Errorf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		log.Errorf(self.Context, "%v", m)
+		log.Errorf(self, "%v", m)
 	}
 }
 
 func (self *DefaultContext) Criticalf(format string, i ...interface{}) {
 	for _, m := range self.split(format, i...) {
-		log.Criticalf(self.Context, "%v", m)
+		log.Criticalf(self, "%v", m)
 	}
 }
 
@@ -380,28 +380,44 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 
 type DefaultHTTPContext struct {
 	GAEContext
-	LoggingContext
 	httpcontext.HTTPContext
 }
 
-type LoggingContext struct {
-	context.Context
+type DefaultJSONContext struct {
+	GAEContext
+	jsoncontext.JSONContext
 }
 
-func (c LoggingContext) Debugf(format string, args ...interface{}) {
-	log.Debugf(c, format, args)
+func (c DefaultHTTPContext) Debugf(format string, args ...interface{}) {
+	log.Debugf(c, format, args...)
 }
-func (c LoggingContext) Infof(format string, args ...interface{}) {
-	log.Infof(c, format, args)
+func (c DefaultHTTPContext) Infof(format string, args ...interface{}) {
+	log.Infof(c, format, args...)
 }
-func (c LoggingContext) Warningf(format string, args ...interface{}) {
-	log.Warningf(c, format, args)
+func (c DefaultHTTPContext) Warningf(format string, args ...interface{}) {
+	log.Warningf(c, format, args...)
 }
-func (c LoggingContext) Errorf(format string, args ...interface{}) {
-	log.Errorf(c, format, args)
+func (c DefaultHTTPContext) Errorf(format string, args ...interface{}) {
+	log.Errorf(c, format, args...)
 }
-func (c LoggingContext) Criticalf(format string, args ...interface{}) {
-	log.Criticalf(c, format, args)
+func (c DefaultHTTPContext) Criticalf(format string, args ...interface{}) {
+	log.Criticalf(c, format, args...)
+}
+
+func (c DefaultJSONContext) Debugf(format string, args ...interface{}) {
+	log.Debugf(c, format, args...)
+}
+func (c DefaultJSONContext) Infof(format string, args ...interface{}) {
+	log.Infof(c, format, args...)
+}
+func (c DefaultJSONContext) Warningf(format string, args ...interface{}) {
+	log.Warningf(c, format, args...)
+}
+func (c DefaultJSONContext) Errorf(format string, args ...interface{}) {
+	log.Errorf(c, format, args...)
+}
+func (c DefaultJSONContext) Criticalf(format string, args ...interface{}) {
+	log.Criticalf(c, format, args...)
 }
 
 func (self *DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) error {
@@ -410,12 +426,6 @@ func (self *DefaultHTTPContext) Transaction(f interface{}, crossGroup bool) erro
 		newContext.GAEContext = c
 		return CallTransactionFunction(&newContext, f)
 	}, crossGroup)
-}
-
-type DefaultJSONContext struct {
-	GAEContext
-	LoggingContext
-	jsoncontext.JSONContext
 }
 
 func (self *DefaultJSONContext) Transaction(f interface{}, crossGroup bool) error {
@@ -437,7 +447,7 @@ func NewHTTPContext(gaeCont context.Context, httpCont httpcontext.HTTPContextLog
 		GAEContext:  NewContext(gaeCont),
 		HTTPContext: httpCont,
 	}
-	result.SetLogger(LoggingContext{gaeCont})
+
 	return
 }
 
@@ -446,7 +456,7 @@ func NewJSONContext(gaeCont context.Context, jsonCont jsoncontext.JSONContextLog
 		GAEContext:  NewContext(gaeCont),
 		JSONContext: jsonCont,
 	}
-	result.SetLogger(LoggingContext{gaeCont})
+
 	return
 }
 
