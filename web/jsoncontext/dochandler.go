@@ -17,7 +17,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
-	"github.com/zond/docile"
 )
 
 var knownEncodings = map[reflect.Type]string{
@@ -459,9 +458,6 @@ func Document(fIn interface{}, path string, methods string, minAPIVersion, maxAP
 	fName := runtime.FuncForPC(reflect.ValueOf(fIn).Pointer()).Name()
 	if match := fNameReg.FindStringSubmatch(fName); match != nil {
 		docRoute.Comment = fmt.Sprintf("%#v", match)
-		if comment, found := docile.Get(match[1], match[2]); found {
-			docRoute.Comment = comment
-		}
 	}
 	fVal := reflect.ValueOf(fIn)
 	fType := fVal.Type()
