@@ -200,7 +200,7 @@ type RemotePaymentMethod struct {
 	PSP                 string         `json:"psp"`
 	Voucher             string         `json:"voucher"`
 	DenormVoucher       *RemoteVoucher `json:"denorm_voucher,omitempty"`
-	DefaultProductQueue []string       `json:"defualt_product_queue"`
+	DefaultProductQueue []string       `json:"default_product_queue"`
 }
 
 type RemoteBillingGroup struct {
