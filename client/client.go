@@ -194,12 +194,13 @@ type RemoteVoucher struct {
 
 type RemotePaymentMethod struct {
 	DefaultMeta
-	ValidUntil    utils.Time     `json:"iso8601_valid_until"`
-	MaskedCC      string         `json:"masked_cc"`
-	PaymentMethod string         `json:"payment_method"`
-	PSP           string         `json:"psp"`
-	Voucher       string         `json:"voucher"`
-	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
+	ValidUntil          utils.Time     `json:"iso8601_valid_until"`
+	MaskedCC            string         `json:"masked_cc"`
+	PaymentMethod       string         `json:"payment_method"`
+	PSP                 string         `json:"psp"`
+	Voucher             string         `json:"voucher"`
+	DenormVoucher       *RemoteVoucher `json:"denorm_voucher,omitempty"`
+	DefaultProductQueue []string       `json:"defualt_product_queue"`
 }
 
 type RemoteBillingGroup struct {
@@ -891,5 +892,21 @@ func GetDeviceHierarchy(c ServiceConnector, deviceId key.Key, token AccessToken)
 		Account:   &RemoteAccount{},
 	}
 	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
+func GetProductQueue(c ServiceConnector, productQueueId key.Key, token AccessToken) (result *RemoteProductQueue, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("product_queues/%v", productQueueId.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &RemoteProductQueue{}
+	err = json.NewDecoder(response.Body).Decode(result)
+
 	return
 }
