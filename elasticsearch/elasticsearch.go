@@ -41,22 +41,18 @@ func processIndexName(s string) string {
 
 type IndexOption string
 
-func (i IndexOption) String() string {
-	return string(i)
-}
-
 const (
 	AnalyzedIndex    IndexOption = "analyzed"
 	NotAnalyzedIndex IndexOption = "not_analyzed"
-	LowerCaseIndex   IndexOption = "lower_case"
 	NoIndex          IndexOption = "no"
 )
 
 type Properties struct {
-	Type   string                `json:"type"`
-	Index  IndexOption           `json:"index,omitempty"`
-	Store  bool                  `json:"store"`
-	Fields map[string]Properties `json:"fields,omitempty"`
+	Type     string                `json:"type"`
+	Index    IndexOption           `json:"index,omitempty"`
+	Store    bool                  `json:"store"`
+	Fields   map[string]Properties `json:"fields,omitempty"`
+	Analyzer string                `json:"analyzer,omitempty"`
 }
 
 type DynamicTemplate struct {
@@ -71,25 +67,22 @@ type Mapping struct {
 }
 
 type IndexDef struct {
+	Settings Settings           `json:"settings,omitempty"`
 	Mappings map[string]Mapping `json:"mappings,omitempty"`
 	Template string             `json:"template,omitempty"`
 }
 
-type AnalyzerDef struct {
-	Settings AnalyzerSettings `json:"settings"`
+type Settings struct {
+	Analysis Analyzers `json:"analysis,omitempty"`
 }
 
-type AnalyzerSettings struct {
-	Analysis AnalyzerAnalysis `json:"analysis"`
+type Analyzers struct {
+	Analyzers map[string]Analyzer `json:"analyzer,omitempty"`
 }
 
-type AnalyzerAnalysis struct {
-	Analyzer map[string]AnalyzerAnalyzer `json:"analyzer"`
-}
-
-type AnalyzerAnalyzer struct {
+type Analyzer struct {
 	Tokenizer string   `json:"tokenizer"`
-	Filter    []string `json:"filter`
+	Filter    []string `json:"filter"`
 }
 
 func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
@@ -115,17 +108,13 @@ func createIndexDef(c ElasticConnector, path string, def interface{}) (err error
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v", url, response.Status)
+		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v, body: %v", url, response.Status, string(b))
 		return
 	}
 	return
 }
 
 func CreateIndexTemplate(c ElasticConnector, name string, def IndexDef) (err error) {
-	return createIndexDef(c, "/_template/"+name, def)
-}
-
-func UpdateIndexAnalyzers(c ElasticConnector, name string, def AnalyzerDef) (err error) {
 	return createIndexDef(c, "/_template/"+name, def)
 }
 
@@ -176,6 +165,18 @@ and once non-analyzed under [name].na
 func CreateDynamicMapping(c ElasticConnector) (err error) {
 	indexDef := IndexDef{
 		Template: "*",
+
+		Settings: Settings{
+			Analysis: Analyzers{
+				Analyzers: map[string]Analyzer{
+					"lower_case": Analyzer{
+						Tokenizer: "keyword",
+						Filter:    []string{"lowercase"},
+					},
+				},
+			},
+		},
+
 		Mappings: map[string]Mapping{
 			"_default_": Mapping{
 				DynamicTemplates: []map[string]DynamicTemplate{
@@ -197,9 +198,10 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 										Store: false,
 									},
 									"{name}.lower_case": Properties{
-										Index: LowerCaseIndex,
-										Type:  "string",
-										Store: false,
+										Index:    AnalyzedIndex,
+										Type:     "string",
+										Store:    false,
+										Analyzer: "lower_case",
 									},
 								},
 							},
@@ -212,31 +214,6 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 	if err = CreateIndexTemplate(c, "default", indexDef); err != nil {
 		return
 	}
-	return
-}
-
-/*
-CreateAnalyzers will create a default analyzer for the "na" field that lowercases
-a non-modified version of the input string, used for sorting.
-*/
-func CreateDefaultAnalyzers(c ElasticConnector) (err error) {
-	analyzerDef := AnalyzerDef{
-		Settings: AnalyzerSettings{
-			Analysis: AnalyzerAnalysis{
-				map[string]AnalyzerAnalyzer{
-					LowerCaseIndex.String(): AnalyzerAnalyzer{
-						Tokenizer: "keyword",
-						Filter:    []string{"icu_normalizer"},
-					},
-				},
-			},
-		},
-	}
-
-	if err = UpdateIndexAnalyzers(c, "default", analyzerDef); err != nil {
-		return
-	}
-
 	return
 }
 
