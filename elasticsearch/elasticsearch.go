@@ -41,9 +41,14 @@ func processIndexName(s string) string {
 
 type IndexOption string
 
+func (i IndexOption) String() string {
+	return string(i)
+}
+
 const (
 	AnalyzedIndex    IndexOption = "analyzed"
 	NotAnalyzedIndex IndexOption = "not_analyzed"
+	LowerCaseIndex   IndexOption = "lower_case"
 	NoIndex          IndexOption = "no"
 )
 
@@ -70,11 +75,28 @@ type IndexDef struct {
 	Template string             `json:"template,omitempty"`
 }
 
+type AnalyzerDef struct {
+	Settings AnalyzerSettings `json:"settings"`
+}
+
+type AnalyzerSettings struct {
+	Analysis AnalyzerAnalysis `json:"analysis"`
+}
+
+type AnalyzerAnalysis struct {
+	Analyzer map[string]AnalyzerAnalyzer `json:"analyzer"`
+}
+
+type AnalyzerAnalyzer struct {
+	Tokenizer string   `json:"tokenizer"`
+	Filter    []string `json:"filter`
+}
+
 func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
 	return createIndexDef(c, "/"+processIndexName(name), def)
 }
 
-func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
+func createIndexDef(c ElasticConnector, path string, def interface{}) (err error) {
 	url := c.GetElasticService() + path
 	b, err := json.Marshal(def)
 	if err != nil {
@@ -100,6 +122,10 @@ func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
 }
 
 func CreateIndexTemplate(c ElasticConnector, name string, def IndexDef) (err error) {
+	return createIndexDef(c, "/_template/"+name, def)
+}
+
+func UpdateIndexAnalyzers(c ElasticConnector, name string, def AnalyzerDef) (err error) {
 	return createIndexDef(c, "/_template/"+name, def)
 }
 
@@ -170,6 +196,11 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 										Type:  "string",
 										Store: false,
 									},
+									"{name}.lower_case": Properties{
+										Index: LowerCaseIndex,
+										Type:  "string",
+										Store: false,
+									},
 								},
 							},
 						},
@@ -181,6 +212,31 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 	if err = CreateIndexTemplate(c, "default", indexDef); err != nil {
 		return
 	}
+	return
+}
+
+/*
+CreateAnalyzers will create a default analyzer for the "na" field that lowercases
+a non-modified version of the input string, used for sorting.
+*/
+func CreateDefaultAnalyzers(c ElasticConnector) (err error) {
+	analyzerDef := AnalyzerDef{
+		Settings: AnalyzerSettings{
+			Analysis: AnalyzerAnalysis{
+				map[string]AnalyzerAnalyzer{
+					LowerCaseIndex.String(): AnalyzerAnalyzer{
+						Tokenizer: "keyword",
+						Filter:    []string{"icu_normalizer"},
+					},
+				},
+			},
+		},
+	}
+
+	if err = UpdateIndexAnalyzers(c, "default", analyzerDef); err != nil {
+		return
+	}
+
 	return
 }
 
