@@ -48,10 +48,11 @@ const (
 )
 
 type Properties struct {
-	Type   string                `json:"type"`
-	Index  IndexOption           `json:"index,omitempty"`
-	Store  bool                  `json:"store"`
-	Fields map[string]Properties `json:"fields,omitempty"`
+	Type     string                `json:"type"`
+	Index    IndexOption           `json:"index,omitempty"`
+	Store    bool                  `json:"store"`
+	Fields   map[string]Properties `json:"fields,omitempty"`
+	Analyzer string                `json:"analyzer,omitempty"`
 }
 
 type DynamicTemplate struct {
@@ -66,15 +67,29 @@ type Mapping struct {
 }
 
 type IndexDef struct {
+	Settings Settings           `json:"settings,omitempty"`
 	Mappings map[string]Mapping `json:"mappings,omitempty"`
 	Template string             `json:"template,omitempty"`
+}
+
+type Settings struct {
+	Analysis Analyzers `json:"analysis,omitempty"`
+}
+
+type Analyzers struct {
+	Analyzers map[string]Analyzer `json:"analyzer,omitempty"`
+}
+
+type Analyzer struct {
+	Tokenizer string   `json:"tokenizer"`
+	Filter    []string `json:"filter"`
 }
 
 func CreateIndex(c ElasticConnector, name string, def IndexDef) (err error) {
 	return createIndexDef(c, "/"+processIndexName(name), def)
 }
 
-func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
+func createIndexDef(c ElasticConnector, path string, def interface{}) (err error) {
 	url := c.GetElasticService() + path
 	b, err := json.Marshal(def)
 	if err != nil {
@@ -93,7 +108,7 @@ func createIndexDef(c ElasticConnector, path string, def IndexDef) (err error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v", url, response.Status)
+		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v, body: %v", url, response.Status, string(b))
 		return
 	}
 	return
@@ -150,6 +165,18 @@ and once non-analyzed under [name].na
 func CreateDynamicMapping(c ElasticConnector) (err error) {
 	indexDef := IndexDef{
 		Template: "*",
+
+		Settings: Settings{
+			Analysis: Analyzers{
+				Analyzers: map[string]Analyzer{
+					"lower_case": Analyzer{
+						Tokenizer: "keyword",
+						Filter:    []string{"lowercase"},
+					},
+				},
+			},
+		},
+
 		Mappings: map[string]Mapping{
 			"_default_": Mapping{
 				DynamicTemplates: []map[string]DynamicTemplate{
@@ -169,6 +196,12 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 										Index: NotAnalyzedIndex,
 										Type:  "string",
 										Store: false,
+									},
+									"{name}.lower_case": Properties{
+										Index:    AnalyzedIndex,
+										Type:     "string",
+										Store:    false,
+										Analyzer: "lower_case",
 									},
 								},
 							},
