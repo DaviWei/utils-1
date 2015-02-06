@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/mjibson/appstats"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae"
 	"github.com/soundtrackyourbrand/utils/key"
@@ -433,7 +432,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your basic HTTP needs.
 */
 func HTTPHandlerFunc(f func(c HTTPContext) error, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gaeCont := appengine.NewContext(r)
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
 		httpcontext.Handle(c, func() error {
 			return f(c)
@@ -449,7 +449,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your JSON API needs.
 */
 func JSONHandlerFunc(f func(c JSONContext) (resp jsoncontext.Resp, err error), minAPIVersion, maxAPIVersion int, scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gaeCont := appengine.NewContext(r)
 		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (jsoncontext.Resp, error) {
 			return f(c)
@@ -465,7 +466,8 @@ Requests without tokens, or with tokens without one of the provided scopes, will
 For all your tabular data generation needs.
 */
 func DataHandlerFunc(f func(c HTTPContext) (resp *httpcontext.DataResp, err error), scopes ...string) http.Handler {
-	return appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gaeCont := appengine.NewContext(r)
 		c := NewHTTPContext(gaeCont, httpcontext.NewHTTPContext(w, r))
 		httpcontext.DataHandle(c, func() (*httpcontext.DataResp, error) {
 			return f(c)
@@ -481,7 +483,8 @@ JSONHandlerFunc.
 func DocHandle(router *mux.Router, f interface{}, path string, method string, minAPIVersion, maxAPIVersion int, scopes ...string) {
 	doc, fu := jsoncontext.Document(f, path, method, minAPIVersion, maxAPIVersion, scopes...)
 	jsoncontext.Remember(doc)
-	router.Path(path).Methods(method).Handler(appstats.NewHandler(func(gaeCont appengine.Context, w http.ResponseWriter, r *http.Request) {
+	router.Path(path).Methods(method).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gaeCont := appengine.NewContext(r)
 		c := NewJSONContext(gaeCont, jsoncontext.NewJSONContext(httpcontext.NewHTTPContext(w, r)))
 		jsoncontext.Handle(c, func() (resp jsoncontext.Resp, err error) {
 			return fu(c)
