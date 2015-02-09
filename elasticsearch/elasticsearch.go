@@ -386,7 +386,7 @@ type Query struct {
 	Bool         *BoolQuery             `json:"bool,omitempty"`
 	Filtered     *FilteredQuery         `json:"filtered,omitempty"`
 	MatchAll     *MatchAllQuery         `json:"match_all,omitempty"`
-	Ids          map[string]interface{} `json:"ids",omitempty`
+	Ids          map[string]interface{} `json:"ids,omitempty"`
 }
 
 type MatchAllQuery struct {
