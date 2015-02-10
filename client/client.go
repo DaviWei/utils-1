@@ -241,7 +241,7 @@ type RemoteAccount struct {
 	ArtistSeparation      int              `json:"artist_separation,omitempty"`
 	AlbumSeparation       int              `json:"album_separation,omitempty"`
 	ExternalId            string           `json:"external_id,omitempty"`
-	Demo                  string           `json:"demo,omitempty"`
+	Demo                  bool             `json:"demo,omitempty"`
 }
 
 type RemoteSoundZone struct {
