@@ -3,17 +3,16 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"strings"
-	"time"
-
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/email"
 	"github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
 )
 
 const (
@@ -242,6 +241,7 @@ type RemoteAccount struct {
 	AlbumSeparation       int              `json:"album_separation,omitempty"`
 	ExternalId            string           `json:"external_id,omitempty"`
 	Demo                  bool             `json:"demo,omitempty"`
+	DefaultCurrency       string           `json:"default_currency,omitempty"`
 }
 
 type RemoteSoundZone struct {
