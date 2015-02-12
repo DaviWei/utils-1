@@ -192,12 +192,12 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 										Type:  "string",
 										Store: false,
 									},
-									"{name}.na": Properties{
+									"na": Properties{
 										Index: NotAnalyzedIndex,
 										Type:  "string",
 										Store: false,
 									},
-									"{name}.lower_case": Properties{
+									"lower_case": Properties{
 										Index:    AnalyzedIndex,
 										Type:     "string",
 										Store:    false,
