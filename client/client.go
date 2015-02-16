@@ -194,13 +194,12 @@ type RemoteVoucher struct {
 
 type RemotePaymentMethod struct {
 	DefaultMeta
-	ValidUntil          utils.Time     `json:"iso8601_valid_until"`
-	MaskedCC            string         `json:"masked_cc"`
-	PaymentMethod       string         `json:"payment_method"`
-	PSP                 string         `json:"psp"`
-	Voucher             string         `json:"voucher"`
-	DenormVoucher       *RemoteVoucher `json:"denorm_voucher,omitempty"`
-	DefaultProductQueue []string       `json:"default_product_queue"`
+	ValidUntil    utils.Time     `json:"iso8601_valid_until"`
+	MaskedCC      string         `json:"masked_cc"`
+	PaymentMethod string         `json:"payment_method"`
+	PSP           string         `json:"psp"`
+	Voucher       string         `json:"voucher"`
+	DenormVoucher *RemoteVoucher `json:"denorm_voucher,omitempty"`
 }
 
 type RemoteBillingGroup struct {
