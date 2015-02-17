@@ -923,7 +923,7 @@ func CreatePriceModel(c ServiceConnector, paymentMethodId key.Key, isoCountry st
 	if err != nil {
 		return
 	}
-	if response.StatusCode != 200 {
+	if response.StatusCode != 201 {
 		err = errorFor(request, response)
 		return
 	}
