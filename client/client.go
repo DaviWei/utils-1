@@ -919,7 +919,7 @@ type RemotePriceModel struct {
 }
 
 func CreatePriceModel(c ServiceConnector, paymentMethodId key.Key, isoCountry string, priceModel *RemotePriceModel, token AccessToken) (result *RemotePriceModel, err error) {
-	request, response, err := DoRequest(c, "POST", c.GetAuthService(), fmt.Sprintf("accounts/%v/payment_method/price_models/%v", paymentMethodId.Encode(), isoCountry), token, priceModel)
+	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method/price_models/%v", paymentMethodId.Encode(), isoCountry), token, priceModel)
 	if err != nil {
 		return
 	}
