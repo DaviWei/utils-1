@@ -915,10 +915,10 @@ func GetProductQueue(c ServiceConnector, productQueueId key.Key, token AccessTok
 
 type RemotePriceModel struct {
 	DefaultMeta
-	ProductQueue []string   `json:"product_queue"`
-	CanExpire    bool       `json:"can_expire"`
-	ExpiryDate   utils.Time `json:"expiry_date"`
-	AccountType  string     `json:"account_type"`
+	ProductCodesQueue []string   `json:"product_codes_queue"`
+	CanExpire         bool       `json:"can_expire"`
+	ExpiryDate        utils.Time `json:"expiry_date"`
+	AccountType       string     `json:"account_type"`
 }
 
 func CreatePriceModel(c ServiceConnector, paymentMethodId key.Key, isoCountry string, priceModel *RemotePriceModel, token AccessToken) (result *RemotePriceModel, err error) {
