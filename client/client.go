@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/soundtrackyourbrand/go-oxr"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/email"
 	"github.com/soundtrackyourbrand/utils/json"
@@ -241,6 +242,8 @@ type RemoteAccount struct {
 	ArtistSeparation      int              `json:"artist_separation,omitempty"`
 	AlbumSeparation       int              `json:"album_separation,omitempty"`
 	ExternalId            string           `json:"external_id,omitempty"`
+	Demo                  bool             `json:"demo,omitempty"`
+	DefaultCurrency       oxr.Currency     `json:"default_currency,omitempty"`
 }
 
 type RemoteSoundZone struct {

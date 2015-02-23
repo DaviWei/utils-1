@@ -228,6 +228,10 @@ func respond(c JSONContextLogger, status int, body interface{}) (err error) {
 	if body != nil {
 		c.Resp().Header().Set("Content-Type", "application/json; charset=UTF-8")
 	}
+	// This timestamp is to be used by Tyson as an authoritative source of time, to compensate for broken
+	// clocks in devices.
+	t := time.Now().UTC()
+	c.Resp().Header().Set("X-UTC-Time", fmt.Sprintf("%d", t.Unix())) // .UnixNano is also available
 	if status != 0 {
 		c.Resp().WriteHeader(status)
 	}

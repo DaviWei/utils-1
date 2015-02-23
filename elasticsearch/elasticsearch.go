@@ -192,12 +192,12 @@ func CreateDynamicMapping(c ElasticConnector) (err error) {
 										Type:  "string",
 										Store: false,
 									},
-									"{name}.na": Properties{
+									"na": Properties{
 										Index: NotAnalyzedIndex,
 										Type:  "string",
 										Store: false,
 									},
-									"{name}.lower_case": Properties{
+									"lower_case": Properties{
 										Index:    AnalyzedIndex,
 										Type:     "string",
 										Store:    false,
@@ -379,13 +379,14 @@ type StringQuery struct {
 }
 
 type Query struct {
-	String       *StringQuery        `json:"query_string,omitempty"`
-	SimpleString *SimpleStringQuery  `json:"simple_query_string,omitempty"`
-	Term         map[string]string   `json:"term,omitempty"`
-	Range        map[string]RangeDef `json:"range,omitempty"`
-	Bool         *BoolQuery          `json:"bool,omitempty"`
-	Filtered     *FilteredQuery      `json:"filtered,omitempty"`
-	MatchAll     *MatchAllQuery      `json:"match_all,omitempty"`
+	String       *StringQuery           `json:"query_string,omitempty"`
+	SimpleString *SimpleStringQuery     `json:"simple_query_string,omitempty"`
+	Term         map[string]string      `json:"term,omitempty"`
+	Range        map[string]RangeDef    `json:"range,omitempty"`
+	Bool         *BoolQuery             `json:"bool,omitempty"`
+	Filtered     *FilteredQuery         `json:"filtered,omitempty"`
+	MatchAll     *MatchAllQuery         `json:"match_all,omitempty"`
+	Ids          map[string]interface{} `json:"ids,omitempty"`
 }
 
 type MatchAllQuery struct {
