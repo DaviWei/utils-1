@@ -39,7 +39,7 @@ func init() {
 
 const (
 	randomChars                    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	NonConfusingCharacters         = "356789ABCDEFGHJLMNOPRSTUVWYZabcdefghijkmnopqrstuvwxyz"
+	NonConfusingCharacters         = "23456789ABCDEFGHJKLMNPRSTUVWXYZ"
 	NonConfusingCharactersSoftPair = "ABCDEFGHJLMNOPRSTUVWYZ"
 )
 
