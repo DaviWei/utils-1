@@ -68,23 +68,6 @@ type DefaultMeta struct {
 	UpdatedBy key.Key    `json:"updated_by,omitempty"`
 }
 
-type ScrobbleRequest struct {
-	Uri          string           `json:"uri"`
-	Artists      []ScrobbleArtist `json:"artists"`
-	PlaylistUri  string           `json:"playlist_uri"`
-	PlaylistName string           `json:"playlist_name"`
-	Skipped      bool             `json:"skipped"`
-	At           utils.Time       `json:"played_at"`
-	SongName     string           `json:"song_name"`
-	WasOffline   bool             `json:"offline"`
-	ChannelName  string           `json:"channel_name"`
-}
-
-type ScrobbleArtist struct {
-	Name string `json:"name"`
-	Uri  string `json:"uri"`
-}
-
 type DeviceHierarchy struct {
 	Device    *RemoteDevice    `json:"device"`
 	SoundZone *RemoteSoundZone `json:"sound_zone"`
