@@ -2,6 +2,7 @@ package httpcontext
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"log/syslog"
@@ -12,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/soundtrackyourbrand/utils"
+	"github.com/soundtrackyourbrand/syb-core/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/syb-core/Godeps/_workspace/src/github.com/soundtrackyourbrand/utils"
 )
 
 const (
@@ -339,11 +340,11 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 		if errResponse, ok := err.(Responder); ok {
 			if err2 := errResponse.Respond(c); err2 != nil {
 				c.Resp().WriteHeader(500)
-				fmt.Fprintf(c.Resp(), "Unable to render the proper error %+v: %v", err, err2)
+				fmt.Fprintf(c.Resp(), html.EscapeString(fmt.Sprintf("Unable to render the proper error %+v: %v", err, err2)))
 			}
 		} else {
 			c.Resp().WriteHeader(500)
-			fmt.Fprintf(c.Resp(), "%v", err)
+			fmt.Fprintf(c.Resp(), html.EscapeString(fmt.Sprintf("%v", err)))
 		}
 		if c.Resp().Status() >= 500 {
 			c.Errorf("%v\n%v\n\n", c.Req().URL, err)
