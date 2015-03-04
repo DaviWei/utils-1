@@ -520,7 +520,8 @@ func memoizeMulti(
 						Object:     obj,
 						Expiration: duration,
 					}); err2 != nil {
-						err = err2
+						// We've successfully fetched the data, we failed storing it in memcache, log it and continue
+						c.Errorf("Failed storing to memcache, %v", err2)
 						return
 					}
 				}
