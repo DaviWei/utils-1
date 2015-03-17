@@ -614,6 +614,19 @@ func UpdatePaymentMethodByAccountId(c ServiceConnector, account key.Key, payment
 	return
 }
 
+func DeactivatePaymentMethod(c ServiceConnector, accountId key.Key, token AccessToken) (err error) {
+	request, response, err := DoRequest(c, "POST", c.GetPaymentService(), fmt.Sprintf("accounts/%v/payment_method/deactivate", accountId.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	return
+}
+
 func GetAccount(c ServiceConnector, account key.Key, token AccessToken) (result *RemoteAccount, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("accounts/%v", account.Encode()), token, nil)
 	if err != nil {
