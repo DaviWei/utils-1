@@ -13,9 +13,10 @@ import (
 	"strconv"
 	"time"
 
+	"code.google.com/p/goprotobuf/proto"
+
 	"appengine"
 	"appengine_internal"
-	"code.google.com/p/goprotobuf/proto"
 
 	pb "appengine_internal/urlfetch"
 

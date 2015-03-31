@@ -1,11 +1,13 @@
 package gaekey
 
 import (
-	"appengine_internal"
-	"github.com/soundtrackyourbrand/utils/key"
 	"math/rand"
 	"reflect"
 	"testing"
+
+	"github.com/soundtrackyourbrand/utils/key"
+
+	"appengine_internal"
 )
 
 func randomString() string {
