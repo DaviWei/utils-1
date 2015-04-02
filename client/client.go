@@ -894,6 +894,26 @@ func GetDeviceHierarchy(c ServiceConnector, deviceId key.Key, token AccessToken)
 	return
 }
 
+func GetDeviceHierarchyByVendor(c ServiceConnector, vendor_id string, mac string, token AccessToken) (result *DeviceHierarchy, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("/device_hierarchy/vendor_id/%v/%v", vendor_id, mac), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &DeviceHierarchy{
+		Device:    &RemoteDevice{},
+		SoundZone: &RemoteSoundZone{},
+		Location:  &RemoteLocation{},
+		Account:   &RemoteAccount{},
+	}
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
 func GetProductQueue(c ServiceConnector, productQueueId key.Key, token AccessToken) (result *RemoteProductQueue, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetPaymentService(), fmt.Sprintf("product_queues/%v", productQueueId.Encode()), token, nil)
 	if err != nil {
