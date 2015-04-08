@@ -145,9 +145,10 @@ func (self *SoundZoneSettings) ValidBitrate() bool {
 }
 
 type SoundZoneSettings struct {
-	Mono    bool   `json:"mono"`
-	Offline bool   `json:"offline"`
-	Bitrate string `json:"bitrate"`
+	Mono          bool   `json:"mono"`
+	Offline       bool   `json:"offline"`
+	Bitrate       string `json:"bitrate"`
+	TuneinEnabled bool   `json:"tunein_enabled"`
 }
 
 type ScheduleSettings struct {
@@ -901,6 +902,26 @@ func GetPendingByExternalId(c ServiceConnector, externalId string, token AccessT
 
 func GetDeviceHierarchy(c ServiceConnector, deviceId key.Key, token AccessToken) (result *DeviceHierarchy, err error) {
 	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("/device_hierarchy/device/%v", deviceId.Encode()), token, nil)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = errorFor(request, response)
+		return
+	}
+
+	result = &DeviceHierarchy{
+		Device:    &RemoteDevice{},
+		SoundZone: &RemoteSoundZone{},
+		Location:  &RemoteLocation{},
+		Account:   &RemoteAccount{},
+	}
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return
+}
+
+func GetDeviceHierarchyByVendor(c ServiceConnector, vendor_id string, mac string, token AccessToken) (result *DeviceHierarchy, err error) {
+	request, response, err := DoRequest(c, "GET", c.GetAuthService(), fmt.Sprintf("/device_hierarchy/vendor_id/%v/%v", vendor_id, mac), token, nil)
 	if err != nil {
 		return
 	}
