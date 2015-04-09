@@ -145,10 +145,11 @@ func (self *SoundZoneSettings) ValidBitrate() bool {
 }
 
 type SoundZoneSettings struct {
-	Mono         bool   `json:"mono"`
-	Offline      bool   `json:"offline"`
-	Bitrate      string `json:"bitrate"`
-	Discoverable bool   `json:"discoverable"`
+	Mono          bool   `json:"mono"`
+	Offline       bool   `json:"offline"`
+	Bitrate       string `json:"bitrate"`
+	Discoverable  bool   `json:"discoverable"`
+	TuneinEnabled bool   `json:"tunein_enabled"`
 }
 
 type ScheduleSettings struct {
