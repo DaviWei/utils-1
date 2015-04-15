@@ -11,6 +11,7 @@ const (
 	BeforeUpdateName = "BeforeUpdate"
 	BeforeSaveName   = "BeforeSave"
 	BeforeDeleteName = "BeforeDelete"
+	ValidateName     = "Validate"
 	AfterCreateName  = "AfterCreate"
 	AfterUpdateName  = "AfterUpdate"
 	AfterSaveName    = "AfterSave"
@@ -23,6 +24,7 @@ var processors = []string{
 	BeforeUpdateName,
 	BeforeSaveName,
 	BeforeDeleteName,
+	ValidateName,
 	AfterCreateName,
 	AfterUpdateName,
 	AfterSaveName,

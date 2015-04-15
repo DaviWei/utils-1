@@ -183,6 +183,7 @@ func (self *DefaultContext) AfterUpdate(i interface{}) error  { return nil }
 func (self *DefaultContext) BeforeSave(i interface{}) error   { return nil }
 func (self *DefaultContext) AfterLoad(i interface{}) error    { return nil }
 func (self *DefaultContext) AfterDelete(i interface{}) error  { return nil }
+func (self *DefaultContext) Validate(i interface{}) error     { return nil }
 func (self *DefaultContext) BeforeDelete(i interface{}) error { return nil }
 func (self *DefaultContext) BeforeCreate(i interface{}) error { return nil }
 func (self *DefaultContext) BeforeUpdate(i interface{}) error { return nil }

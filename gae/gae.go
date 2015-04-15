@@ -42,6 +42,7 @@ type PersistenceContext interface {
 	BeforeCreate(interface{}) error
 	BeforeSave(interface{}) error
 	BeforeUpdate(interface{}) error
+	Validate(interface{}) error
 	AfterLoad(interface{}) error
 	AfterDelete(interface{}) error
 	BeforeDelete(interface{}) error
@@ -386,6 +387,9 @@ func PutMulti(c PersistenceContext, src interface{}) (err error) {
 		if err = runProcess(c, srcVal.Index(i).Interface(), BeforeSaveName, oldIfs[i]); err != nil {
 			return
 		}
+		if err = runProcess(c, srcVal.Index(i).Interface(), ValidateName, nil); err != nil {
+			return
+		}
 	}
 	// actually save
 	if gaeKeys, err = datastore.PutMulti(c, gaeKeys, src); err != nil {
@@ -465,6 +469,9 @@ func Put(c PersistenceContext, src interface{}) (err error) {
 		}
 	}
 	if err = runProcess(c, src, BeforeSaveName, oldIf); err != nil {
+		return
+	}
+	if err = runProcess(c, src, ValidateName, nil); err != nil {
 		return
 	}
 	if id, err = gaekey.FromGAErr(datastore.Put(c, gaeKey, src)); err != nil {
