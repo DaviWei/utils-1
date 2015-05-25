@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soundtrackyourbrand/syb-core/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/soundtrackyourbrand/syb-core/Godeps/_workspace/src/github.com/soundtrackyourbrand/utils"
+	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/utils"
 )
 
 const (
