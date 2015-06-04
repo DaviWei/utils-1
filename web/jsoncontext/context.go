@@ -92,10 +92,6 @@ func (self *DefaultJSONContext) DecodedBody() []byte {
 }
 
 func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
-
-	// skip checking errors since i can be an unsupported type
-	_ = trimmer.TrimStrings(i)
-
 	buf := &bytes.Buffer{}
 	bodyReader := io.TeeReader(self.Req().Body, buf)
 	err := json.NewDecoder(bodyReader).Decode(i)
@@ -103,6 +99,10 @@ func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 		return err
 	}
 	self.decodedBody = buf.Bytes()
+
+	// skip checking errors since i can be an unsupported type
+	_ = trimmer.TrimStrings(i)
+
 	return nil
 }
 
