@@ -100,7 +100,7 @@ func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 	}
 	self.decodedBody = buf.Bytes()
 
-	// skip checking errors since i can be an unsupported type
+	// skip checking errors since it can be an unsupported type
 	_ = trimmer.TrimStrings(i)
 
 	return nil
