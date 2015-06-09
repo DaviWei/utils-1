@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/soundtrackyourbrand/trimmer"
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/json"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
@@ -90,12 +91,19 @@ func (self *DefaultJSONContext) DecodedBody() []byte {
 	return self.decodedBody
 }
 
-func (self *DefaultJSONContext) DecodeJSON(i interface{}) (err error) {
+func (self *DefaultJSONContext) DecodeJSON(i interface{}) error {
 	buf := &bytes.Buffer{}
 	bodyReader := io.TeeReader(self.Req().Body, buf)
-	err = json.NewDecoder(bodyReader).Decode(i)
+	err := json.NewDecoder(bodyReader).Decode(i)
+	if err != nil {
+		return err
+	}
 	self.decodedBody = buf.Bytes()
-	return
+
+	// skip checking errors since it can be an unsupported type
+	_ = trimmer.TrimStrings(i)
+
+	return nil
 }
 
 func (self *DefaultJSONContext) LoadJSON(out interface{}) (err error) {
