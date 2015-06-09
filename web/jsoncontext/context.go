@@ -141,7 +141,7 @@ func (self *DefaultJSONContext) MarshalJSON(c interface{}, body interface{}, arg
 
 		// Try run BeforeMarshal
 		fun := val.MethodByName("BeforeMarshal")
-		if fun.IsValid() {
+		if fun.IsValid() && !utils.IsNil(val.Interface()) {
 			// make sure we don't run BeforeMarshal on any other things at the same time, at least in this context.
 			return self.marshalSyncLock.Sync(val.Interface(), func() (err error) {
 				// Validate BeforeMarshal takes something that implements JSONContextLogger
