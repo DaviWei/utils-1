@@ -12,6 +12,7 @@ import (
 
 	gbigquery "code.google.com/p/google-api-go-client/bigquery/v2"
 	"code.google.com/p/google-api-go-client/googleapi"
+	"github.com/go-errors/errors"
 )
 
 var timeType = reflect.TypeOf(time.Now())
@@ -184,7 +185,7 @@ func (self *BigQuery) buildSchemaField(fieldType reflect.Type, name string, seen
 		self.Infof("Ignoring field %v of type map", name)
 		return
 	default:
-		err = utils.Errorf("Unsupported kind for schema field: %v", fieldType)
+		err = errors.Errorf("Unsupported kind for schema field: %v", fieldType)
 		return
 	}
 	return
@@ -290,7 +291,7 @@ func (self *BigQuery) createTable(typ reflect.Type, tablesService *gbigquery.Tab
 			err = nil
 			return
 		}
-		err = utils.Errorf("Unable to create %#v with\n%v\n%v", typ.Name(), utils.Prettify(table), err)
+		err = errors.Errorf("Unable to create %#v with\n%v\n%v", typ.Name(), utils.Prettify(table), err)
 		return
 	}
 	return
@@ -308,7 +309,7 @@ func (self *BigQuery) patchTable(typ reflect.Type, tablesService *gbigquery.Tabl
 
 	unionTable := self.unionTables(table, originalTable)
 	if _, err = tablesService.Patch(self.projectId, self.datasetId, originalTable.TableReference.TableId, unionTable).Do(); err != nil {
-		err = utils.Errorf("Error trying to patch %#v with\n%v\n%v", typ.Name(), utils.Prettify(unionTable), err)
+		err = errors.Errorf("Error trying to patch %#v with\n%v\n%v", typ.Name(), utils.Prettify(unionTable), err)
 		return
 	}
 	return
@@ -471,7 +472,7 @@ func (self *BigQuery) InsertTableData(i interface{}) (err error) {
 			}
 		}
 		errorStrings = append(errorStrings, fmt.Sprintf("BigQuery: Error inserting json %v into table %v:", prettyJ, typ.Name()))
-		err = utils.Errorf(strings.Join(errorStrings, "\n"))
+		err = errors.Errorf(strings.Join(errorStrings, "\n"))
 	}
 
 	return
@@ -501,7 +502,7 @@ func (self *BigQuery) AssertView(viewName string, query string) (err error) {
 					err = nil
 					return
 				} else {
-					err = utils.Errorf("Unable to create %#v with\n%v\n%v", viewName, utils.Prettify(viewTable), err)
+					err = errors.Errorf("Unable to create %#v with\n%v\n%v", viewName, utils.Prettify(viewTable), err)
 					return
 				}
 			}

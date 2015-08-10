@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/soundtrackyourbrand/utils"
+	"github.com/go-errors/errors"
 )
 
 const (
@@ -351,9 +352,8 @@ func Handle(c HTTPContextLogger, f func() error, scopes ...string) {
 		} else {
 			c.Warningf("%v\n%v\n\n", c.Req().URL, err)
 		}
-		if stacker, ok := err.(utils.StackError); ok {
-			c.Infof("%s", string(stacker.GetStack()))
-		}
+		stackErr := errors.Wrap(err, 1)
+		c.Infof("%s", stackErr.ErrorStack())
 	}
 }
 

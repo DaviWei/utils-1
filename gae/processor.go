@@ -1,9 +1,9 @@
 package gae
 
 import (
-	"fmt"
 	"reflect"
 	"time"
+	"github.com/go-errors/errors"
 )
 
 const (
@@ -84,33 +84,33 @@ func getProcess(model interface{}, name string, arg interface{}) (process reflec
 		// if it has two in parameters, check that they are something that implements PersistenceContext, and something that arg is assignable to
 		if processType.NumIn() == 2 {
 			if !processType.In(0).Implements(reflect.TypeOf((*PersistenceContext)(nil)).Elem()) {
-				err = fmt.Errorf("%+v#%v takes a %v, not a PersistenceContext as first argument", model, name, processType.In(0))
+				err = errors.Errorf("%+v#%v takes a %v, not a PersistenceContext as first argument", model, name, processType.In(0))
 				return
 			}
 			if arg != nil {
 				if !reflect.TypeOf(arg).AssignableTo(processType.In(1)) {
-					err = fmt.Errorf("%+v#%v takes a %v, not a %v as second argument", model, name, processType.In(0), reflect.TypeOf(arg))
+					err = errors.Errorf("%+v#%v takes a %v, not a %v as second argument", model, name, processType.In(0), reflect.TypeOf(arg))
 					return
 				}
 			}
 		} else if processType.NumIn() == 1 {
 			// if only one parameter, check that it implements PersistenceContext
 			if !processType.In(0).Implements(reflect.TypeOf((*PersistenceContext)(nil)).Elem()) {
-				err = fmt.Errorf("%+v#%v takes a %v, not a gae.PersistenceContext as argument", model, name, processType.In(0))
+				err = errors.Errorf("%+v#%v takes a %v, not a gae.PersistenceContext as argument", model, name, processType.In(0))
 				return
 			}
 		} else {
-			err = fmt.Errorf("%+v#%v doesn't take exactly one or two arguments", model, name)
+			err = errors.Errorf("%+v#%v doesn't take exactly one or two arguments", model, name)
 			return
 		}
 		// check that the function returns exactly one value
 		if processType.NumOut() != 1 {
-			err = fmt.Errorf("%+v#%v doesn't produce exactly one return value", model, name)
+			err = errors.Errorf("%+v#%v doesn't produce exactly one return value", model, name)
 			return
 		}
 		// that is assignable to error
 		if !processType.Out(0).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
-			err = fmt.Errorf("%+v#%v doesn't return an error", model, name)
+			err = errors.Errorf("%+v#%v doesn't return an error", model, name)
 			return
 		}
 		found = true

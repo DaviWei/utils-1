@@ -31,6 +31,7 @@ import (
 	"net/http"
 
 	"github.com/soundtrackyourbrand/utils/run"
+	"github.com/go-errors/errors"
 )
 
 func init() {
@@ -72,7 +73,7 @@ func CamelToSnake(s string) (string, error) {
 	for len(s) > 0 {
 		i++
 		if i > 50 {
-			return s, Errorf("%#v doesn't seem possible to convert to snake case?", s)
+			return s, errors.Errorf("%#v doesn't seem possible to convert to snake case?", s)
 		}
 		if match := camelRegUUx.FindStringSubmatch(s); match != nil {
 			resultSlice = append(resultSlice, strings.ToLower(match[1]))
@@ -114,10 +115,10 @@ func Prettify(obj interface{}) string {
 func InSlice(slice interface{}, needle interface{}) (result bool, err error) {
 	sliceValue := reflect.ValueOf(slice)
 	if sliceValue.Kind() != reflect.Slice {
-		err = Errorf("%#v is not a slice", slice)
+		err = errors.Errorf("%#v is not a slice", slice)
 	}
 	if sliceValue.Type().Elem() != reflect.TypeOf(needle) {
-		err = Errorf("%#v is a slice of %#v", slice, needle)
+		err = errors.Errorf("%#v is a slice of %#v", slice, needle)
 	}
 	for i := 0; i < sliceValue.Len(); i++ {
 		if reflect.DeepEqual(sliceValue.Index(i).Interface(), needle) {
@@ -155,7 +156,7 @@ func ParseAccessTokens(s []byte, token AccessToken) {
 	secret = s
 	accessTokenType = reflect.TypeOf(token)
 	if accessTokenType.Kind() != reflect.Ptr || accessTokenType.Elem().Kind() != reflect.Struct {
-		panic(Errorf("%v is not a pointer to a struct", token))
+		panic(fmt.Sprintf("%v is not a pointer to a struct", token))
 	}
 	gob.Register(token)
 }
@@ -210,11 +211,11 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 	envelope := &tokenEnvelope{}
 	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(strings.Replace(d, ".", "=", -1))))
 	if err = dec.Decode(&envelope); err != nil {
-		err = Errorf("Invalid AccessToken: %v, %v", d, err)
+		err = errors.Errorf("Invalid AccessToken: %v, %v", d, err)
 		return
 	}
 	if envelope.ExpiresAt.Before(time.Now()) {
-		err = Errorf("Expired AccessToken: %v", envelope)
+		err = errors.Errorf("Expired AccessToken: %v", envelope)
 		return
 	}
 	wantedHash, err := envelope.generateHash()
@@ -222,86 +223,39 @@ func ParseAccessToken(d string, dst AccessToken) (result AccessToken, err error)
 		return
 	}
 	if len(wantedHash) != len(envelope.Hash) || subtle.ConstantTimeCompare(envelope.Hash, wantedHash) != 1 {
-		err = Errorf("Invalid AccessToken: hash of %+v should be %v but was %v", envelope.Token, hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
+		err = errors.Errorf("Invalid AccessToken: hash of %+v should be %v but was %v", envelope.Token, hex.EncodeToString(envelope.Hash), hex.EncodeToString(wantedHash))
 		return
 	}
 	dstVal := reflect.ValueOf(dst)
 	tokenVal := reflect.ValueOf(envelope.Token)
 	if dstVal.Kind() != reflect.Ptr {
-		err = Errorf("%#v is not a pointer", dst)
+		err = errors.Errorf("%#v is not a pointer", dst)
 		return
 	}
 	if tokenVal.Kind() != reflect.Ptr {
-		err = Errorf("%#v is not a pointer", tokenVal.Interface())
+		err = errors.Errorf("%#v is not a pointer", tokenVal.Interface())
 		return
 	}
 	if dstVal.Type() != tokenVal.Type() {
-		err = Errorf("Can't load a %v into a %v", tokenVal.Type(), dstVal.Type())
+		err = errors.Errorf("Can't load a %v into a %v", tokenVal.Type(), dstVal.Type())
 		return
 	}
 	dstVal.Elem().Set(tokenVal.Elem())
 	return
 }
 
-type StackError interface {
-	GetStack() string
-	Error() string
-}
-
-func StripStack(err error) (result error) {
-	if err == nil {
-		return
-	}
-	if deferr, ok := err.(DefaultStackError); ok {
-		err = deferr.Source
-	} else {
-		result = err
-	}
-	return
-}
-
-type DefaultStackError struct {
-	Source error
-	Stack  string
-}
-
-func (self DefaultStackError) Error() string {
-	return self.Source.Error() + "\n" + self.Stack
-}
-
-func (self DefaultStackError) GetStack() string {
-	return self.Stack
-}
-
-func NewError(source error) StackError {
-	if stackError, ok := source.(StackError); ok {
-		return stackError
-	}
-	return DefaultStackError{
-		Source: source,
-		Stack:  Stack(),
-	}
-}
-
-func Errorf(f string, args ...interface{}) StackError {
-	return DefaultStackError{
-		Source: fmt.Errorf(f, args...),
-		Stack:  Stack(),
-	}
-}
-
 func ValidateFuncOutput(f interface{}, out []reflect.Type) error {
 	fVal := reflect.ValueOf(f)
 	if fVal.Kind() != reflect.Func {
-		return Errorf("%v is not a func", f)
+		return errors.Errorf("%v is not a func", f)
 	}
 	fType := fVal.Type()
 	if fType.NumOut() != len(out) {
-		return Errorf("%v should take %v arguments", f, len(out))
+		return errors.Errorf("%v should take %v arguments", f, len(out))
 	}
 	for index, outType := range out {
 		if !fType.Out(index).AssignableTo(outType) {
-			return Errorf("Return value %v for %v (%v) should be assignable to %v", index, f, fType.Out(index), outType)
+			return errors.Errorf("Return value %v for %v (%v) should be assignable to %v", index, f, fType.Out(index), outType)
 		}
 	}
 	return nil
@@ -319,15 +273,15 @@ func ValidateFuncOutputs(f interface{}, outs ...[]reflect.Type) (errs []error) {
 func ValidateFuncInput(f interface{}, in []reflect.Type) error {
 	fVal := reflect.ValueOf(f)
 	if fVal.Kind() != reflect.Func {
-		return Errorf("%v is not a func", f)
+		return errors.Errorf("%v is not a func", f)
 	}
 	fType := fVal.Type()
 	if fType.NumIn() != len(in) {
-		return Errorf("%v should take %v arguments", f, len(in))
+		return errors.Errorf("%v should take %v arguments", f, len(in))
 	}
 	for index, inType := range in {
 		if !fType.In(index).AssignableTo(inType) {
-			return Errorf("Argument %v for %v (%v) should be assignable to %v", index, f, fType.In(index), inType)
+			return errors.Errorf("Argument %v for %v (%v) should be assignable to %v", index, f, fType.In(index), inType)
 		}
 	}
 	return nil
@@ -630,7 +584,7 @@ func GenerateFlags(i interface{}) (result []string, err error) {
 	t := v.Type()
 
 	if t.Kind() != reflect.Ptr {
-		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		err = errors.Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
 		return
 	}
 
@@ -638,7 +592,7 @@ func GenerateFlags(i interface{}) (result []string, err error) {
 	v = v.Elem()
 
 	if t.Kind() != reflect.Struct {
-		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		err = errors.Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
 		return
 	}
 
@@ -666,7 +620,7 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 	t := v.Type()
 
 	if t.Kind() != reflect.Ptr {
-		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		err = errors.Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
 		return
 	}
 
@@ -674,7 +628,7 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 	v = v.Elem()
 
 	if t.Kind() != reflect.Struct {
-		err = Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
+		err = errors.Errorf("Unable to ParseFlags into %v, it is not a pointer to a struct", v)
 		return
 	}
 
@@ -720,7 +674,7 @@ func ParseFlags(i interface{}, defaultMap map[string]string) (err error) {
 			}
 			flag.BoolVar(v.Field(i).Addr().Interface().(*bool), flagName, flagDefault, flagDesc)
 		default:
-			err = Errorf("Unrecognized flag type for field %v of %v", f, v)
+			err = errors.Errorf("Unrecognized flag type for field %v of %v", f, v)
 			return
 		}
 	}

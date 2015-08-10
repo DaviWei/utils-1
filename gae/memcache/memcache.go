@@ -16,6 +16,7 @@ import (
 	"appengine/delay"
 	"appengine/memcache"
 	"appengine/taskqueue"
+	"github.com/go-errors/errors"
 )
 
 var MemcacheEnabled = true
@@ -53,7 +54,7 @@ func Keyify(k string) (result string, err error) {
 	if err != nil {
 		return
 	} else if wrote != len(sum) {
-		err = utils.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote)
+		err = errors.Errorf("Tried to write %v bytes but wrote %v bytes", len(sum), wrote)
 		return
 	}
 	if err = enc.Close(); err != nil {
@@ -69,7 +70,7 @@ func Incr(c TransactionContext, key string, delta int64, initial uint64) (newVal
 		return
 	}
 	if newValue, err = memcache.Increment(c, k, delta, initial); err != nil {
-		err = utils.Errorf("Error doing Increment %#v: %v", k, err)
+		err = errors.Errorf("Error doing Increment %#v: %v", k, err)
 		return
 	}
 	return
@@ -81,7 +82,7 @@ func IncrExisting(c TransactionContext, key string, delta int64) (newValue uint6
 		return
 	}
 	if newValue, err = memcache.IncrementExisting(c, k, delta); err != nil {
-		err = utils.Errorf("Error doing IncrementExisting %#v: %v", k, err)
+		err = errors.Errorf("Error doing IncrementExisting %#v: %v", k, err)
 		return
 	}
 	return
@@ -146,16 +147,16 @@ func del(c appengine.Context, keys ...string) (err error) {
 	}
 	if err = memcache.DeleteMulti(c, keys); err != nil {
 		if merr, ok := err.(appengine.MultiError); ok {
-			errors := make(appengine.MultiError, len(merr))
+			allErrors := make(appengine.MultiError, len(merr))
 			actualErrors := 0
 			for index, serr := range merr {
 				if serr != memcache.ErrCacheMiss {
-					errors[index] = utils.Errorf("Error doing DeleteMulti: %v", serr)
+					allErrors[index] = errors.Errorf("Error doing DeleteMulti: %v", serr)
 					actualErrors++
 				}
 			}
 			if actualErrors > 0 {
-				err = errors
+				err = allErrors
 				return
 			} else {
 				err = nil
@@ -164,7 +165,7 @@ func del(c appengine.Context, keys ...string) (err error) {
 			if err == ErrCacheMiss {
 				err = nil
 			} else {
-				err = utils.Errorf("Error doing DeleteMulti: %v", err)
+				err = errors.Errorf("Error doing DeleteMulti: %v", err)
 				return
 			}
 		}
@@ -214,7 +215,7 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 		if err == memcache.ErrCacheMiss {
 			err = nil
 		} else {
-			err = utils.Errorf("Error doing Get %#v: %v", keyHash, err)
+			err = errors.Errorf("Error doing Get %#v: %v", keyHash, err)
 		}
 		return
 	}
@@ -235,7 +236,7 @@ func CAS(c TransactionContext, key string, expected, replacement interface{}) (s
 			err = nil
 		} else {
 			marshalled, _ := Codec.Marshal(replacement)
-			err = utils.Errorf("Error doing CompareAndSwap %#v to %v bytes: %v", item.Key, len(marshalled), err)
+			err = errors.Errorf("Error doing CompareAndSwap %#v to %v bytes: %v", item.Key, len(marshalled), err)
 		}
 		return
 	}
@@ -274,7 +275,7 @@ func codecSetWithRetry(c TransactionContext, codec memcache.Codec, item *memcach
 	}
 	if err != nil {
 		marshalled, _ := codec.Marshal(item.Object)
-		err = utils.Errorf("Error doing Codec.Set %#v with %v bytes: %v", item.Key, len(marshalled), err)
+		err = errors.Errorf("Error doing Codec.Set %#v with %v bytes: %v", item.Key, len(marshalled), err)
 	}
 	return
 }
@@ -324,7 +325,7 @@ func Memoize2(c TransactionContext, super, key string, destP interface{}, f func
 			Value: []byte(seed),
 		}
 		if err = memcache.Set(c, item); err != nil {
-			err = utils.Errorf("Error doing Set %#v with %v bytes: %v", item.Key, len(item.Value), err)
+			err = errors.Errorf("Error doing Set %#v with %v bytes: %v", item.Key, len(item.Value), err)
 			return
 		}
 	} else {

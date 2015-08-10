@@ -19,6 +19,7 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"appengine/urlfetch"
+	"github.com/go-errors/errors"
 )
 
 func KindsRenderer(c JSONContext) (status int, result []string, err error) {
@@ -100,17 +101,17 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 	if err = utils.ValidateFuncInput(f, []reflect.Type{
 		reflect.TypeOf((*GAEContext)(nil)).Elem(),
 	}); err != nil {
-		err = utils.NewError(err)
+		err = errors.Wrap(err, 1)
 		return
 	}
 	if err = utils.ValidateFuncOutput(f, []reflect.Type{
 		reflect.TypeOf((*error)(nil)).Elem(),
 	}); err != nil {
-		err = utils.NewError(err)
+		err = errors.Wrap(err, 1)
 		return
 	}
 	if errVal := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(c)})[0]; !errVal.IsNil() {
-		err = utils.NewError(errVal.Interface().(error))
+		err = errors.Wrap(errVal.Interface().(error), 1)
 		return
 	}
 	return nil
@@ -154,7 +155,7 @@ func (self *DefaultContext) AfterTransaction(f interface{}) (err error) {
 	}
 	// validate that whatever argument f took, a GAEContext would implement it
 	if !reflect.TypeOf((*GAEContext)(nil)).Elem().AssignableTo(reflect.TypeOf(f).In(0)) {
-		err = fmt.Errorf("%v does not take an argument that is satisfied by %v", f, self)
+		err = errors.Errorf("%v does not take an argument that is satisfied by %v", f, self)
 		return
 	}
 	// create our after func
@@ -315,20 +316,20 @@ func (self *DefaultContext) Transaction(f interface{}, crossGroup bool) (err err
 			break
 		}
 		/* Dont fail on concurrent transaction.. Continue trying... */
-		if dserr, ok := err.(utils.DefaultStackError); ok {
+		if dserr, ok := err.(*errors.Error); ok {
 			// our own stack errors, based on a concurrent transaction error
-			if dserr.Source == datastore.ErrConcurrentTransaction {
+			if dserr.Err == datastore.ErrConcurrentTransaction {
 				hasConcErr = true
 			} else {
 				// if they are based on appengine or utils multierrors, check for concurrency errors inside
-				if merr, ok := dserr.Source.(appengine.MultiError); ok {
+				if merr, ok := dserr.Err.(appengine.MultiError); ok {
 					for _, e := range merr {
 						if e == datastore.ErrConcurrentTransaction {
 							hasConcErr = true
 							break
 						}
 					}
-				} else if merr, ok := dserr.Source.(utils.MultiError); ok {
+				} else if merr, ok := dserr.Err.(utils.MultiError); ok {
 					for _, e := range merr {
 						if e == datastore.ErrConcurrentTransaction {
 							hasConcErr = true
@@ -573,7 +574,7 @@ func (self *KeyLock) Unlock(c GAEContext) (err error) {
 			return
 		}
 		if existingLock.Entity != self.Entity {
-			err = utils.Errorf("%+v doesn't own %v", self, self.Entity)
+			err = errors.Errorf("%+v doesn't own %v", self, self.Entity)
 			return
 		}
 		err = gae.Del(c, existingLock)
@@ -599,7 +600,7 @@ func AcquireSequenceNo(c GAEContext, name string) (result int64, err error) {
 
 func AcquireSequence(c GAEContext, name string, size int) (first int64, err error) {
 	if size <= 0 {
-		err = fmt.Errorf("can't get a sequence of size < 1")
+		err = errors.Errorf("can't get a sequence of size < 1")
 		return
 	}
 	first = 0

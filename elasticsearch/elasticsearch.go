@@ -13,6 +13,7 @@ import (
 
 	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/key"
+	"github.com/go-errors/errors"
 )
 
 type ElasticConnector interface {
@@ -108,7 +109,7 @@ func createIndexDef(c ElasticConnector, path string, def interface{}) (err error
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to create index template in elasticsearch %v: %v, body: %v", url, response.Status, string(b))
+		err = errors.Errorf("Bad status trying to create index template in elasticsearch %v: %v, body: %v", url, response.Status, string(b))
 		return
 	}
 	return
@@ -127,7 +128,7 @@ If toDelete has two elements, that index and doc type will be deleted.
 func Clear(c ElasticConnector, toDelete ...string) (err error) {
 	url := c.GetElasticService()
 	if len(toDelete) > 2 {
-		err = fmt.Errorf("Can only give at most 2 string args to Clear")
+		err = errors.Errorf("Can only give at most 2 string args to Clear")
 		return
 	} else if len(toDelete) == 2 {
 		url += fmt.Sprintf("/%v/%v", processIndexName(toDelete[0]), toDelete[1])
@@ -151,7 +152,7 @@ func Clear(c ElasticConnector, toDelete ...string) (err error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to delete from elasticsearch %v: %v", url, response.Status)
+		err = errors.Errorf("Bad status trying to delete from elasticsearch %v: %v", url, response.Status)
 		return
 	}
 	return
@@ -248,7 +249,7 @@ func RemoveFromIndex(c ElasticConnector, index string, source interface{}) (err 
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status code from elasticsearch %v: %v", url, response.Status)
+		err = errors.Errorf("Bad status code from elasticsearch %v: %v", url, response.Status)
 		return
 	}
 	return
@@ -293,7 +294,7 @@ func UpdateDoc(c ElasticConnector, index string, id key.Key, groovyCode string, 
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(response.Body)
-		err = fmt.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
+		err = errors.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
 		return
 	}
 	return
@@ -306,11 +307,11 @@ Source must have a field `Id *datastore.key`.
 func AddToIndex(c ElasticConnector, index string, source interface{}) (err error) {
 	sourceVal := reflect.ValueOf(source)
 	if sourceVal.Kind() != reflect.Ptr {
-		err = fmt.Errorf("%#v is not a pointer", source)
+		err = errors.Errorf("%#v is not a pointer", source)
 		return
 	}
 	if sourceVal.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("%#v is not a pointer to a struct", source)
+		err = errors.Errorf("%#v is not a pointer to a struct", source)
 		return
 	}
 	index = processIndexName(index)
@@ -358,7 +359,7 @@ func AddToIndex(c ElasticConnector, index string, source interface{}) (err error
 
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK && response.StatusCode != http.StatusConflict {
 		body, _ := ioutil.ReadAll(response.Body)
-		err = fmt.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
+		err = errors.Errorf("Bad status code from elasticsearch %v: %v, %v", url, response.Status, string(body))
 		return
 	}
 	return
@@ -605,7 +606,7 @@ func Search(c ElasticSearchContext, query *SearchRequest, index, typ string) (re
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
+		err = errors.Errorf("Bad status trying to search in elasticsearch %v: %v", url, response.Status)
 		return
 	}
 
@@ -619,7 +620,7 @@ func Search(c ElasticSearchContext, query *SearchRequest, index, typ string) (re
 		if err = json.Unmarshal(bodyBytes, &secondTry); err != nil {
 			return
 		}
-		err = fmt.Errorf("Unable to marshal %v into %#v", utils.Prettify(secondTry), result)
+		err = errors.Errorf("Unable to marshal %v into %#v", utils.Prettify(secondTry), result)
 		return
 	}
 

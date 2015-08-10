@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/gae/memcache"
 	"github.com/soundtrackyourbrand/utils/key"
 	"github.com/soundtrackyourbrand/utils/key/gaekey"
 
 	"appengine"
 	"appengine/datastore"
+	"github.com/go-errors/errors"
 )
 
 // finder encapsulates the knowledge that a model type is findable by a given set of fields.
@@ -163,7 +163,7 @@ type countResult struct {
 // see AncestorFinder
 func (self finder) countWithAncestor(c PersistenceContext, ancestor key.Key, values ...interface{}) (result int, err error) {
 	if len(values) != len(self.fields) {
-		err = fmt.Errorf("%+v does not match %+v", values, self.fields)
+		err = errors.Errorf("%+v does not match %+v", values, self.fields)
 		return
 	}
 	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data
@@ -200,7 +200,7 @@ func (self finder) getWithAncestor(c PersistenceContext, dst interface{}, ancest
 		for _, val := range values {
 			givenTypeNames = append(givenTypeNames, reflect.TypeOf(val).Name())
 		}
-		err = utils.Errorf("Finder wants %+v as arguments, but got %+v", wantedTypeNames, givenTypeNames)
+		err = errors.Errorf("Finder wants %+v as arguments, but got %+v", wantedTypeNames, givenTypeNames)
 		return
 	}
 	// We can't really cache finders that don't use ancestor fields, since they are eventually consistent which might fill the cache with inconsistent data

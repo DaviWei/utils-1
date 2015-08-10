@@ -11,9 +11,9 @@ import (
 
 	"github.com/soundtrackyourbrand/utils/json"
 
-	"github.com/soundtrackyourbrand/utils"
 	"github.com/soundtrackyourbrand/utils/web/httpcontext"
 	"github.com/soundtrackyourbrand/utils/web/jsoncontext"
+	"github.com/go-errors/errors"
 )
 
 type genealogyAssertion struct {
@@ -154,7 +154,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = utils.Errorf("%v doesn't have a valid parent", self)
+				err = errors.Errorf("%v doesn't have a valid parent", self)
 				return
 			}
 		}
@@ -172,7 +172,7 @@ func (self Key) validate() (err error) {
 				}
 			}
 			if !ok {
-				err = utils.Errorf("%v doesn't have a valid StringID", self)
+				err = errors.Errorf("%v doesn't have a valid StringID", self)
 				return
 			}
 		}
