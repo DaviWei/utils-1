@@ -111,8 +111,7 @@ func CallTransactionFunction(c GAEContext, f interface{}) (err error) {
 		return
 	}
 	if errVal := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(c)})[0]; !errVal.IsNil() {
-		err = errors.Wrap(errVal.Interface().(error), 1)
-		return
+		return errVal.Interface().(error)
 	}
 	return nil
 }
